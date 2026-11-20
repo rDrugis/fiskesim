@@ -1,38 +1,26 @@
 // Ekkoloddskjerm i Garmin-stil (Striker/ECHOMAP): rullende ekkogram, dybde, temperatur og fart,
-// forsterkning (gain), rekkevidde, zoom og bunnlås, frekvens, fargepalett, Whiteline og A-scope.
+// forsterkning (gain), automatisk dybdeområde (overflate til bunn), frekvens, fargepalett, Whiteline og A-scope.
 // Utseendet er laget for å ligne – det er ikke Garmins egen programvare.
-import { FREQS } from '../sim/sonar.js';
+import { FREQS, FREQ_ORDER } from '../sim/sonar.js';
 import { SPECIES } from '../sim/fish/species.js';
 import { ChartView } from './chartview.js';
-
-const PALS = {
-  'Blå': ['#06257a', '#2f6fd6', '#33c3e0', '#3fd16a', '#f2e33c', '#f59a23', '#e5301b', '#6e0b0b'],
-  'Hvit': ['#f3f3f1', '#a9c8e6', '#4d8fd6', '#2fbf6f', '#e8d532', '#f08a24', '#c8231c', '#5e0a0a'],
-  'Svart': ['#000000', '#1b3aa8', '#2d8be0', '#34c86e', '#f0e03a', '#f3922a', '#e02c1c', '#7a0a0a'],
-  'Vivid': ['#120625', '#4a1fa6', '#2f7fff', '#1fe0e0', '#7bff3a', '#ffe838', '#ff7a1a', '#ff1f6b'],
-};
-
-function buildLUT(stops) {
-  const lut = new Uint8ClampedArray(256 * 3);
-  const rgb = stops.map((h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]);
-  for (let i = 0; i < 256; i++) {
-    const t = i / 255 * (rgb.length - 1), k = Math.min(rgb.length - 2, Math.floor(t)), f = t - k;
-    for (let c = 0; c < 3; c++) lut[i * 3 + c] = rgb[k][c] + (rgb[k + 1][c] - rgb[k][c]) * f;
-  }
-  return lut;
-}
+import { drawColumn, buildLUT, PALS, AutoRange } from './sonarcol.js';
 
 const fmt1 = (v) => v.toFixed(1).replace('.', ',');
 
 export class SonarView {
   constructor(parent, sonar) {
     this.sonar = sonar;
-    this.s = Object.assign({ pal: 'Blå', gainMode: 'auto', gain: 50, auto: 'middels', range: 'auto', rangeM: 60, zoom: 'av', scroll: 'auto', white: 'middels', fishSym: false, ascope: true, surface: 'vis', noise: 'lav', big: false, view: 'lodd', hidden: false }, JSON.parse(localStorage.getItem('fiskesim.sonar') || '{}'));
+    let saved = {}; try { saved = JSON.parse(localStorage.getItem('fiskesim.sonar') || '{}') || {}; } catch (e) { saved = {}; }
+    delete saved.range; delete saved.rangeM; delete saved.zoom; // rekkevidde og zoom er fjernet: alltid overflate til bunn
+    this.s = Object.assign({ pal: 'Blå', gainMode: 'auto', gain: 50, auto: 'middels', scroll: 'auto', white: 'middels', fishSym: false, ascope: true, surface: 'vis', noise: 'lav', big: false, view: 'lodd', hidden: false }, saved);
+    if (saved.freq && FREQS[saved.freq]) sonar.freq = saved.freq;
+    this.range = new AutoRange();
     this.el = document.createElement('div'); this.el.className = 'sonar';
     this.el.innerHTML = `<div class="sonhead"><div class="seg" role="group" aria-label="Visning"><button data-v="lodd">Ekkolodd</button><button data-v="kart">Kart</button><button data-v="delt">Delt</button></div><button class="hidebtn" data-a="hide" title="Skjul (Shift+O)" aria-label="Skjul ekkoloddet">✕</button></div>
       <div class="screens"><div class="screen mapscreen"><canvas class="mapcv"></canvas><div class="ovl"><div class="dep mdep"></div><div class="aux maux"></div></div><div class="mapzoom"><button data-z="0.6" aria-label="Zoom inn">+</button><button data-z="1.6" aria-label="Zoom ut">−</button></div></div>
       <div class="screen loddscreen"><canvas class="loddcv"></canvas><div class="ovl"><div class="dep"></div><div class="aux"></div><div class="freq"></div><div class="scale"></div></div></div></div>
-      <div class="soft"><button data-a="gain-">Gain −</button><button data-a="gain+">Gain +</button><button data-a="range">Rekkevidde</button><button data-a="zoom">Zoom</button><button data-a="freq">Frekvens</button><button data-a="menu">Meny</button></div>
+      <div class="soft"><button data-a="gain-">Gain −</button><button data-a="gain+">Gain +</button><button data-a="gainauto">Auto-gain</button><button data-a="freq">Frekvens</button><button data-a="menu">Meny</button></div>
       <div class="brandline"><span>EKKOLODD</span><span>GT20 · CHIRP</span></div>`;
     parent.appendChild(this.el);
     this.cv = this.el.querySelector('.loddcv'); this.ctx = this.cv.getContext('2d', { willReadFrequently: true });
@@ -45,7 +33,7 @@ export class SonarView {
     this.hist = []; this.pingAcc = 0; this.sizeIt();
   }
 
-  save() { localStorage.setItem('fiskesim.sonar', JSON.stringify(this.s)); }
+  save() { this.s.freq = this.sonar.freq; try { localStorage.setItem('fiskesim.sonar', JSON.stringify(this.s)); } catch (e) { /* privat modus */ } }
   sizeIt() {
     const W = this.s.big ? 520 : 340, H = this.s.big ? 620 : 430;
     this.W = W; this.H = H; this.cv.width = W; this.cv.height = H; this.cv.style.width = W + 'px'; this.cv.style.height = H + 'px';
@@ -66,9 +54,8 @@ export class SonarView {
   action(a) {
     const s = this.s;
     if (a === 'gain+' || a === 'gain-') { if (s.gainMode === 'auto') { s.gainMode = 'manuell'; } s.gain = Math.max(0, Math.min(100, s.gain + (a === 'gain+' ? 5 : -5))); }
-    else if (a === 'range') { const opts = ['auto', 10, 20, 30, 50, 80, 120, 200, 300]; const i = opts.indexOf(s.range === 'auto' ? 'auto' : s.rangeM); const n = opts[(i + 1) % opts.length]; if (n === 'auto') s.range = 'auto'; else { s.range = 'manuell'; s.rangeM = n; } }
-    else if (a === 'zoom') { const z = ['av', '2x', '4x', 'bunnlås']; s.zoom = z[(z.indexOf(s.zoom) + 1) % z.length]; }
-    else if (a === 'freq') { const f = Object.keys(FREQS); this.sonar.freq = f[(f.indexOf(this.sonar.freq) + 1) % f.length]; }
+    else if (a === 'gainauto') { s.gainMode = 'auto'; }
+    else if (a === 'freq') { const f = FREQ_ORDER; this.sonar.freq = f[(f.indexOf(this.sonar.freq) + 1) % f.length]; this.agc = null; }
     else if (a === 'menu') { this.menu(); return; }
     this.save(); this.redraw();
   }
@@ -84,17 +71,6 @@ export class SonarView {
     this.el.querySelector('.screen').appendChild(m);
   }
 
-  displayRange() {
-    if (this.s.range === 'manuell') return this.s.rangeM;
-    const bot = this.sonar.lastBottom, d = bot || 40;
-    const steps = [5, 10, 15, 20, 30, 40, 50, 60, 80, 100, 120, 150, 200, 250, 300, 400, 500, 600];
-    // automatisk rekkevidde med treghet, så bildet ikke hopper for hver liten dybdeendring
-    const cur = this.autoRange;
-    if (bot && (!cur || d > cur * 0.9 || d < cur * 0.42)) this.autoRange = steps.find((v) => v >= d * 1.15 + 2) || 600;
-    else if (!cur) this.autoRange = 50;
-    return this.autoRange;
-  }
-
   // Ping og tegn ny kolonne
   update(dt, session) {
     if (this.s.hidden) return;
@@ -107,36 +83,36 @@ export class SonarView {
         this.maux.innerHTML = `${fmt1(session.boat.speedKn)}kn<br>${Math.round(session.world.gridToTrue(session.boat.headingDeg) + 360) % 360}°`;
       }
     }
-    const range = this.displayRange();
-    if (range !== this.lastRange) { this.lastRange = range; this.redraw(); }
-    const f = FREQS[this.sonar.freq];
-    const pps = Math.min(15, 700 / Math.max(10, range));
+    const sdt = dt * session.rate;
+    this.sonar.chooseFreq(this.range.search != null);
+    const f = FREQS[this.sonar.eff];
+    const d1 = this.range.update(this.sonar.lastBottom, sdt, f.depthMax);
+    if (this.drawnD1 == null || Math.abs(d1 - this.drawnD1) / this.drawnD1 > 0.012) this.redraw();
+    const pps = Math.min(15, 900 / Math.max(10, d1));
     const kn = session.boat.speedKn;
     const speedF = { auto: Math.min(2, 0.5 + kn * 0.35), sakte: 0.5, middels: 1, rask: 1.6, ultrascroll: 2.5 }[this.s.scroll] || 1;
-    this.pingAcc += dt * pps * session.rate;
+    this.pingAcc += sdt * pps;
     let n = 0;
     while (this.pingAcc >= 1 && n < 4) {
       this.pingAcc -= 1; n++;
-      const R = Math.min(range * (this.s.zoom === 'bunnlås' ? 1.25 : 1.15), f.depthMax);
-      const amp = this.sonar.ping(this.pingCtx(session), R, 520);
-      // ingen bunn innenfor rekkevidden: automatisk rekkevidde leter dypere
-      if (this.s.range !== 'manuell' && this.sonar.lastBottom == null && R < f.depthMax) {
-        const steps = [5, 10, 15, 20, 30, 40, 50, 60, 80, 100, 120, 150, 200, 250, 300, 400, 500, 600];
-        this.autoRange = steps.find((v) => v > (this.autoRange || 40) * 1.4) || 600;
+      const R = this.range.pingRange(this.sonar.lastBottom, f.depthMax);
+      const amp = this.sonar.ping(this.pingCtx(session), R, 640);
+      const bot = this.sonar.lastBottom;
+      // ingen bunn innenfor rekkevidden: let dypere
+      if (bot == null && R < f.depthMax) this.range.searchDeeper(f.depthMax);
+      // automatisk forsterkning: følger bunnekkoet, men forsterker aldri et svakt skråningsekko mer enn
+      // litt over det en vanlig flat bunn på samme dybde ville trengt (ellers blir skråninger og støy kraftige)
+      if (bot != null) {
+        const dr = R / amp.length; let peak = -99;
+        for (let i = Math.max(0, Math.floor((bot - 1) / dr)); i < Math.min(amp.length, Math.ceil((bot + 3) / dr)); i++) if (amp[i] > peak) peak = amp[i];
+        const cap = 58 - this.sonar.expectBottom + 2;
+        const want = Math.max(-25, Math.min(cap, 58 - peak));
+        this.agc = this.agc == null ? want : this.agc + (want - this.agc) * 0.12;
       }
       this.colAcc = (this.colAcc || 0) + speedF;
-      // automatisk forsterkning: følger bunnekkoet, slik at bunnen blir tydelig også på dypt vann
-      const bot = this.sonar.lastBottom;
-      if (bot) {
-        const dr = R / amp.length; let peak = -99;
-        for (let i = Math.floor((bot - 1) / dr); i < Math.min(amp.length, Math.ceil((bot + 3) / dr)); i++) if (i >= 0 && amp[i] > peak) peak = amp[i];
-        const want = Math.max(-28, Math.min(30, 49 - peak));
-        this.agc = this.agc == null ? want : this.agc + (want - this.agc) * 0.08;
-      }
-      const agc = this.agc || 0;
-      while (this.colAcc >= 1) { this.colAcc -= 1; this.push({ amp, R, bottom: this.sonar.lastBottom, hard: this.sonar.lastHard, targets: this.lastTargets, agc }); }
+      while (this.colAcc >= 1) { this.colAcc -= 1; this.push({ amp, R, bottom: bot, edge: this.sonar.lastEdge, hard: this.sonar.lastHard, targets: this.lastTargets, agc: this.agc || 0 }); }
     }
-    this.overlay(session, range);
+    this.overlay(session);
   }
 
   pingCtx(session) {
@@ -151,68 +127,42 @@ export class SonarView {
     const tp = angler.line.termPos;
     if (tp[2] < water - 0.3) targets.push({ x: tp[0], y: tp[1], z: tp[2], ts: angler.rig.kind === 'pilk' ? -33 : -40, lure: true });
     this.lastTargets = targets;
-    const hour = new Date(e.t).getUTCHours() + 1;
-    const night = e.sunElev < -6;
-    const layers = [{ z: night ? 18 : 55, w: night ? 8 : 14, level: -2, density: 0.08 }];
-    if (e.month >= 5 && e.month <= 8) layers.push({ z: 14, w: 3, level: -10, density: 0.06 });
     const surf = this.s.surface === 'skjul' ? { depth: 0, level: -50 } : { depth: 0.5 + e.hs * 1.1 + (boat.speedKn > 4 ? 0.8 : 0), level: 2 + e.ws * 0.9 + boat.speedKn * 1.3 };
-    return { xdcr: { x: x[0], y: x[1], zT: water - 0.25 }, castRay: world.castRay.bind(world), targets, surfaceNoise: surf, layers, hour, clouds: fish.bait || [] };
+    return { xdcr: { x: x[0], y: x[1], zT: water - 0.25 }, castRay: world.castRay.bind(world), targets, surfaceNoise: surf, clouds: fish.bait || [] };
+  }
+
+  colOpts(col) {
+    const go = this.gainOffset(col);
+    return { lut: this.lut, go, noiseCut: { av: -12, lav: -6, middels: 0, høy: 6 }[this.s.noise] ?? -6, top: 52, wl: { av: 999, lav: 52, middels: 47, høy: 42 }[this.s.white] ?? 47, wlDepth: Math.max(1.5, (this.drawnD1 || 30) * 0.04) };
   }
 
   push(col) {
     this.hist.push(col); if (this.hist.length > this.W) this.hist.shift();
     // flytt bildet én kolonne til venstre og tegn den nye
-    const c = this.ctx, W = this.W, H = this.H;
+    const c = this.ctx, H = this.H;
     c.drawImage(this.cv, -1, 0);
-    this.drawCol(W - 1 - (this.s.ascope ? 22 : 0), col);
+    const img = this.colImg && this.colImg.height === H ? this.colImg : (this.colImg = c.createImageData(1, H));
+    drawColumn(img.data, 1, 0, H, col, this.drawnD1 || this.range.d1 || 30, this.colOpts(col));
+    c.putImageData(img, this.W - 1 - (this.s.ascope ? 22 : 0), 0);
     if (this.s.ascope) this.drawAscope(col);
-  }
-
-  viewWindow(col) {
-    const R = this.displayRange();
-    if (this.s.zoom === 'bunnlås' && col.bottom) return [col.bottom - 8, col.bottom + 2];
-    if (this.s.zoom === '2x' || this.s.zoom === '4x') { const k = this.s.zoom === '2x' ? 2 : 4; const b = this.lastBottomView || R; const span = R / k; const d1 = Math.min(R, (b || R) + span * 0.2); return [Math.max(0, d1 - span), d1]; }
-    return [0, R];
   }
 
   gainOffset(col) {
     if (this.s.gainMode === 'manuell') return (this.s.gain - 50) * 0.55;
-    return { lav: -5, middels: 0, høy: 6 }[this.s.auto] + (col && col.agc ? col.agc * 0.85 : 0);
-  }
-
-  drawCol(x, col) {
-    const H = this.H, img = this.ctx.createImageData(1, H), lut = this.lut;
-    const [d0, d1] = this.viewWindow(col);
-    if (col.bottom) this.lastBottomView = col.bottom;
-    const n = col.amp.length, dr = col.R / n, go = this.gainOffset(col);
-    const noiseCut = { av: -30, lav: -14, middels: -8, høy: -2 }[this.s.noise];
-    const wl = { av: 999, lav: 52, middels: 47, høy: 42 }[this.s.white];
-    for (let y = 0; y < H; y++) {
-      const d = d0 + (y + 0.5) / H * (d1 - d0);
-      const i = Math.floor(d / dr);
-      let v = i >= 0 && i < n ? col.amp[i] : -99;
-      v += go;
-      let k;
-      if (v < noiseCut + go * 0.8 || v < -10) k = 0;
-      else k = Math.max(1, Math.min(255, Math.round((v + 10) / 62 * 255)));
-      const o = y * 4;
-      if (col.bottom && d >= col.bottom && d < col.bottom + 3 && v > wl) { img.data[o] = 245; img.data[o + 1] = 245; img.data[o + 2] = 245; }
-      else { img.data[o] = lut[k * 3]; img.data[o + 1] = lut[k * 3 + 1]; img.data[o + 2] = lut[k * 3 + 2]; }
-      img.data[o + 3] = 255;
-    }
-    this.ctx.putImageData(img, x, 0);
+    return { lav: -5, middels: 0, høy: 6 }[this.s.auto] + (col && col.agc ? col.agc : 0);
   }
 
   drawAscope(col) {
     const c = this.ctx, x0 = this.W - 22, H = this.H;
     c.fillStyle = '#000'; c.fillRect(x0, 0, 22, H);
-    const [d0, d1] = this.viewWindow(col), n = col.amp.length, dr = col.R / n, go = this.gainOffset(col);
+    const d1 = this.drawnD1 || 30, n = col.amp.length, dr = col.R / n, o = this.colOpts(col);
     for (let y = 0; y < H; y += 2) {
-      const d = d0 + (y + 0.5) / H * (d1 - d0), i = Math.floor(d / dr);
-      const v = (i >= 0 && i < n ? col.amp[i] : -99) + go;
-      if (v < -8) continue;
-      const w = Math.min(21, (v + 8) / 60 * 21);
-      const k = Math.max(1, Math.min(255, Math.round((v + 10) / 62 * 255)));
+      const d = (y + 0.5) / H * d1, i = Math.floor(d / dr);
+      const v = (i >= 0 && i < n ? col.amp[i] : -99) + o.go;
+      if (v < o.noiseCut) continue;
+      const q = (v - o.noiseCut) / (o.top - o.noiseCut);
+      const w = Math.min(21, q * 21);
+      const k = Math.max(1, Math.min(255, Math.round(q * 255)));
       c.fillStyle = `rgb(${this.lut[k * 3]},${this.lut[k * 3 + 1]},${this.lut[k * 3 + 2]})`;
       c.fillRect(x0 + 21 - w, y, w, 2);
     }
@@ -220,23 +170,30 @@ export class SonarView {
   }
 
   redraw() {
-    const c = this.ctx; c.fillStyle = `rgb(${this.lut[0]},${this.lut[1]},${this.lut[2]})`; c.fillRect(0, 0, this.W, this.H);
-    const start = Math.max(0, this.hist.length - this.W);
+    const W = this.W, H = this.H;
+    this.drawnD1 = this.range.d1 || 30;
+    const img = this.ctx.createImageData(W, H), data = img.data, lut = this.lut;
+    for (let p = 0; p < W * H; p++) { data[p * 4] = lut[0]; data[p * 4 + 1] = lut[1]; data[p * 4 + 2] = lut[2]; data[p * 4 + 3] = 255; }
     const off = this.s.ascope ? 22 : 0;
-    for (let i = start; i < this.hist.length; i++) this.drawCol(this.W - off - (this.hist.length - i), this.hist[i]);
+    const start = Math.max(0, this.hist.length - (W - off));
+    for (let i = start; i < this.hist.length; i++) drawColumn(data, W, W - off - (this.hist.length - i), H, this.hist[i], this.drawnD1, this.colOpts(this.hist[i]));
+    this.ctx.putImageData(img, 0, 0);
+    const last = this.hist[this.hist.length - 1];
+    if (this.s.ascope && last) this.drawAscope(last);
   }
 
-  overlay(session, range) {
+  overlay(session) {
     const bot = this.sonar.lastBottom;
     const e = session.e;
     this.dep.innerHTML = bot ? `${fmt1(bot + 0.25)}<small>m</small>` : '--.-<small>m</small>';
     this.aux.innerHTML = `${fmt1(e.sst)}°C<br>${fmt1(session.boat.speedKn)}kn`;
     const f = FREQS[this.sonar.freq];
-    this.freqEl.textContent = `${f.navn}${this.s.gainMode === 'auto' ? ' · auto' : ' · ' + this.s.gain + '%'}${this.s.zoom !== 'av' ? ' · ' + this.s.zoom : ''}`;
+    const fe = FREQS[this.sonar.eff];
+    this.freqEl.textContent = `${this.sonar.freq === 'auto' ? 'Auto ' + fe.navn : f.navn}${this.s.gainMode === 'auto' ? ' · auto-gain' : ' · gain ' + this.s.gain + '%'}`;
     // dybdeskala
     const col = this.hist[this.hist.length - 1];
     if (!col) return;
-    const [d0, d1] = this.viewWindow(col);
+    const d0 = 0, d1 = this.drawnD1 || 30;
     const step = [1, 2, 5, 10, 20, 25, 50, 100].find((s) => (d1 - d0) / s <= 6) || 100;
     let html = '';
     for (let d = Math.ceil(d0 / step) * step; d <= d1; d += step) { const y = (d - d0) / (d1 - d0) * 100; if (y > 4 && y < 98) html += `<div style="top:${y}%">${d}</div>`; }
@@ -245,7 +202,7 @@ export class SonarView {
       for (const t of col.targets) if (t.fish && t.fish.len > 25) {
         const xdcrZ = session.world.surfaceZ() - 0.25;
         const dist = Math.hypot(t.x - session.boat.x, t.y - session.boat.y);
-        if (dist > Math.tan(FREQS[this.sonar.freq].beam / 2 * Math.PI / 180) * (xdcrZ - t.z)) continue;
+        if (dist > Math.tan(FREQS[this.sonar.eff].beam / 2 * Math.PI / 180) * (xdcrZ - t.z)) continue;
         const d = xdcrZ - t.z; if (bot && d > bot - 0.5) continue;
         html += `<div style="top:${(d - d0) / (d1 - d0) * 100}%;right:${48 + Math.random() * 30}px">🐟 ${Math.round(d)}</div>`;
       }
