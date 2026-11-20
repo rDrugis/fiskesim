@@ -68,16 +68,19 @@ export class SonarView {
   }
 
   displayRange() {
-    const bot = this.sonar.lastBottom;
     if (this.s.range === 'manuell') return this.s.rangeM;
-    const d = bot ? bot : 40;
-    const steps = [5, 10, 15, 20, 30, 40, 50, 60, 80, 100, 120, 150, 200, 250, 300, 400, 500];
-    return steps.find((v) => v >= d * 1.12 + 2) || 600;
+    const bot = this.sonar.lastBottom, d = bot || 40;
+    const steps = [5, 10, 15, 20, 30, 40, 50, 60, 80, 100, 120, 150, 200, 250, 300, 400, 500, 600];
+    // automatisk rekkevidde med treghet, så bildet ikke hopper for hver liten dybdeendring
+    const cur = this.autoRange;
+    if (!cur || d > cur * 0.9 || d < cur * 0.42) this.autoRange = steps.find((v) => v >= d * 1.15 + 2) || 600;
+    return this.autoRange;
   }
 
   // Ping og tegn ny kolonne
   update(dt, session) {
     const range = this.displayRange();
+    if (range !== this.lastRange) { this.lastRange = range; this.redraw(); }
     const f = FREQS[this.sonar.freq];
     const pps = Math.min(15, 700 / Math.max(10, range));
     const kn = session.boat.speedKn;

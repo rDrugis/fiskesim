@@ -26,7 +26,7 @@ export class BoatScreen {
       <div class="instr" role="status">
         <div class="cell"><small>Kurs</small><b data-f="hdg">–</b></div>
         <div class="cell"><small>Fart</small><b data-f="sog">–</b></div>
-        <div class="cell opt2"><small>Posisjon</small><b data-f="pos" style="font-size:16px">–</b></div>
+        <div class="cell opt2"><small>Posisjon</small><b data-f="pos" class="pos">–</b></div>
         <div class="cell"><small>Dybde</small><b data-f="dep">–</b></div>
         <div class="cell" data-c="wind"><small>Vind</small><b data-f="wind">–</b></div>
         <div class="cell opt" data-c="wave"><small>Bølger</small><b data-f="wave">–</b></div>
