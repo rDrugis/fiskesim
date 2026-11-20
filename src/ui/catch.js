@@ -28,7 +28,7 @@ export function catchCardHTML(c) {
       <div>
         <canvas class="fishimg" data-fish style="width:100%;height:150px;display:block"></canvas>
         <div class="fishname">${esc(c.navn)}</div>
-        <div class="note" style="margin:0 0 8px"><i>${esc(S?.latin || '')}</i></div>
+        <div class="note" style="margin:0 0 8px"><i>${esc(S?.latin || '')}</i>${c.juks ? ' · <span class="tag est">juksekode</span>' : ''}</div>
         <div class="meas num">${c.len} cm<br>${dec(c.w, c.w < 1 ? 2 : 1)} kg</div>
         <dl class="facts">
           <dt>Kroket i</dt><dd>${esc(HOLD[c.hook] || c.hook || '–')}</dd>
@@ -60,7 +60,7 @@ export function logHTML(log, tripStart) {
   const by = {};
   for (const c of trip) { by[c.navn] = by[c.navn] || { n: 0, kept: 0, max: 0 }; by[c.navn].n++; if (c.kept) by[c.navn].kept++; by[c.navn].max = Math.max(by[c.navn].max, c.len); }
   const sum = Object.entries(by).map(([n, v]) => `<tr><td>${esc(n)}</td><td class="num">${v.n}</td><td class="num">${v.kept}</td><td class="num">${v.max} cm</td></tr>`).join('');
-  const rows = log.slice().reverse().slice(0, 200).map((c) => `<tr><td class="num">${esc(dateTime(c.t))}</td><td>${esc(c.navn)}</td><td class="num">${c.len} cm</td><td class="num">${dec(c.w, c.w < 1 ? 2 : 1)} kg</td><td class="num">${c.depth} m</td><td>${esc(c.rig)}</td><td>${c.kept ? 'Beholdt' : 'Satt ut'}</td></tr>`).join('');
+  const rows = log.slice().reverse().slice(0, 200).map((c) => `<tr><td class="num">${esc(dateTime(c.t))}</td><td>${esc(c.navn)}${c.juks ? ' <span class="tag est">juks</span>' : ''}</td><td class="num">${c.len} cm</td><td class="num">${dec(c.w, c.w < 1 ? 2 : 1)} kg</td><td class="num">${c.depth} m</td><td>${esc(c.rig)}</td><td>${c.kept ? 'Beholdt' : 'Satt ut'}</td></tr>`).join('');
   return `
     <h3 style="margin:0 0 6px;font-size:15px;color:var(--text-2);font-weight:500">Denne turen</h3>
     ${trip.length ? `<table class="log"><thead><tr><th>Art</th><th>Antall</th><th>Beholdt</th><th>Største</th></tr></thead><tbody>${sum}</tbody></table>` : '<p>Ingen fisk på denne turen ennå.</p>'}

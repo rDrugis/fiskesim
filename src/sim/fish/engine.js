@@ -69,7 +69,7 @@ export class FishEngine {
       }
     }
     for (const key of [...this.cells.keys()]) if (!keep.has(key)) this.cells.delete(key);
-    this.fish = this.fish.filter((f) => f === this.hooked || f.school || keep.has(f.cell) || f.state === 'approach' || f.state === 'biting');
+    this.fish = this.fish.filter((f) => f === this.hooked || f.school || f.cheat || keep.has(f.cell) || f.state === 'approach' || f.state === 'biting');
     // stimer (sei, makrell, hyse m.fl.): oppstår og vandrer
     for (const sp of SPECIES_IDS) {
       const S = SPECIES[sp]; if (!S.school) continue;
@@ -162,6 +162,7 @@ export class FishEngine {
 
     const tx = ctx.term.x, ty = ctx.term.y, tz = ctx.term.z;
     const hooksIn = ctx.hooks.filter((h) => h.z < water - 0.2);
+    if (this.cheat) this.cheatStep(ctx, hooksIn, water);
     for (const f of this.fish) {
       const S = SPECIES[f.sp];
       if (f.spook > 0) f.spook = Math.max(0, f.spook - dt / 240);
@@ -213,6 +214,7 @@ export class FishEngine {
         const v = Math.min(vmax, Math.max(0.45, hs + 0.5)) * (0.75 + 0.25 * f.hunger);
         if (d > 0.6) { const s = Math.min(d, v * dt) / d; f.x += dx * s; f.y += dy * s; f.z += dz * s; }
         f.st -= dt;
+        if (f.cheat && f.st < 0) f.st = 20;
         if (f.st < 0 || d > 60) { f.state = 'idle'; f.lastEval = e.t; continue; }
         if (d < 0.9) {
           const info = this.hookInfo(h, e);
@@ -225,10 +227,11 @@ export class FishEngine {
             pStrike = 0.15 + 0.85 * Math.min(1, acc) * (S.motion.still > 0.5 ? 0.6 : 1);
             if (moving < 0.05) pStrike = S.motion.still * 0.25;
           }
+          if (f.cheat) pStrike = Math.max(pStrike, 0.9);
           if (Math.random() < pStrike * dt * 2.5) {
             f.state = 'biting'; f.bite = makeBite(f.sp, S, f.w, { ...ctx, lure: (h.hook.bait || 'ingen') === 'ingen' }); f.bt = 0; f.mouthT = 0; f.circleT = 0; this.stats.bites++;
             f.biteHook = h.hook; if (this.trace) this.trace('bitt', f, info.key);
-          } else if (Math.random() < dt * (moving < 0.05 && !info.key.startsWith('agn_') ? 0.25 : 0.05)) {
+          } else if (!f.cheat && Math.random() < dt * (moving < 0.05 && !info.key.startsWith('agn_') ? 0.25 : 0.05)) {
             f.state = 'idle'; f.lastEval = e.t + 4000; // avviser
           }
         }
@@ -274,6 +277,10 @@ export class FishEngine {
           if (h.hook.type === 'j' && f.mouthT > 1.8 && h.hook.bait !== 'ingen' && Math.random() < 0.3 * gapeFit) { this.hook(f, h, ctx, 'dyp'); continue; }
           f.state = 'missed'; f.st = rnd(1, 4);
         }
+      } else if (f.state === 'missed' && f.cheat) {
+        // juksefisken gir seg ikke: kommer tilbake etter en liten stund
+        f.st -= dt;
+        if (f.st < 0) { f.state = 'cheat-linger'; f.st = rnd(6, 14); f.spook = 0; this.cheat.tries = (this.cheat.tries || 0) + 1; this.cheat.status = 'Bommet – fisken står igjen ved agnet og prøver på nytt.'; }
       } else if (f.state === 'missed') {
         f.st -= dt;
         if (f.st < 0) {
@@ -389,7 +396,61 @@ export class FishEngine {
     this.lastLost = { sp: f.sp, why, t: this.now || 0 };
   }
 
-  landed() { const f = this.hooked; if (!f) return null; this.hooked = null; f.state = 'gone'; this.fish = this.fish.filter((x) => x !== f); return f; }
+  landed() { const f = this.hooked; if (!f) return null; this.hooked = null; f.state = 'gone'; this.fish = this.fish.filter((x) => x !== f); if (f.cheat && this.cheat && this.cheat.fish === f) this.cheat = null; return f; }
+
+  // Juksekode: én bestemt fisk (art og vekt) svømmer inn fra 40–50 m unna, står ved agnet en stund (synlig på
+  // ekkoloddet når den er under båten) og biter. Bommer du på tilslaget, prøver den igjen.
+  summon(sp, wKg) { this.cheat = { sp, w: wKg, fish: null, status: 'Venter på at agnet er i vannet.', tries: 0 }; }
+  cancelSummon() { if (this.cheat?.fish && this.cheat.fish !== this.hooked) this.fish = this.fish.filter((f) => f !== this.cheat.fish); this.cheat = null; }
+
+  cheatStep(ctx, hooksIn, water) {
+    const c = this.cheat, dt = ctx.dt, e = ctx.e;
+    if (c.fish && c.fish.state === 'gone') { this.cheat = null; return; }
+    if (c.fish && c.fish.state === 'idle' && c.fish.escaped) { c.status = 'Fisken slapp kroken og forsvant.'; c.fish.cheat = false; this.cheat = null; return; }
+    const h = hooksIn[0];
+    if (!c.fish) {
+      if (!h) { c.status = 'Venter på at agnet er i vannet.'; return; }
+      const S = SPECIES[c.sp];
+      // lengde fra vekt (lengde–vekt-forholdet for arten)
+      let lo = 5, hi = 400;
+      for (let k = 0; k < 40; k++) { const m = (lo + hi) / 2; if (weightKg(c.sp, m) < c.w) lo = m; else hi = m; }
+      let x = h.x, y = h.y;
+      for (let k = 0; k < 24; k++) {
+        const a = Math.random() * Math.PI * 2, r = rnd(38, 50);
+        const xx = h.x + Math.cos(a) * r, yy = h.y + Math.sin(a) * r;
+        if (this.world.bedZ(xx, yy) < water - 4) { x = xx; y = yy; break; }
+      }
+      const f = this.spawn(c.sp, x, y, e, null);
+      f.len = (lo + hi) / 2; f.w = c.w; f.cheat = true; f.hunger = 1; f.spook = 0;
+      const bed = this.world.bedZ(x, y);
+      f.z = Math.min(water - 1, Math.max(bed + 0.5, h.z + rnd(-2, 2)));
+      f.state = 'cheat-in'; f.st = 0;
+      c.fish = f; c.status = `${S.navn} på ${c.w.toLocaleString('nb-NO', { maximumFractionDigits: 1 })} kg er på vei inn mot agnet.`;
+      return;
+    }
+    const f = c.fish;
+    if (f.state === 'idle') { f.state = 'cheat-in'; f.spook = 0; } // mistet agnet av syne (f.eks. sveivet inn): svømmer etter igjen
+    if (f.state !== 'cheat-in' && f.state !== 'cheat-linger') return;
+    if (this.hooked) return; // en annen fisk er på: juksefisken venter
+    if (!h) return;
+    const dx = h.x - f.x, dy = h.y - f.y, dz = h.z - f.z, d = Math.hypot(dx, dy, dz);
+    if (f.state === 'cheat-in') {
+      // rolig innsvømming, men raskere enn båten driver (agnet følger båten)
+      const hv = Math.hypot(h.vx || 0, h.vy || 0);
+      const v = Math.min(2.2, 0.45 + hv + 0.02 * d);
+      if (d > 0.1) { const k = Math.min(d, v * dt) / d; f.x += dx * k; f.y += dy * k; f.z += dz * Math.min(1, k * 1.5); }
+      const bed = this.world.bedZ(f.x, f.y); if (f.z < bed + 0.4) f.z = bed + 0.4;
+      if (d < 3.5) { f.state = 'cheat-linger'; f.st = rnd(18, 40); f.ang = Math.atan2(-dy, -dx); c.status = 'Fisken står ved agnet. Følg med på stangtuppen.'; }
+    } else {
+      // står og vurderer agnet: små sirkler rundt det
+      f.st -= dt; f.ang = (f.ang || 0) + dt * 0.35;
+      const r = 2 + Math.sin(e.t / 3700) * 0.8;
+      const gx = h.x + Math.cos(f.ang) * r, gy = h.y + Math.sin(f.ang) * r, gz = h.z + Math.sin(e.t / 5100) * 0.8;
+      f.x += (gx - f.x) * Math.min(1, dt * 0.8); f.y += (gy - f.y) * Math.min(1, dt * 0.8); f.z += (gz - f.z) * Math.min(1, dt * 0.5);
+      const bed = this.world.bedZ(f.x, f.y); if (f.z < bed + 0.3) f.z = bed + 0.3;
+      if (f.st <= 0) { f.state = 'approach'; f.tgt = 0; f.hookRef = h.hook; f.st = 30; c.status = 'Fisken går på agnet!'; }
+    }
+  }
 
   // Alle fisk (inkl. stimer) til ekkoloddet
   sonarTargets() { return this.fish; }

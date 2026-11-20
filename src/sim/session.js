@@ -164,7 +164,7 @@ export class Session {
     const [lon, lat] = this.world.toLonLat(this.boat.x, this.boat.y);
     const rules = rulesFor(f.sp, lat);
     const hookDepth = f.d0;
-    const c = { id: f.id, sp: f.sp, navn: SPECIES[f.sp].navn, len: Math.round(f.len), w: f.w, t: this.t, lat, lon, depth: Math.round(hookDepth), rig: this.angler.rig.navn, hook: f.hookHold, rules };
+    const c = { id: f.id, sp: f.sp, navn: SPECIES[f.sp].navn, len: Math.round(f.len), w: f.w, t: this.t, lat, lon, depth: Math.round(hookDepth), rig: this.angler.rig.navn, hook: f.hookHold, rules, juks: !!f.cheat };
     this.catches.push(c);
     this.angler.free = false; this.angler.crank = 0;
     this.angler.line.reset(this.angler.rodFrame(this.boat).tip, 0.8);
