@@ -26,7 +26,8 @@ export class Sonar {
     const f = FREQS[this.freq];
     const half = f.beam / 2;
     const dr = R / nSamples;
-    const pulseR = Math.max(dr * 0.8, C * f.pulse / 2);
+    const pulse = this.freq.startsWith('chirp') ? f.pulse : f.pulse * Math.min(4, Math.max(1, R / 25)); // lengre puls på dypt vann (som ekte lodd)
+    const pulseR = Math.max(dr * 0.8, C * pulse / 2);
     const out = new Float32Array(nSamples).fill(-200);
     const add = (r, level, spread = pulseR) => {
       const i0 = Math.max(0, Math.floor((r - spread * 1.5) / dr)), i1 = Math.min(nSamples - 1, Math.ceil((r + spread * 1.5) / dr));
@@ -37,12 +38,13 @@ export class Sonar {
         else out[i] = 10 * Math.log10(10 ** (out[i] / 10) + 10 ** (v / 10));
       }
     };
-    const beamDB = (th) => -12 * (th / f.beam) ** 2 * 4; // −3 dB ved halv strålebredde
+    const beamDB = (th) => -12 * (th / f.beam) ** 2; // én vei: −3 dB ved halv strålebredde
     const tvg = (r) => -2 * f.alpha * r - 6 * Math.log10(Math.max(1, r)); // litt svakere jo dypere (som på ekte: dypt vann trenger mer gain)
     const { x: bx, y: by, zT } = ctx.xdcr;
 
-    // Bunn: stråler innenfor kjeglen treffer bunnen; nærmeste treff gir bunnlinja
-    let rMin = Infinity, sumW = 0, hardAvg = 0;
+    // Bunn: stråler innenfor kjeglen treffer bunnen; nærmeste treff gir bunnlinja.
+    // Refleksjonen avhenger av hardheten (mudder ca. −26 dB, sand ca. −17 dB, fjell ca. −6 dB) og innfallsvinkelen.
+    let rMin = Infinity, hardAvg = 0;
     const bot = [];
     for (const ray of this.rays) {
       const th = ray.th * half * 1.7;
@@ -51,22 +53,25 @@ export class Sonar {
       const hit = ctx.castRay(bx, by, zT, dx, dy, dz, R * 1.05);
       if (!hit) continue;
       const w = beamDB(th);
-      // innfallsvinkel mot bunnen: skrå bunn gir svakere og lengre ekko
       const inc = Math.acos(Math.min(1, Math.abs(dx * hit.nx + dy * hit.ny + dz * hit.nz))) / DEG;
       const hard = hit.hard;
-      const sb = -38 + 26 * hard - 0.25 * Math.max(0, inc - 5) * (1.2 - hard * 0.6); // bunnens tilbakespredning (dB, anslag)
-      bot.push({ r: hit.r, lv: sb + 2 * w, hard });
+      const refl = 20 * Math.log10(0.04 + 0.5 * Math.pow(hard, 1.5));
+      const incLoss = Math.max(0, inc - 3) * (0.9 - hard * 0.5); // skrå innfall: speilrefleksjonen går tapt
+      bot.push({ r: hit.r, lv: refl + 2 * w - incLoss, hard });
       if (hit.r < rMin && w > -9) rMin = hit.r;
-      sumW += 1; hardAvg += hard;
+      hardAvg += hard;
     }
-    hardAvg = sumW ? hardAvg / sumW : 0.5;
+    hardAvg = bot.length ? hardAvg / bot.length : 0.5;
+    const norm = bot.length ? -10 * Math.log10(bot.length) : 0;
     for (const b of bot) {
-      const tail = 0.15 + 1.6 * b.hard;
-      add(b.r, b.lv + 58 + tvg(b.r), pulseR + 0.08);
-      add(b.r + tail * 0.6, b.lv + 50 + tvg(b.r) - 6 * (1 - b.hard), tail);
+      const tail = 0.2 + 1.1 * b.hard;
+      const jit = (Math.random() - 0.5) * 3, rj = b.r + (Math.random() - 0.5) * 0.06;
+      const L0 = b.lv + norm + 86 + tvg(b.r) + jit;
+      add(rj, L0, pulseR + 0.06);
+      add(rj + tail * 0.55, L0 - 10 - 8 * (1 - b.hard), tail);
     }
     // Dobbeltekko (lyd som går bunn–overflate–bunn) på hard bunn
-    if (rMin < R / 2.05 && isFinite(rMin)) add(rMin * 2, -14 + 18 * hardAvg + 40 + tvg(rMin * 2), pulseR * 2 + 0.3);
+    if (rMin < R / 2.05 && isFinite(rMin)) add(rMin * 2, 20 * Math.log10(0.04 + 0.5 * Math.pow(hardAvg, 1.5)) * 2 + 74 + tvg(rMin * 2), pulseR * 2 + 0.3);
 
     // Fisk og andre mål
     for (const t of ctx.targets) {
@@ -76,7 +81,7 @@ export class Sonar {
       if (th > half * 1.9) continue;
       // fisk i bunnekkoets skygge: kommer etter bunnens første ekko og forsvinner i bunnlinja
       const ts = t.ts + (Math.random() - 0.5) * 6; // vinkel og svømmebevegelse gir variasjon fra ping til ping
-      add(r, ts + 2 * beamDB(th) + 98 + tvg(r));
+      add(r, ts + 2 * beamDB(th) + 80 + tvg(r));
     }
     // Overflatestøy (bølger, luftbobler) og planktonlag
     const surf = ctx.surfaceNoise;
@@ -85,7 +90,7 @@ export class Sonar {
       if (r < surf.depth) { const v = surf.level - 18 * (r / surf.depth) + (Math.random() - 0.5) * 14; if (v > out[i]) out[i] = v; }
       for (const L of ctx.layers) {
         const k = Math.exp(-(((r - L.z) / L.w) ** 2));
-        if (k > 0.05 && Math.random() < L.density * k) { const v = L.level + (Math.random() - 0.5) * 10 + tvg(r); if (v > out[i]) out[i] = v; }
+        if (k > 0.05 && Math.random() < L.density * k) { const v = L.level + 14 + (Math.random() - 0.5) * 10 + tvg(r); if (v > out[i]) out[i] = v; }
       }
       // elektronisk støy
       const n = -26 + (Math.random() * 10) + 4 * Math.log10(1 + r);

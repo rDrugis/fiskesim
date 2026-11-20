@@ -63,6 +63,14 @@ export class Angler {
   stepLine(dt, boat, world, env, fishCtx) {
     const fr = this.rodFrame(boat);
     if (!this.prevTip) this.prevTip = fr.tip;
+    // Brå flytting (båten flyttet eller snudd i ett hopp): flytt hele snøret med, så det ikke ryker av et hopp
+    const jx = fr.tip[0] - this.prevTip[0], jy = fr.tip[1] - this.prevTip[1], jz = fr.tip[2] - this.prevTip[2];
+    if (jx * jx + jy * jy + jz * jz > 0.25) {
+      const L = this.line, n = L.N + 1;
+      for (let k = 0; k < n; k++) { L.x[k * 3] += jx; L.x[k * 3 + 1] += jy; L.x[k * 3 + 2] += jz; L.v[k * 3] = L.v[k * 3 + 1] = L.v[k * 3 + 2] = 0; }
+      L.lam.fill(0); L.tension = L.tensionF = 0;
+      this.prevTip = fr.tip;
+    }
     this.tipVel = [(fr.tip[0] - this.prevTip[0]) / dt, (fr.tip[1] - this.prevTip[1]) / dt, (fr.tip[2] - this.prevTip[2]) / dt];
     this.prevTip = fr.tip;
     this.frame = fr;
