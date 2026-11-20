@@ -26,6 +26,7 @@ export function catchCardHTML(c) {
   return `
     <div class="catchcard">
       <div>
+        <canvas class="fishimg" data-fish style="width:100%;height:150px;display:block"></canvas>
         <div class="fishname">${esc(c.navn)}</div>
         <div class="note" style="margin:0 0 8px"><i>${esc(S?.latin || '')}</i></div>
         <div class="meas num">${c.len} cm<br>${dec(c.w, c.w < 1 ? 2 : 1)} kg</div>
@@ -42,7 +43,7 @@ export function catchCardHTML(c) {
         ${rc.items.map((i) => `<div class="rule ${i.cls}">${esc(i.txt)}</div>`).join('')}
         <p class="note">Minstemål og fredning fra høstingsforskriften slik Fiskeguiden har dem (J-78-2026). Reglene endres – sjekk alltid Fiskeridirektoratet før du fisker.</p>
         <div class="row" style="margin-top:12px">
-          <button class="btn primary" data-a="keep" ${rc.legal ? '' : 'disabled title="Fisken kan ikke beholdes"'}>Behold fisken</button>
+          ${rc.legal ? '<button class="btn primary" data-a="keep">Behold fisken</button>' : ''}
           <button class="btn" data-a="release">Sett ut igjen</button>
         </div>
       </div>

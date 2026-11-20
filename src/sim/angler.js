@@ -51,13 +51,32 @@ export class Angler {
     let target, rate;
     if (this.inHolder) { target = 0.6; rate = 1; }
     else if (this.target != null) { target = this.target; rate = 7; }
-    else if (this.lift) { target = maxP; rate = this.fastLift ? 4.5 : 1.6; }
-    else { target = this.basePitch; rate = 1.2; }
-    const dp = clamp(target - this.pitch, -rate * dt, rate * dt);
-    this.pitchV = dp / dt;
-    this.pitch = clamp(this.pitch + dp, minP, maxP);
+    else if (this.lift) { target = maxP; rate = this.fastLift ? 3.4 : 0.85; }
+    else { target = this.basePitch; rate = 0.9; }
+    // armen akselererer og bremser mykt (ikke et brått rykk)
+    const tc = this.target != null ? 0.04 : this.fastLift ? 0.06 : 0.16;
+    const want = clamp((target - this.pitch) * 5, -rate, rate);
+    this.pv = (this.pv || 0) + (want - (this.pv || 0)) * Math.min(1, dt / tc);
+    const np = clamp(this.pitch + this.pv * dt, minP, maxP);
+    this.pitchV = (np - this.pitch) / dt;
+    this.pitch = np;
   }
   adjustBase(d) { this.basePitch = clamp(this.basePitch + d, -0.3, 1.0); }
+
+  // Riggen er i båten (hektet i krokholderen): snøret henger rolig fra tuppen, uten krefter
+  pinRig(boat, dt) {
+    const fr = this.rodFrame(boat), L = this.line, N = L.N;
+    this.tipVel = this.prevTip ? [(fr.tip[0] - this.prevTip[0]) / dt, (fr.tip[1] - this.prevTip[1]) / dt, (fr.tip[2] - this.prevTip[2]) / dt] : [0, 0, 0];
+    this.prevTip = fr.tip; this.frame = fr;
+    this.crankAngle += this.crank * dt * Math.PI * 2;
+    const hang = Math.min(L.L, 0.6);
+    for (let k = 0; k <= N; k++) {
+      const f = k / N;
+      L.x[k * 3] = fr.tip[0]; L.x[k * 3 + 1] = fr.tip[1]; L.x[k * 3 + 2] = fr.tip[2] - f * hang;
+      L.v[k * 3] = L.v[k * 3 + 1] = L.v[k * 3 + 2] = 0;
+    }
+    L.lam.fill(0); L.tension = L.tensionF = L.tensionAvg = 0; L.payV = 0; L.onBottom = false; L.snag = null;
+  }
 
   // Ett fysikksteg for snøret
   stepLine(dt, boat, world, env, fishCtx) {

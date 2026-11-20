@@ -1,6 +1,7 @@
 // Kartskjermen: bla i kartet, søk etter steder, klikk for dybde og bunn, og sett ut båten.
-import { createMap, MAP_STYLES } from '../map/mapview.js';
-import { PALETTES } from '../map/relief.js';
+import { createMap, MAP_STYLES, inRegion, REGION } from '../map/mapview.js';
+import { prefetchNear } from '../app/loader.js';
+import { PAL } from '../map/palette.js';
 import { SRC } from '../data/sources.js';
 import { wmsImage, bathy50, wfsPoints } from '../data/kartverket.js';
 import { decodeDybdelag, DYBDELAG } from '../data/depthmodel.js';
@@ -33,7 +34,7 @@ export class MapScreen {
     const bar = root.querySelector('.legend .bar');
     const stops = [0, 10, 20, 35, 50, 75, 100, 175, 250];
     const pos = (d) => [0, 20, 50, 100, 250].reduce((acc, v, i, a) => (d >= v ? i + (i < a.length - 1 ? Math.min(1, (d - v) / (a[i + 1] - v)) : 0) : acc), 0) / 4;
-    bar.style.background = `linear-gradient(90deg, ${stops.map((d) => { const c = PALETTES.dybde.reduce((p, q) => (q[0] <= d ? q : p))[1]; return `rgb(${c.map(Math.round).join(',')}) ${(pos(d) * 100).toFixed(1)}%`; }).join(',')})`;
+    bar.style.background = `linear-gradient(90deg, ${stops.map((d) => { const c = PAL.dag.reduce((p, q) => (q[0] <= d ? q : p))[1]; return `rgb(${c.map(Math.round).join(',')}) ${(pos(d) * 100).toFixed(1)}%`; }).join(',')})`;
     this.card = root.querySelector('.card');
     this.idleCard();
     root.querySelector('[data-a="help"]').addEventListener('click', () => onHelp && onHelp());
@@ -93,13 +94,17 @@ export class MapScreen {
     this.api.setMarks({ type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [lon, lat] }, properties: {} }] });
     const timeMs = this.timeMs || Date.now();
     this.card.innerHTML = `<h2>${fmtLat(lat)} ${fmtLon(lon)}</h2><div class="depthbig num">…</div><p class="note">Henter dybde og bunntype fra Kartverket og NGU.</p>`;
+    if (!inRegion(lon, lat)) {
+      this.card.innerHTML = `<h2>${fmtLat(lat)} ${fmtLon(lon)}</h2><p style="margin:6px 0 0">Utenfor området Fiskesim dekker foreløpig: fra Stad i nord til Stord i sør, og vest forbi Temba i Askvoll.</p>`;
+      return;
+    }
     const info = await pointInfo(lon, lat);
     if (id !== this.pickId) return;
     const south = lat < 62;
     let depthHtml, canLaunch = true;
     if (info.land) { depthHtml = `<div class="depthbig">Land</div>`; canLaunch = false; }
     else if (info.dry) { depthHtml = `<div class="depthbig">Tørrfall<small>tørrlegges ved fjære</small></div>`; canLaunch = false; }
-    else if (info.est != null) depthHtml = `<div class="depthbig num">ca. ${Math.round(info.est)} m${info.lo != null ? `<small>sjøkart: ${n1(info.lo)}–${n1(info.hi)} m</small>` : ''}</div>`;
+    else if (info.est != null) depthHtml = `<div class="depthbig num" data-dep>ca. ${Math.round(info.est)} m${info.lo != null ? `<small>sjøkart: ${n1(info.lo)}–${n1(info.hi)} m</small>` : ''}</div>`;
     else depthHtml = `<div class="depthbig">Ukjent dybde</div>`;
     const facts = [];
     if (info.point) facts.push(['Nærmeste loddskudd', `${n1(info.point.d)} m, ${Math.round(info.point.dist)} m unna`]);
@@ -115,6 +120,19 @@ export class MapScreen {
     const dt = this.card.querySelector('input[type=datetime-local]');
     dt.addEventListener('change', () => { const v = Date.parse(dt.value); if (v === v) this.timeMs = v; });
     this.card.querySelector('[data-a="now"]').addEventListener('click', () => { this.timeMs = null; dt.value = localInput(Date.now()); });
+    // nøyaktig dybde fra samme dybdemodell som spillet bruker (regnes i bakgrunnen)
+    if (canLaunch) {
+      const depEl = this.card.querySelector('[data-dep]'), noteEl = document.createElement('p');
+      noteEl.className = 'note'; noteEl.textContent = 'Regner dybden mellom dybdekurvene …';
+      depEl?.after(noteEl);
+      prefetchNear(lon, lat).then((g) => {
+        if (id !== this.pickId) return;
+        const [E, N] = UTM33.forward(lon, lat);
+        const z = sample({ ...g, data: g.z }, E, N);
+        if (z === z && depEl && z < 0.5) depEl.innerHTML = `${n1(-z)} m${info.lo != null ? `<small>sjøkart: ${n1(info.lo)}–${n1(info.hi)} m</small>` : ''}`;
+        noteEl.textContent = 'Dybde under sjøkartnull. Ekkoloddet viser i tillegg tidevannet (vannstanden over sjøkartnull).';
+      }).catch((e) => { if (id === this.pickId && e.message !== 'avbrutt') noteEl.textContent = 'Fikk ikke regnet ut dybden her: ' + e.message; });
+    }
     const btn = this.card.querySelector('[data-a="launch"]');
     btn?.addEventListener('click', () => this.onLaunch({ lon, lat, timeMs: this.timeMs || Date.now(), zoom: this.api.map.getZoom() }));
   }

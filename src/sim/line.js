@@ -126,7 +126,9 @@ export class FishingLine {
     const Ttop = this.tension;
     if (sp.mode === 'free') {
       const brake = sp.thumb + sp.brakeC * this.payV;
-      this.payV += (dt / 0.04) * (Ttop - brake);
+      // spolens treghet: den snurrer videre et øyeblikk når søkket stopper, og gir litt slakt snøre
+      const inertia = sp.thumb > 1 ? 0.01 : 0.12;
+      this.payV += (dt / inertia) * (Ttop - brake);
       if (this.payV < 0) this.payV = 0;
       if (this.payV > 9) this.payV = 9;
       this.L += this.payV * dt;

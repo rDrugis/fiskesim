@@ -27,7 +27,8 @@ export function helpHTML() {
         <dt>${K('K')} / ${K('J')}</dt><dd>Anker / drivanker.</dd>
         <dt>Høyreklikk og dra</dt><dd>Se rundt (også ${K('Alt')}+dra, eller piltastene uten motor).</dd>
         <dt>${K('1')} ${K('2')} ${K('3')}</dt><dd>Sitte, stå, se båten bakfra.</dd>
-        <dt>${K('I')} / ${K('L')} / ${K('O')}</dt><dd>Tuppkamera, hodelykt, stort ekkolodd.</dd>
+        <dt>${K('I')} / ${K('L')}</dt><dd>Tuppkamera, hodelykt.</dd>
+        <dt>${K('V')} / ${K('O')}</dt><dd>Ekkolodd, kart eller delt skjerm / stort ekkolodd (${K('Shift')}+${K('O')} skjuler det).</dd>
         <dt>${K('G')} / ${K('H')} / ${K('P')}</dt><dd>Utstyr, hjelp, pause.</dd>
         <dt>${K('+')} / ${K('−')}</dt><dd>Spol fram (stanga legges i holderen over 5×) / sakte ned.</dd>
       </dl>

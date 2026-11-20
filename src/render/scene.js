@@ -14,7 +14,7 @@ const dispose = (o) => { if (!o) return; o.traverse?.((c) => { c.geometry?.dispo
 export class Scene3D {
   constructor(canvas) {
     this.canvas = canvas;
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, stencil: true, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 0.55;
@@ -149,7 +149,7 @@ export class Scene3D {
     if (f && water - tp[2] < 4) {
       if (!this.fishMesh || this.fishId !== f.id) {
         if (this.fishMesh) { this.scene.remove(this.fishMesh); dispose(this.fishMesh); }
-        this.fishMesh = makeFish(f.sp, f.len); this.fishId = f.id; this.scene.add(this.fishMesh);
+        this.fishMesh = makeFish(f.sp, f.len, f.w); this.fishId = f.id; this.scene.add(this.fishMesh);
       }
       const p = this.toThree(...tp);
       this.fishMesh.position.set(p[0], p[1] - 0.06, p[2]);
