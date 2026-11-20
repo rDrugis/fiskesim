@@ -163,10 +163,11 @@ export function makeFish(sp, lenCm, wKg) {
 }
 
 // Bilde av fisken (sett fra siden) til fangstkortet
-export function renderFishThumb(canvas, sp, lenCm, wKg) {
-  const r = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-  r.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
-  r.setSize(canvas.clientWidth || canvas.width, canvas.clientHeight || canvas.height, false);
+export function renderFishThumb(target, sp, lenCm, wKg) {
+  const cw = target.clientWidth || 420, ch = target.clientHeight || 150;
+  const canvas = document.createElement('canvas'); canvas.width = cw * 2; canvas.height = ch * 2;
+  const r = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+  r.setSize(cw * 2, ch * 2, false);
   const sc = new THREE.Scene();
   sc.add(new THREE.HemisphereLight(0xffffff, 0x556677, 1.7));
   const dl = new THREE.DirectionalLight(0xffffff, 2.2); dl.position.set(0.5, 2, 3); sc.add(dl);
@@ -177,9 +178,12 @@ export function renderFishThumb(canvas, sp, lenCm, wKg) {
   if (flat) f.rotation.x = Math.PI / 2 - 0.25; else f.rotation.x = 0.12;
   f.rotation.y = -0.08;
   sc.add(f);
-  const asp = (canvas.clientWidth || canvas.width) / (canvas.clientHeight || canvas.height);
+  const asp = cw / ch;
   const hw = 0.62, hh = hw / asp;
   const cam = new THREE.OrthographicCamera(-hw, hw, hh, -hh, 0.01, 20); cam.position.set(0.02, 0, 5); cam.lookAt(0.02, 0, 0);
   r.render(sc, cam);
+  const url = canvas.toDataURL('image/png');
   r.dispose(); r.forceContextLoss?.();
+  const img = document.createElement('img'); img.src = url; img.alt = ''; img.style.cssText = 'width:100%;height:' + ch + 'px;object-fit:contain;display:block';
+  target.replaceWith(img);
 }
