@@ -77,7 +77,14 @@ export class Session {
     // snørefysikk med fisk på kroken
     const hf = this.fish.hooked;
     const fishCtx = hf ? { mass: hf.w, force: hf.force || [0, 0, 0], drag: 0.004 * (hf.len / 50) ** 2, netBuoy: hf.netBuoy || 0 } : null;
-    A.stepLine(dt, this.boat, this.world, this.envCtx, fishCtx);
+    if (this.rigInBoat && !A.free && !hf) A.pinRig(this.boat, dt);
+    else A.stepLine(dt, this.boat, this.world, this.envCtx, fishCtx);
+    if (!Number.isFinite(L.x[0] + L.x[L.N * 3 + 2] + L.tension)) {
+      // numerisk feil (skal ikke skje): knytt opp på nytt i stedet for at stang og snøre forsvinner
+      A.line.reset(A.rodFrame(this.boat).tip, 0.8); A.free = false; this.rigInBoat = true;
+      this.emit('varsel', { msg: 'Snøret viklet seg inn og er gjort klart på nytt.' });
+      return;
+    }
 
     // rigg i båten / i vannet
     const water = this.world.surfaceZ();

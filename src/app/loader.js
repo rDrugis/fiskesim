@@ -30,6 +30,28 @@ export function buildTerrainAsync(args, onStage) {
   return new Promise((res, rej) => { pending.set(id, { res, rej, onStage }); terrainWorker().postMessage({ id, args }); });
 }
 
+function restartWorker() {
+  if (!worker) return;
+  worker.terminate(); worker = null;
+  for (const p of pending.values()) p.rej(new Error('avbrutt'));
+  pending.clear();
+}
+
+// Bygger dybdemodellen for en plass så snart den er klikket på: kortet viser samme dybde som spillet,
+// og båten er klar raskere når man setter den ut.
+let pre = null;
+const nearArgs = (E0, N0) => ({ cx: E0, cy: N0, size: NEAR.size, res: NEAR.res, points: true, pointsSize: NEAR.size, ngu: true, msl: 0.9 });
+export function prefetchNear(lon, lat, onStage) {
+  const [E, N] = UTM33.forward(lon, lat), E0 = Math.round(E), N0 = Math.round(N), key = E0 + ':' + N0;
+  if (pre && pre.key === key) { if (onStage) pre.listeners.push(onStage); return pre.promise; }
+  if (pre && !pre.done) restartWorker();
+  const listeners = onStage ? [onStage] : [];
+  const p = buildTerrainAsync(nearArgs(E0, N0), (s) => listeners.forEach((f) => f(s)));
+  const entry = (pre = { key, promise: p, done: false, listeners });
+  p.then(() => { entry.done = true; }, () => { entry.done = true; if (pre === entry) pre = null; });
+  return p;
+}
+
 export function loadSetup() {
   try { return { ...DEFAULT_SETUP, ...JSON.parse(localStorage.getItem('fiskesim.setup') || '{}') }; } catch (e) { return { ...DEFAULT_SETUP }; }
 }
@@ -66,7 +88,7 @@ export async function loadSpot({ lon, lat, timeMs, onStage = () => {}, demo = fa
   let near, synthetic = false;
   try {
     if (demo) throw new Error('demomodus');
-    near = await buildTerrainAsync({ cx: E0, cy: N0, size: NEAR.size, res: NEAR.res, points: true, pointsSize: NEAR.size, ngu: true, msl: 0.9 }, (s) => onStage('near', s, 'now'));
+    near = await prefetchNear(lon, lat, (s) => onStage('near', s, 'now'));
     onStage('near', null, 'done');
   } catch (e) {
     synthetic = true;

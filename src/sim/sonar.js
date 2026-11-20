@@ -44,7 +44,7 @@ export class Sonar {
 
     // Bunn: stråler innenfor kjeglen treffer bunnen; nærmeste treff gir bunnlinja.
     // Refleksjonen avhenger av hardheten (mudder ca. −26 dB, sand ca. −17 dB, fjell ca. −6 dB) og innfallsvinkelen.
-    let rMin = Infinity, hardAvg = 0;
+    let rMin = Infinity, rAny = Infinity, hardAvg = 0;
     const bot = [];
     for (const ray of this.rays) {
       const th = ray.th * half * 1.7;
@@ -58,7 +58,9 @@ export class Sonar {
       const refl = 20 * Math.log10(0.04 + 0.5 * Math.pow(hard, 1.5));
       const incLoss = Math.max(0, inc - 3) * (0.9 - hard * 0.5); // skrå innfall: speilrefleksjonen går tapt
       bot.push({ r: hit.r, lv: refl + 2 * w - incLoss, hard });
-      if (hit.r < rMin && w > -9) rMin = hit.r;
+      // digital dybde: bunnsporingen følger ekkoet rett under svingeren (smal del av kjeglen)
+      if (hit.r < rMin && th <= half * 0.45) rMin = hit.r;
+      if (hit.r < rAny) rAny = hit.r;
       hardAvg += hard;
     }
     hardAvg = bot.length ? hardAvg / bot.length : 0.5;
@@ -83,6 +85,22 @@ export class Sonar {
       const ts = t.ts + (Math.random() - 0.5) * 6; // vinkel og svømmebevegelse gir variasjon fra ping til ping
       add(r, ts + 2 * beamDB(th) + 80 + tvg(r));
     }
+    // Agnfiskstimer: mange små ekko som til sammen gir en sky
+    for (const c of ctx.clouds || []) {
+      const hd = Math.hypot(c.x - bx, c.y - by);
+      const rTop = zT - (c.z + c.rz), rBot = zT - (c.z - c.rz);
+      if (rBot < 0.5 || rTop > R) continue;
+      const i0 = Math.max(0, Math.floor(rTop / dr)), i1 = Math.min(nSamples - 1, Math.ceil(rBot / dr));
+      for (let i = i0; i <= i1; i++) {
+        const r = (i + 0.5) * dr, z = zT - r, q = (z - c.z) / c.rz;
+        if (q * q >= 1) continue;
+        const rr = c.rx * Math.sqrt(1 - q * q), rc = r * Math.tan(half * 1.4 * DEG);
+        const ov = Math.min(1, (rc + rr - hd) / (2 * Math.min(rc, rr) + 0.1));
+        if (ov <= 0 || Math.random() > c.dens * ov * 0.85) continue;
+        const v = 18 + 6 * Math.log10(c.dens * ov + 0.05) + 15 + tvg(r) + (Math.random() - 0.5) * 12 + (1 - q * q) * 6;
+        if (v > out[i]) out[i] = v;
+      }
+    }
     // Overflatestøy (bølger, luftbobler) og planktonlag
     const surf = ctx.surfaceNoise;
     for (let i = 0; i < nSamples; i++) {
@@ -96,7 +114,7 @@ export class Sonar {
       const n = -26 + (Math.random() * 10) + 4 * Math.log10(1 + r);
       if (n > out[i]) out[i] = n;
     }
-    this.lastBottom = isFinite(rMin) ? rMin : null;
+    this.lastBottom = isFinite(rMin) ? rMin : isFinite(rAny) ? rAny : null;
     this.lastHard = hardAvg;
     return out;
   }
@@ -104,7 +122,7 @@ export class Sonar {
 
 // Jevnt fordelte stråler i kjeglen (sunflower-mønster i polarplanet)
 function makeRays(n) {
-  const rays = [];
+  const rays = [{ th: 0, ph: 0 }];
   for (let i = 0; i < n; i++) { const r = Math.sqrt((i + 0.5) / n); rays.push({ th: r, ph: i * 2.39996 }); }
   return rays;
 }

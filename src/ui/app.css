@@ -102,7 +102,7 @@ button { font: inherit; color: inherit; }
 .instr .clockcell { appearance: none; background: transparent; border: 0; border-right: 1px solid var(--line); text-align: left; cursor: pointer; color: inherit; font: inherit; }
 .instr .clockcell:hover { background: rgba(255,255,255,.04); }
 .instr .cell.est small::after { content: ' (anslag)'; color: var(--warn); }
-.instr .tools .btn[aria-pressed="false"] { opacity: .55; text-decoration: line-through; }
+.instr .tools .btn[aria-pressed="false"] { opacity: .55; }
 @media (max-width: 1560px) { .instr .opt { display: none; } }
 @media (max-width: 1180px) { .instr .opt2 { display: none; } .instr .cell { min-width: 70px; padding: 6px 9px 4px; } }
 .sheet .body { color: var(--text); }
@@ -111,6 +111,14 @@ button { font: inherit; color: inherit; }
 /* Ekkolodd (Garmin-lignende) */
 .sonar { position: fixed; right: 14px; top: 72px; z-index: 6; background: linear-gradient(#262a2e, #17191b); border-radius: 14px; padding: 10px 10px 8px; box-shadow: 0 8px 30px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.08); }
 .sonar .screen { position: relative; border-radius: 4px; overflow: hidden; background: #000; }
+.sonar .screens { display: flex; gap: 6px; }
+.sonar .sonhead { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.sonar .sonhead .seg { border-color: #44494d; }
+.sonar .sonhead .seg button { color: #aab1b6; padding: 3px 10px; font-size: 12px; }
+.sonar .sonhead .seg button[aria-pressed="true"] { background: #3a3f44; color: #fff; box-shadow: inset 0 -2px 0 var(--buoy); }
+.sonar .hidebtn { background: #303438; border: 1px solid #44494d; color: #d8dcdf; border-radius: 5px; width: 26px; height: 24px; cursor: pointer; }
+.sonar .mapzoom { position: absolute; right: 6px; bottom: 34px; display: flex; flex-direction: column; gap: 4px; }
+.sonar .mapzoom button { width: 30px; height: 30px; border-radius: 5px; border: 1px solid #50565b; background: rgba(30,33,36,.85); color: #fff; font-size: 18px; cursor: pointer; }
 .sonar canvas { display: block; image-rendering: pixelated; }
 .sonar .ovl { position: absolute; inset: 0; pointer-events: none; font-family: 'Arial Narrow', 'Barlow Semi Condensed', sans-serif; color: #fff; text-shadow: 0 0 2px #000, 0 0 2px #000, 1px 1px 0 #000; }
 .sonar .dep { position: absolute; left: 6px; top: 2px; font-size: 30px; font-weight: 700; letter-spacing: -.01em; }

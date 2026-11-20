@@ -3,6 +3,7 @@
 // Utseendet er laget for å ligne – det er ikke Garmins egen programvare.
 import { FREQS } from '../sim/sonar.js';
 import { SPECIES } from '../sim/fish/species.js';
+import { ChartView } from './chartview.js';
 
 const PALS = {
   'Blå': ['#06257a', '#2f6fd6', '#33c3e0', '#3fd16a', '#f2e33c', '#f59a23', '#e5301b', '#6e0b0b'],
@@ -26,14 +27,20 @@ const fmt1 = (v) => v.toFixed(1).replace('.', ',');
 export class SonarView {
   constructor(parent, sonar) {
     this.sonar = sonar;
-    this.s = Object.assign({ pal: 'Blå', gainMode: 'auto', gain: 50, auto: 'middels', range: 'auto', rangeM: 60, zoom: 'av', scroll: 'auto', white: 'middels', fishSym: false, ascope: true, surface: 'vis', noise: 'lav', big: false }, JSON.parse(localStorage.getItem('fiskesim.sonar') || '{}'));
+    this.s = Object.assign({ pal: 'Blå', gainMode: 'auto', gain: 50, auto: 'middels', range: 'auto', rangeM: 60, zoom: 'av', scroll: 'auto', white: 'middels', fishSym: false, ascope: true, surface: 'vis', noise: 'lav', big: false, view: 'lodd', hidden: false }, JSON.parse(localStorage.getItem('fiskesim.sonar') || '{}'));
     this.el = document.createElement('div'); this.el.className = 'sonar';
-    this.el.innerHTML = `<div class="screen"><canvas></canvas><div class="ovl"><div class="dep"></div><div class="aux"></div><div class="freq"></div><div class="scale"></div></div></div>
+    this.el.innerHTML = `<div class="sonhead"><div class="seg" role="group" aria-label="Visning"><button data-v="lodd">Ekkolodd</button><button data-v="kart">Kart</button><button data-v="delt">Delt</button></div><button class="hidebtn" data-a="hide" title="Skjul (Shift+O)" aria-label="Skjul ekkoloddet">✕</button></div>
+      <div class="screens"><div class="screen mapscreen"><canvas class="mapcv"></canvas><div class="ovl"><div class="dep mdep"></div><div class="aux maux"></div></div><div class="mapzoom"><button data-z="0.6" aria-label="Zoom inn">+</button><button data-z="1.6" aria-label="Zoom ut">−</button></div></div>
+      <div class="screen loddscreen"><canvas class="loddcv"></canvas><div class="ovl"><div class="dep"></div><div class="aux"></div><div class="freq"></div><div class="scale"></div></div></div></div>
       <div class="soft"><button data-a="gain-">Gain −</button><button data-a="gain+">Gain +</button><button data-a="range">Rekkevidde</button><button data-a="zoom">Zoom</button><button data-a="freq">Frekvens</button><button data-a="menu">Meny</button></div>
       <div class="brandline"><span>EKKOLODD</span><span>GT20 · CHIRP</span></div>`;
     parent.appendChild(this.el);
-    this.cv = this.el.querySelector('canvas'); this.ctx = this.cv.getContext('2d', { willReadFrequently: true });
-    this.dep = this.el.querySelector('.dep'); this.aux = this.el.querySelector('.aux'); this.freqEl = this.el.querySelector('.freq'); this.scaleEl = this.el.querySelector('.scale');
+    this.cv = this.el.querySelector('.loddcv'); this.ctx = this.cv.getContext('2d', { willReadFrequently: true });
+    this.mapCv = this.el.querySelector('.mapcv'); this.chart = new ChartView(this.mapCv);
+    this.mdep = this.el.querySelector('.mdep'); this.maux = this.el.querySelector('.maux');
+    this.el.querySelector('.sonhead').addEventListener('click', (e) => { const v = e.target.closest('[data-v]')?.dataset.v; if (v) this.setView(v); if (e.target.closest('[data-a="hide"]')) this.setHidden(true); });
+    this.el.querySelector('.mapzoom').addEventListener('click', (e) => { const z = e.target.closest('[data-z]')?.dataset.z; if (z) { this.chart.zoomBy(+z); this.mapT = 1; } });
+    this.dep = this.el.querySelector('.loddscreen .dep'); this.aux = this.el.querySelector('.loddscreen .aux'); this.freqEl = this.el.querySelector('.freq'); this.scaleEl = this.el.querySelector('.scale');
     this.el.querySelector('.soft').addEventListener('click', (e) => { const a = e.target.dataset.a; if (a) this.action(a); });
     this.hist = []; this.pingAcc = 0; this.sizeIt();
   }
@@ -42,8 +49,18 @@ export class SonarView {
   sizeIt() {
     const W = this.s.big ? 520 : 340, H = this.s.big ? 620 : 430;
     this.W = W; this.H = H; this.cv.width = W; this.cv.height = H; this.cv.style.width = W + 'px'; this.cv.style.height = H + 'px';
-    this.lut = buildLUT(PALS[this.s.pal]); this.redraw();
+    const mW = this.s.view === 'delt' ? Math.round(W * 0.9) : W;
+    this.mapCv.width = mW; this.mapCv.height = H; this.mapCv.style.width = mW + 'px'; this.mapCv.style.height = H + 'px';
+    this.el.querySelectorAll('[data-v]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === this.s.view)));
+    this.el.querySelector('.mapscreen').classList.toggle('hidden', this.s.view === 'lodd');
+    this.el.querySelector('.loddscreen').classList.toggle('hidden', this.s.view === 'kart');
+    this.el.querySelector('.soft').classList.toggle('hidden', this.s.view === 'kart');
+    this.el.classList.toggle('hidden', !!this.s.hidden);
+    this.lut = buildLUT(PALS[this.s.pal]); this.redraw(); this.mapT = 1;
   }
+  setView(v) { this.s.view = v; this.save(); this.sizeIt(); }
+  cycleView() { const v = ['lodd', 'kart', 'delt']; this.setView(v[(v.indexOf(this.s.view) + 1) % 3]); }
+  setHidden(h) { this.s.hidden = h; this.save(); this.el.classList.toggle('hidden', h); this.onHide && this.onHide(h); }
   toggleBig() { this.s.big = !this.s.big; this.save(); this.sizeIt(); }
 
   action(a) {
@@ -79,6 +96,16 @@ export class SonarView {
 
   // Ping og tegn ny kolonne
   update(dt, session) {
+    if (this.s.hidden) return;
+    if (this.s.view !== 'lodd') {
+      this.mapT = (this.mapT || 0) + dt;
+      if (this.mapT > 0.16) {
+        this.chart.draw(session, this.mapT); this.mapT = 0;
+        const bot = this.sonar.lastBottom;
+        this.mdep.innerHTML = bot ? `${fmt1(bot + 0.25)}<small>m</small>` : '--.-<small>m</small>';
+        this.maux.innerHTML = `${fmt1(session.boat.speedKn)}kn<br>${Math.round(session.world.gridToTrue(session.boat.headingDeg) + 360) % 360}°`;
+      }
+    }
     const range = this.displayRange();
     if (range !== this.lastRange) { this.lastRange = range; this.redraw(); }
     const f = FREQS[this.sonar.freq];
@@ -114,7 +141,7 @@ export class SonarView {
     const layers = [{ z: night ? 18 : 55, w: night ? 8 : 14, level: -2, density: 0.08 }];
     if (e.month >= 5 && e.month <= 8) layers.push({ z: 14, w: 3, level: -10, density: 0.06 });
     const surf = this.s.surface === 'skjul' ? { depth: 0, level: -50 } : { depth: 1.2 + e.hs * 2 + (boat.speedKn > 3 ? 1.5 : 0), level: 8 + e.ws * 1.5 + boat.speedKn * 2 };
-    return { xdcr: { x: x[0], y: x[1], zT: water - 0.25 }, castRay: world.castRay.bind(world), targets, surfaceNoise: surf, layers, hour };
+    return { xdcr: { x: x[0], y: x[1], zT: water - 0.25 }, castRay: world.castRay.bind(world), targets, surfaceNoise: surf, layers, hour, clouds: fish.bait || [] };
   }
 
   push(col) {

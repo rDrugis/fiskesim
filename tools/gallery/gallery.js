@@ -1,0 +1,11 @@
+import * as THREE from 'three';
+import { makeFish } from '../../src/render/fish3d.js';
+import { SPECIES } from '../../src/sim/fish/species.js';
+const ids = ['torsk', 'sei', 'lyr', 'hyse', 'hvitting', 'lysing', 'lange', 'brosme', 'makrell', 'uer', 'berggylt', 'knurr', 'kveite', 'flyndre'];
+const r = new THREE.WebGLRenderer({ antialias: true }); r.setSize(1200, 900); document.body.appendChild(r.domElement);
+r.setClearColor('#9fb3bd');
+const sc = new THREE.Scene(); sc.add(new THREE.HemisphereLight(0xffffff, 0x445566, 1.6)); const dl = new THREE.DirectionalLight(0xffffff, 2); dl.position.set(1, 2, 3); sc.add(dl);
+const cam = new THREE.OrthographicCamera(-6, 6, 4.5, -4.5, 0.1, 100); cam.position.set(0, 2.5, 12); cam.lookAt(0, 0, 0);
+ids.forEach((id, k) => { const len = { kveite: 110, lange: 110, brosme: 60, makrell: 38, uer: 40, berggylt: 40, knurr: 35, flyndre: 40, hvitting: 40 }[id] || 70; const f = makeFish(id, len * 2.2, null); f.position.set(-4.5 + (k % 4) * 3, 3.3 - Math.floor(k / 4) * 2.2, 0); f.rotation.y = 0.15; if (f.userData.flat) f.rotation.x = 1.1; sc.add(f); });
+r.render(sc, cam);
+window.done = true;

@@ -136,7 +136,8 @@ export class Water {
       uWind: { value: 5 }, uRipple: { value: rippleTexture() }, uDepthTex: { value: null }, uDepthRect: { value: new THREE.Vector4(0, 0, 1, 1) },
       uFogColor: { value: new THREE.Color(0.6, 0.65, 0.7) }, uFogDensity: { value: 0.00025 }, uLight: { value: 1 },
     };
-    this.mat = new THREE.ShaderMaterial({ vertexShader: vert, fragmentShader: frag, uniforms: this.uniforms, transparent: true, depthWrite: true });
+    this.mat = new THREE.ShaderMaterial({ vertexShader: vert, fragmentShader: frag, uniforms: this.uniforms, transparent: true, depthWrite: true,
+      stencilWrite: true, stencilRef: 1, stencilFunc: THREE.NotEqualStencilFunc, stencilFail: THREE.KeepStencilOp, stencilZFail: THREE.KeepStencilOp, stencilZPass: THREE.KeepStencilOp });
     this.mesh = new THREE.Mesh(waterGeometry(), this.mat);
     this.mesh.frustumCulled = false;
     this.mesh.renderOrder = 2;

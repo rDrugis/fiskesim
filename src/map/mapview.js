@@ -1,6 +1,5 @@
 // 2D-kart (MapLibre): dybderelieff, sjøkart og nattkart med Kartverkets data.
 import { SRC } from '../data/sources.js';
-import { reliefTile } from './relief.js';
 import { UTM33 } from '../geo/proj.js';
 
 let ml = null;
@@ -17,17 +16,44 @@ const WMS3857 = (layers, extra = '') => `${SRC.wmsDybde}?service=WMS&version=1.3
 const EMPTY = { type: 'FeatureCollection', features: [] };
 
 export const MAP_STYLES = [
-  { id: 'dybde', label: 'Dybde' },
+  { id: 'fiskekart', label: 'Fiskekart' },
+  { id: 'dybdekart', label: 'Dybdekart' },
   { id: 'sjokart', label: 'Sjøkart' },
   { id: 'natt', label: 'Natt' },
 ];
 
+// Området spillet dekker foreløpig: Stad i nord, Stord i sør, vest forbi Temba (Askvoll)
+export const REGION = { w: 4.25, s: 59.68, e: 7.8, n: 62.25 };
+export const inRegion = (lon, lat) => lon >= REGION.w && lon <= REGION.e && lat >= REGION.s && lat <= REGION.n;
+
+// Fiskekart-flisene regnes i egne tråder; samme overordnede flis går alltid til samme tråd (felles mellomlager)
+const pool = [];
+let reqId = 0;
+const waiting = new Map();
+function reliefWorker(k) {
+  if (!pool.length) {
+    const n = Math.max(2, Math.min(4, (navigator.hardwareConcurrency || 4) - 1));
+    for (let i = 0; i < n; i++) {
+      const w = new Worker(new URL('./relief.worker.js', import.meta.url), { type: 'module' });
+      w.onmessage = (ev) => { const p = waiting.get(ev.data.id); if (!p) return; waiting.delete(ev.data.id); if (ev.data.error) p.rej(new Error(ev.data.error)); else p.res(ev.data.bmp); };
+      pool.push(w);
+    }
+  }
+  return pool[k % pool.length];
+}
+function reliefTile(z, x, y, pal) {
+  const cz = Math.min(z, 12), px = x >> (z - cz), py = y >> (z - cz);
+  const id = ++reqId;
+  return new Promise((res, rej) => { waiting.set(id, { res, rej }); reliefWorker(px * 31 + py * 17 + cz).postMessage({ id, z, x, y, pal }); });
+}
+
 function buildStyle(kind) {
+  if (kind === 'dybdekart') return dybdekartStyle();
   const night = kind === 'natt';
   const land = night ? '#1c1f1b' : '#22261f';
   const sources = {
     ofm: { type: 'vector', url: SRC.ofm, attribution: '© OpenStreetMap' },
-    relief: { type: 'raster', tiles: [`relief://${night ? 'natt' : 'dybde'}/{z}/{x}/{y}`], tileSize: 256, minzoom: 9, maxzoom: 13, attribution: '© Kartverket' },
+    relief: { type: 'raster', tiles: [`relief://${night ? 'natt' : 'dag'}/{z}/{x}/{y}`], tileSize: 256, minzoom: 7, maxzoom: 16, attribution: '© Kartverket' },
     kontur: { type: 'raster', tiles: [WMS3857('Dybdekontur')], tileSize: 512, minzoom: 11 },
     punkt: { type: 'raster', tiles: [WMS3857('skjaer_punkt,grunne,Torrfall')], tileSize: 512, minzoom: 12 },
     dem: { type: 'raster-dem', tiles: [SRC.terrarium], encoding: 'terrarium', tileSize: 256, maxzoom: 14, attribution: 'Mapzen' },
@@ -46,7 +72,6 @@ function buildStyle(kind) {
     layers.push({ id: 'shade', type: 'hillshade', source: 'dem', paint: { 'hillshade-shadow-color': '#0b0d0b', 'hillshade-highlight-color': night ? '#3a3f38' : '#5d6553', 'hillshade-accent-color': '#151815', 'hillshade-exaggeration': 0.55 } });
     layers.push({ id: 'water', type: 'fill', source: 'ofm', 'source-layer': 'water', paint: { 'fill-color': night ? '#0c1d30' : '#0f2840' } });
     layers.push({ id: 'relief', type: 'raster', source: 'relief', paint: { 'raster-opacity': night ? 0.85 : 1, 'raster-resampling': 'linear', 'raster-fade-duration': 150 } });
-    layers.push({ id: 'kontur', type: 'raster', source: 'kontur', paint: { 'raster-opacity': night ? 0.55 : 0.4, 'raster-brightness-min': night ? 0.35 : 0.1, 'raster-saturation': -0.4 } });
     layers.push({ id: 'punkt', type: 'raster', source: 'punkt', paint: { 'raster-opacity': 0.9 } });
     layers.push({ id: 'roads', type: 'line', source: 'ofm', 'source-layer': 'transportation', minzoom: 11, filter: ['in', ['get', 'class'], ['literal', ['primary', 'secondary', 'tertiary', 'minor', 'service', 'trunk']]], paint: { 'line-color': '#4a4f45', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 0.4, 16, 2.2] } });
     layers.push({ id: 'bygg', type: 'fill', source: 'ofm', 'source-layer': 'building', minzoom: 13.5, paint: { 'fill-color': '#5b5f57', 'fill-outline-color': '#2a2d28' } });
@@ -60,6 +85,33 @@ function buildStyle(kind) {
   layers.push({ id: 'marks-line', type: 'line', source: 'marks', filter: ['==', ['geometry-type'], 'LineString'], paint: { 'line-color': '#ff6a13', 'line-width': 2, 'line-dasharray': [2, 1.5] } });
   layers.push({ id: 'marks-pt', type: 'circle', source: 'marks', filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-radius': 6, 'circle-color': '#ff6a13', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 } });
   return { version: 8, glyphs: SRC.ofmGlyphs, sources, layers };
+}
+
+// Dybdekart slik Fiskeguiden viser det: Kartverkets gråtonekart med dybdedata (Dybdedata2) oppå
+function dybdekartStyle() {
+  const wms = `${SRC.wmsDybde}?service=WMS&version=1.1.1&request=GetMap&layers=Dybdedata2&styles=&srs=EPSG:3857&format=image/png&transparent=true&width=256&height=256&bbox={bbox-epsg-3857}`;
+  return {
+    version: 8, glyphs: SRC.ofmGlyphs,
+    sources: {
+      gra: { type: 'raster', tiles: [SRC.wmtsKV('topograatone')], tileSize: 256, maxzoom: 18, attribution: '© Kartverket' },
+      dyb: { type: 'raster', tiles: [wms], tileSize: 256, minzoom: 5, maxzoom: 18 },
+      names: { type: 'geojson', data: EMPTY }, marks: { type: 'geojson', data: EMPTY },
+    },
+    layers: [
+      { id: 'bg', type: 'background', paint: { 'background-color': '#e9ecee' } },
+      { id: 'gra', type: 'raster', source: 'gra' },
+      { id: 'dyb', type: 'raster', source: 'dyb', paint: { 'raster-fade-duration': 100 } },
+      ...markLayers('#173a5c', '#ffffffcc'),
+    ],
+  };
+}
+
+function markLayers(text, halo) {
+  return [
+    { id: 'names', type: 'symbol', source: 'names', minzoom: 10.5, layout: { 'text-field': ['get', 'navn'], 'text-font': ['case', ['==', ['get', 'sjo'], 1], ['literal', ['Noto Sans Italic']], ['literal', ['Noto Sans Regular']]], 'text-size': ['interpolate', ['linear'], ['zoom'], 11, 10.5, 15, 13], 'text-padding': 3, 'symbol-sort-key': ['get', 'rank'] }, paint: { 'text-color': text, 'text-halo-color': halo, 'text-halo-width': 1.2 } },
+    { id: 'marks-line', type: 'line', source: 'marks', filter: ['==', ['geometry-type'], 'LineString'], paint: { 'line-color': '#ff6a13', 'line-width': 2, 'line-dasharray': [2, 1.5] } },
+    { id: 'marks-pt', type: 'circle', source: 'marks', filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-radius': 7, 'circle-color': '#ff6a13', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 } },
+  ];
 }
 
 // Stedsnavn fra Kartverket (sjønavn, grunner, skjær, fiskeplasser, øyer)
@@ -98,10 +150,12 @@ export async function createMap(container, opts = {}) {
     const data = await reliefTile(+m[2], +m[3], +m[4], m[1]);
     return { data };
   });
-  let kind = opts.style || 'dybde';
+  let kind = opts.style || localStorage.getItem('fiskesim.kart') || 'fiskekart';
+  if (!MAP_STYLES.some((s) => s.id === kind)) kind = 'fiskekart';
   const map = new maplibregl.Map({
     container, style: buildStyle(kind), center: opts.center || [4.83, 61.57], zoom: opts.zoom || 11.5,
     attributionControl: { compact: true }, maxPitch: 0, dragRotate: false, pitchWithRotate: false, hash: false,
+    maxBounds: [[REGION.w - 0.6, REGION.s - 0.25], [REGION.e + 0.6, REGION.n + 0.25]], minZoom: 7,
   });
   map.touchZoomRotate.disableRotation();
   map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right');
@@ -126,7 +180,7 @@ export async function createMap(container, opts = {}) {
   const api = {
     map, maplibregl,
     setStyle(k) {
-      kind = k; map.setStyle(buildStyle(k));
+      kind = k; localStorage.setItem('fiskesim.kart', k); map.setStyle(buildStyle(k));
       map.once('styledata', () => { const src = map.getSource('names'); if (src) src.setData({ type: 'FeatureCollection', features: [...allNames.values()] }); api.setMarks(api._marks); });
     },
     get style() { return kind; },
