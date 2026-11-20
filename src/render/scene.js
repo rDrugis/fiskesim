@@ -120,14 +120,24 @@ export class Scene3D {
   frame(dt, session, opts = {}) {
     this.clockT += dt;
     const { boat, angler, world, e } = session;
-    poseBoat(this.boatMesh, boat, this.toThree);
+    // Ved spoling vises bølger og båtens bevegelse i vanlig tempo (ellers rister alt)
+    const ff = session.rate > 2;
+    this.visT = (this.visT ?? session.t / 1000) + dt;
+    if (!ff) this.visT = session.t / 1000;
+    const k = Math.min(1, dt * (ff ? 1.5 : 60));
+    this.att = this.att || { roll: 0, pitch: 0, heave: 0 };
+    this.att.roll += (boat.roll * (ff ? 0.25 : 1) - this.att.roll) * k;
+    this.att.pitch += (boat.pitch * (ff ? 0.25 : 1) - this.att.pitch) * k;
+    this.att.heave += (boat.heave * (ff ? 0.25 : 1) - this.att.heave) * k;
+    const view = Object.create(boat); view.roll = this.att.roll; view.pitch = this.att.pitch; view.heave = this.att.heave;
+    poseBoat(this.boatMesh, view, this.toThree);
     const prop = this.boatMesh.userData.prop; if (prop && boat.motorOn) prop.rotation.x += dt * (60 * Math.abs(boat.throttle) + 8);
     this.updateEnvironment(e);
     const side = angler.side;
     let eye;
-    if (this.mode === 'bak') eye = boat.toWorld(-7.5, 0, 3.4);
-    else if (this.mode === 'stå') eye = boat.toWorld(-0.7, 0.12 * side, 1.62);
-    else eye = boat.toWorld(-0.78, 0.2 * side, 1.08);
+    if (this.mode === 'bak') eye = view.toWorld(-7.5, 0, 3.4);
+    else if (this.mode === 'stå') eye = view.toWorld(-0.7, 0.12 * side, 1.62);
+    else eye = view.toWorld(-0.78, 0.2 * side, 1.08);
     const [ex, ey, ez] = this.toThree(...eye);
     this.camera.position.set(ex, ey, ez);
     // blikket: ut over siden der stanga er (eller framover bak båten)
@@ -141,7 +151,7 @@ export class Scene3D {
     this.lamp.target.position.set(t[0], t[1], t[2]);
     this.lamp.intensity = opts.lamp ? 22 : 0;
     const water = world.surfaceZ();
-    this.water.update(session.t / 1000, session.waves, this.camera.position, { tideLevel: water, ws: e.ws }, { dir: this.sunDir, light: this.light });
+    this.water.update(this.visT, session.waves, this.camera.position, { tideLevel: water, ws: e.ws }, { dir: this.sunDir, light: this.light });
     this.rod.update(angler.frame || angler.rodFrame(boat), angler.line, this.toThree, angler.crankAngle, water, this.camera.position);
     // fisk på kroken nær overflaten
     const f = session.fish.hooked;
