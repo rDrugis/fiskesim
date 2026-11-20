@@ -330,7 +330,7 @@ export class BoatScreen {
       const out = wrap.querySelector('[data-out]');
       out.innerHTML = '<div class="note">Kjører … <span data-p>0</span> %</div><div style="height:6px;background:var(--hull-2);border-radius:3px;margin-top:6px"><div data-bar style="height:6px;width:0;background:var(--buoy);border-radius:3px"></div></div>';
       if (this.spotWorker) this.spotWorker.terminate();
-      const wk = (this.spotWorker = new Worker(new URL('./spottest.worker.js', import.meta.url), { type: 'module' }));
+      const wk = (this.spotWorker = new Worker(new URL('./spottest.worker.js?v=' + __V__, import.meta.url), { type: 'module' }));
       const w = this.world, g = w.near;
       const copy = (gr) => gr && ({ ...gr, z: gr.z.slice(), mask: gr.mask.slice(), hard: gr.hard.slice(), sed: gr.sed?.slice(), tpi: gr.tpi?.slice(), lo: gr.lo?.slice(), hi: gr.hi?.slice() });
       const env = this.env;

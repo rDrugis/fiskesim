@@ -1,6 +1,7 @@
 // Bygger appen til assets/ (ES-moduler) og kopierer MapLibre som egen fil.
 import * as esbuild from 'esbuild';
-import { cpSync, mkdirSync } from 'node:fs';
+import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 
 const watch = process.argv.includes('--watch');
 mkdirSync('assets/vendor', { recursive: true });
@@ -20,6 +21,15 @@ const opts = {
   sourcemap: watch ? 'inline' : false,
   logLevel: 'info',
   legalComments: 'linked',
+  // versjon i adressene til trådene, så nettleseren ikke bruker gamle filer etter en oppdatering
+  define: { __V__: JSON.stringify(Date.now().toString(36)) },
 };
 if (watch) { const ctx = await esbuild.context(opts); await ctx.watch(); }
-else await esbuild.build(opts);
+else {
+  await esbuild.build(opts);
+  // index.html peker på app.js/app.css med innholdshash (unngår gamle filer i nettleserens hurtiglager)
+  const h = createHash('sha1').update(readFileSync('assets/app.js')).update(readFileSync('assets/app.css')).digest('hex').slice(0, 10);
+  const html = readFileSync('index.html', 'utf8').replace(/assets\/app\.js(\?v=\w+)?/, `assets/app.js?v=${h}`).replace(/assets\/app\.css(\?v=\w+)?/, `assets/app.css?v=${h}`);
+  writeFileSync('index.html', html);
+  console.log('versjon', h);
+}

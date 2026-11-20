@@ -34,7 +34,7 @@ function reliefWorker(k) {
   if (!pool.length) {
     const n = Math.max(2, Math.min(4, (navigator.hardwareConcurrency || 4) - 1));
     for (let i = 0; i < n; i++) {
-      const w = new Worker(new URL('./relief.worker.js', import.meta.url), { type: 'module' });
+      const w = new Worker(new URL('./relief.worker.js?v=' + __V__, import.meta.url), { type: 'module' });
       w.onmessage = (ev) => { const p = waiting.get(ev.data.id); if (!p) return; waiting.delete(ev.data.id); if (ev.data.error) p.rej(new Error(ev.data.error)); else p.res(ev.data.bmp); };
       pool.push(w);
     }
