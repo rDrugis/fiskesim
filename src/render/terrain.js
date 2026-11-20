@@ -3,8 +3,8 @@ import * as THREE from 'three';
 
 const C = (h) => new THREE.Color(h);
 const COL = {
-  tang: C('#2f2d22'), fjell: C('#706d66'), fjellMork: C('#4f4d48'), lyng: C('#5a5838'), lyngSommer: C('#4f6436'), skog: C('#28352a'),
-  sno: C('#e8ecef'), sand: C('#a39469'), stein: C('#4c4943'), tare: C('#34402a'), dyp: C('#20262a'), strand: C('#8a8170'),
+  tang: C('#4a4532'), fjell: C('#8f8b82'), fjellMork: C('#6b6861'), lyng: C('#7d7852'), lyngSommer: C('#6d8449'), skog: C('#3e5239'),
+  sno: C('#eef1f3'), sand: C('#b3a47a'), stein: C('#5f5b53'), tare: C('#45523a'), dyp: C('#273035'), strand: C('#a39a86'),
 };
 
 export function terrainMesh(g, utmToThree, opt = {}) {

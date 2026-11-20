@@ -16,7 +16,7 @@ let NEXT_ID = 1;
 export class FishEngine {
   constructor(world) {
     this.world = world; this.fish = []; this.schools = []; this.cells = new Map();
-    this.hooked = null; this.log = []; this.features = null; this.densityScale = 2.2;
+    this.hooked = null; this.log = []; this.features = null; this.densityScale = 1.6;
     this.stats = { detections: 0, approaches: 0, bites: 0, strikes: 0, hookups: 0 };
     this.lastScan = 0; this.biteScentAt = new Map();
   }
@@ -333,8 +333,13 @@ export class FishEngine {
     f.state = 'hooked'; f.hookHold = where; f.d0 = this.world.surfaceZ() - f.z; f.stam = 1; f.mode = 'run'; f.mt = rnd(1, 4);
     f.runDir = Math.atan2(h.y - ctx.boat.y, h.x - ctx.boat.x) + gauss() * 0.6; f.force = [0, 0, 0];
     f.hookRef = h.hook; f.slackT = 0; this.hooked = f; this.stats.hookups++; if (this.trace) this.trace('kroket', f, where);
-    if (f.school) { const s = f.school; s.members = s.members.filter((m) => m !== f); s.speed *= 0.5; }
-    // stimen følger ofte etter en kroket fisk (særlig sei og makrell)
+    if (f.school) {
+      // resten av stimen blir urolig: noen følger etter den krokede fisken, men stimen trekker gjerne videre
+      const s = f.school; s.members = s.members.filter((m) => m !== f);
+      s.caught = (s.caught || 0) + 1;
+      for (const m of s.members) m.spook = Math.min(1, (m.spook || 0) + 0.12 + 0.08 * s.caught);
+      if (Math.random() < 0.25 + 0.15 * s.caught) { s.heading = Math.atan2(s.x - ctx.boat.x, s.y - ctx.boat.y) + gauss() * 0.5; s.speed = rnd(0.5, 0.9); s.life = Math.min(s.life, rnd(120, 400)); }
+    }
   }
 
   // Kampen: fisken drar, rister, dykker og blir sliten; svømmeblæren utvider seg når den hales opp
