@@ -155,7 +155,7 @@ export class SonarView {
     const night = e.sunElev < -6;
     const layers = [{ z: night ? 18 : 55, w: night ? 8 : 14, level: -2, density: 0.08 }];
     if (e.month >= 5 && e.month <= 8) layers.push({ z: 14, w: 3, level: -10, density: 0.06 });
-    const surf = this.s.surface === 'skjul' ? { depth: 0, level: -50 } : { depth: 1.2 + e.hs * 2 + (boat.speedKn > 3 ? 1.5 : 0), level: 8 + e.ws * 1.5 + boat.speedKn * 2 };
+    const surf = this.s.surface === 'skjul' ? { depth: 0, level: -50 } : { depth: 0.5 + e.hs * 1.1 + (boat.speedKn > 4 ? 0.8 : 0), level: 2 + e.ws * 0.9 + boat.speedKn * 1.3 };
     return { xdcr: { x: x[0], y: x[1], zT: water - 0.25 }, castRay: world.castRay.bind(world), targets, surfaceNoise: surf, layers, hour, clouds: fish.bait || [] };
   }
 
