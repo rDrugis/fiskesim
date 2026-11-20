@@ -90,7 +90,8 @@ export class SonarView {
     const steps = [5, 10, 15, 20, 30, 40, 50, 60, 80, 100, 120, 150, 200, 250, 300, 400, 500, 600];
     // automatisk rekkevidde med treghet, så bildet ikke hopper for hver liten dybdeendring
     const cur = this.autoRange;
-    if (!cur || d > cur * 0.9 || d < cur * 0.42) this.autoRange = steps.find((v) => v >= d * 1.15 + 2) || 600;
+    if (bot && (!cur || d > cur * 0.9 || d < cur * 0.42)) this.autoRange = steps.find((v) => v >= d * 1.15 + 2) || 600;
+    else if (!cur) this.autoRange = 50;
     return this.autoRange;
   }
 
@@ -118,6 +119,11 @@ export class SonarView {
       this.pingAcc -= 1; n++;
       const R = Math.min(range * (this.s.zoom === 'bunnlås' ? 1.25 : 1.15), f.depthMax);
       const amp = this.sonar.ping(this.pingCtx(session), R, 520);
+      // ingen bunn innenfor rekkevidden: automatisk rekkevidde leter dypere
+      if (this.s.range !== 'manuell' && this.sonar.lastBottom == null && R < f.depthMax) {
+        const steps = [5, 10, 15, 20, 30, 40, 50, 60, 80, 100, 120, 150, 200, 250, 300, 400, 500, 600];
+        this.autoRange = steps.find((v) => v > (this.autoRange || 40) * 1.4) || 600;
+      }
       this.colAcc = (this.colAcc || 0) + speedF;
       while (this.colAcc >= 1) { this.colAcc -= 1; this.push({ amp, R, bottom: this.sonar.lastBottom, hard: this.sonar.lastHard, targets: this.lastTargets }); }
     }
