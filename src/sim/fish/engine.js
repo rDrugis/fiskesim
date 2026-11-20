@@ -16,7 +16,7 @@ let NEXT_ID = 1;
 export class FishEngine {
   constructor(world) {
     this.world = world; this.fish = []; this.schools = []; this.cells = new Map();
-    this.hooked = null; this.log = []; this.features = null; this.densityScale = 1;
+    this.hooked = null; this.log = []; this.features = null; this.densityScale = 2.2;
     this.stats = { detections: 0, approaches: 0, bites: 0, strikes: 0, hookups: 0 };
     this.lastScan = 0; this.biteScentAt = new Map();
   }
@@ -97,7 +97,7 @@ export class FishEngine {
     else if (S.pelagic) z = Math.min(water - 2, bed + rnd(S.hob[0], S.hob[1]) + (Math.random() < 0.2 ? rnd(0, S.hob[2]) : 0));
     else z = bed + rnd(S.hob[0], S.hob[1]) * (Math.random() < 0.7 ? 0.5 : 1) + (Math.random() < 0.08 ? rnd(0, S.hob[2]) : 0);
     z = Math.min(z, water - 0.5);
-    const f = { id: NEXT_ID++, sp, len, w: weightKg(sp, len), x, y, z, vx: 0, vy: 0, vz: 0, homeX: x, homeY: y, state: 'idle', st: 0, cell, school, hunger: rnd(0.4, 1), spook: 0, stam: 1, lastEval: 0, tgt: null };
+    const f = { id: NEXT_ID++, sp, len, w: weightKg(sp, len) * clamp(1 + gauss() * 0.08, 0.8, 1.25), x, y, z, vx: 0, vy: 0, vz: 0, homeX: x, homeY: y, state: 'idle', st: 0, cell, school, hunger: rnd(0.4, 1), spook: 0, stam: 1, lastEval: 0, tgt: null };
     this.fish.push(f);
     return f;
   }
@@ -115,7 +115,7 @@ export class FishEngine {
     const lenBase = S.len[0] + S.len[1] * gauss() * 0.6;
     for (let i = 0; i < n; i++) {
       const f = this.spawn(sp, x, y, e, null, sch);
-      f.len = clamp(lenBase + gauss() * S.len[1] * 0.3, S.len[2], S.len[3]); f.w = weightKg(sp, f.len);
+      f.len = clamp(lenBase + gauss() * S.len[1] * 0.3, S.len[2], S.len[3]); f.w = weightKg(sp, f.len) * clamp(1 + gauss() * 0.08, 0.8, 1.25);
       f.ox = gauss() * sch.r * 0.6; f.oy = gauss() * sch.r * 0.6; f.oz = gauss() * sch.r * 0.25;
       sch.members.push(f);
     }
@@ -141,7 +141,7 @@ export class FishEngine {
     this.now = e.t;
     const out = [0, 0, 0];
     this.lastScan += dt;
-    if (this.lastScan > 1.0) { this.populate(ctx.boat.x, ctx.boat.y, e); this.lastScan = 0; }
+    if (this.lastScan > 1.0) { this.populate(ctx.boat.x, ctx.boat.y, e); this.updateBait(ctx.boat.x, ctx.boat.y, e, this.lastScan); this.lastScan = 0; }
     const water = this.world.surfaceZ();
     const curDir = (e.cdGrid ?? e.cd) * Math.PI / 180, cux = Math.sin(curDir), cuy = Math.cos(curDir);
 
@@ -178,7 +178,7 @@ export class FishEngine {
         }
         // Oppdager fisken et krokpunkt?
         const dx0 = f.x - tx, dy0 = f.y - ty;
-        if (dx0 * dx0 + dy0 * dy0 > 45 * 45 || !hooksIn.length) continue;
+        if (dx0 * dx0 + dy0 * dy0 > 60 * 60 || !hooksIn.length) continue;
         if (e.t - f.lastEval < 4000) continue;
         const lux = e.luxAt(water - f.z);
         const vis = 1 / (1 + Math.exp(-(Math.log10(lux) + 1.8) / 0.55));
@@ -187,7 +187,8 @@ export class FishEngine {
           const dx = h.x - f.x, dy = h.y - f.y, dz = h.z - f.z, d = Math.hypot(dx, dy, dz);
           const flash = info.col.flash * (0.4 + Math.min(1, info.speed / 0.6) * 0.6);
           const rVis = S.senses.syn * (1 + 6.5 * vis * (0.35 + 0.65 * Math.max(flash, info.col.dark * 0.75)) * clamp(info.len / 12, 0.5, 1.6)) + 3 * info.col.glow * (1 - vis);
-          const rSide = S.senses.side * (0.6 + 2.6 * Math.min(2, info.speed / 0.6) + (info.tail ? 1.2 : 0) + (h.hook.lure === 'pilk' ? 0.8 : 0));
+          // sidelinje og hørsel: torskefisk merker lavfrekvente bevegelser fra en pilk eller shad på flere meters avstand
+          const rSide = S.senses.side * 1.7 * (0.6 + 2.6 * Math.min(2, info.speed / 0.6) + (info.tail ? 1.2 : 0) + (h.hook.lure === 'pilk' ? 1.2 : 0));
           let smell = 0;
           if (info.scent > 0.02) {
             const along = -(dx * cux + dy * cuy), cross = Math.abs(dx * cuy - dy * cux);
@@ -387,6 +388,32 @@ export class FishEngine {
 
   // Alle fisk (inkl. stimer) til ekkoloddet
   sonarTargets() { return this.fish; }
+
+  // Agnfisk (sild, brisling, tobis) i stimer: vises på ekkoloddet som skyer, biter ikke.
+  // Om dagen står stimene dypere eller nær bunnen, om natta høyere i vannet (anslag ut fra kjent døgnvandring).
+  updateBait(cx, cy, e, dt) {
+    const water = this.world.surfaceZ();
+    this.bait = this.bait || [];
+    const m = e.month, season = [0.5, 0.45, 0.5, 0.7, 0.9, 1, 1, 1, 1, 1, 0.85, 0.65][m];
+    const night = e.sunElev < -4;
+    const want = Math.round(6 * season);
+    this.bait = this.bait.filter((s) => s.life > 0 && Math.hypot(s.x - cx, s.y - cy) < 420);
+    while (this.bait.length < want) {
+      const a = Math.random() * 6.283, r = 60 + Math.random() * 300;
+      const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r, bed = this.world.bedZ(x, y);
+      if (bed > water - 6) { if (Math.random() < 0.7) continue; else break; }
+      const sp = Math.random() < 0.5 ? 'sild' : Math.random() < 0.6 ? 'brisling' : 'tobis';
+      this.bait.push({ sp, x, y, z: bed + 3, rx: rnd(4, 16), rz: rnd(1.2, 5), dens: rnd(0.25, 1), heading: Math.random() * 6.283, speed: rnd(0.1, 0.35), life: rnd(600, 2400) });
+    }
+    for (const s of this.bait) {
+      s.life -= dt; s.heading += gauss() * 0.2 * dt;
+      const nx = s.x + Math.sin(s.heading) * s.speed * dt, ny = s.y + Math.cos(s.heading) * s.speed * dt, bed = this.world.bedZ(nx, ny);
+      if (bed > water - 5) s.heading += 2.2; else { s.x = nx; s.y = ny; }
+      const depth = water - bed;
+      const tz = s.sp === 'tobis' ? bed + 1.5 + s.rz : night ? water - Math.min(depth - 2, 6 + s.rz * 2) : Math.max(bed + s.rz + 1, water - Math.min(depth * 0.8, 35 + s.rx * 2));
+      s.z += (tz - s.z) * Math.min(1, 0.01 * dt);
+    }
+  }
 }
 
 function water(eng) { return eng.world.surfaceZ(); }

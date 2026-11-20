@@ -5,6 +5,7 @@ import { Controls } from './input.js';
 import { AudioFx } from './audio.js';
 import { GearSheet } from './gear.js';
 import { catchCardHTML, loadLog, saveLog, logHTML } from './catch.js';
+import { renderFishThumb } from '../render/fish3d.js';
 import { helpHTML } from './help.js';
 import { compass, dec, int, deg3, clock, dateShort, esc, lightWord } from './fmt.js';
 import { fmtLat, fmtLon } from '../geo/proj.js';
@@ -39,6 +40,7 @@ export class BoatScreen {
           <button class="btn" data-a="gear">Utstyr</button>
           <button class="btn" data-a="log">Fangst</button>
           <button class="btn" data-a="spot">Test plassen</button>
+          <button class="btn ghost" data-a="sonar" aria-pressed="true">Ekkolodd</button>
           <button class="btn ghost" data-a="sound" aria-pressed="true">Lyd</button>
           <button class="btn ghost" data-a="help">Hjelp</button>
           <button class="btn ghost" data-a="map">Kart</button>
@@ -66,6 +68,8 @@ export class BoatScreen {
     this.scene.build(this.world, s, ctx.near, new Date(s.t).getUTCMonth());
     ctx.farP.then((far) => { if (!this.dead) this.scene.setFar(far); }).catch(() => {});
     this.sonar = new SonarView(root, s.sonar);
+    this.sonar.onHide = (h) => this.$('[data-a="sonar"]').setAttribute('aria-pressed', String(!h));
+    this.sonar.onHide(this.sonar.s.hidden);
     this.audio = new AudioFx();
     this.$('[data-a="sound"]').setAttribute('aria-pressed', String(this.audio.on));
     this.controls = new Controls(this.canvas, this.actions());
@@ -106,7 +110,8 @@ export class BoatScreen {
       camCycle: () => { const m = ['sitt', 'stå', 'bak']; this.scene.mode = m[(m.indexOf(this.scene.mode) + 1) % 3]; this.scene.look.yaw = 0; },
       inset: () => { this.scene.showInset = !this.scene.showInset; },
       lamp: () => { this.lamp = !this.lamp; },
-      sonarSize: (e) => { if (e.shiftKey) this.sonar.el.classList.toggle('hidden'); else this.sonar.toggleBig(); },
+      sonarSize: (e) => { if (e.shiftKey) this.sonar.setHidden(!this.sonar.s.hidden); else { if (this.sonar.s.hidden) this.sonar.setHidden(false); else this.sonar.toggleBig(); } },
+      sonarView: () => { if (this.sonar.s.hidden) this.sonar.setHidden(false); this.sonar.cycleView(); },
       gear: () => this.openGear(), help: () => this.openHelp(),
       pause: () => { if (!this.sheetOpen) { s.paused = !s.paused; this.updateHUD(true); } },
       escape: () => this.closeSheet(),
@@ -124,6 +129,7 @@ export class BoatScreen {
     else if (a === 'help') this.openHelp();
     else if (a === 'close') this.closeSheet();
     else if (a === 'rate') this.setRate(e?.shiftKey ? -1 : +1, true);
+    else if (a === 'sonar') this.sonar.setHidden(!this.sonar.s.hidden);
     else if (a === 'sound') { const on = this.audio.toggle(); this.$('[data-a="sound"]').setAttribute('aria-pressed', String(on)); }
     else if (a === 'hidekeys') { this.$('[data-keys]').classList.add('hidden'); localStorage.setItem('fiskesim.keys', 'skjul'); }
     else if (a === 'map') { if (confirm('Avslutte turen og gå tilbake til kartet? Fangsten ligger i loggen.')) this.exit(); }
@@ -144,8 +150,8 @@ export class BoatScreen {
     if (B.anchor) { B.anchor = null; this.toast('Ankeret er tatt opp.', '', 2500); s.t += 60e3; return; }
     if (B.motorOn && Math.hypot(B.vx, B.vy) > 1) { this.toast('Stopp båten før du ankrer.', '', 2500); return; }
     const d = this.world.depthAt(B.x, B.y);
-    if (d > 45) { this.toast(`For dypt til å ankre her (${int(d)} m). Med 100 m tau holder ankeret ikke dypere enn ca. 40 m.`, 'warn', 4000); return; }
-    B.anchor = { x: B.x, y: B.y, rope: Math.min(100, Math.max(12, d * 3)) };
+    // ankertauet er så langt som trengs (ca. 3 × dybden)
+    B.anchor = { x: B.x, y: B.y, rope: Math.max(12, d * 3) };
     B.motorOn = false; B.throttle = 0;
     this.toast(`Ankeret er ute på ${int(d)} m med ${int(B.anchor.rope)} m tau.`, '', 3000);
   }
@@ -296,6 +302,7 @@ export class BoatScreen {
 
   showCatch(c) {
     const body = this.openSheet('Fisk i båten', catchCardHTML(c), () => { this.session.t += 60e3; });
+    try { renderFishThumb(body.querySelector('[data-fish]'), c.sp, c.len, c.w); } catch (e) { body.querySelector('[data-fish]')?.remove(); }
     body.addEventListener('click', (e) => {
       const a = e.target.closest('[data-a]')?.dataset.a;
       if (a !== 'keep' && a !== 'release') return;

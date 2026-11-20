@@ -21,7 +21,7 @@ export class Controls {
       const map = {
         KeyF: 'freeSpool', KeyB: 'holder', KeyN: 'net', KeyR: 'rebait', KeyX: 'cut', KeyM: 'motor', KeyK: 'anchor', KeyJ: 'driftAnchor',
         Digit1: 'camSit', Digit2: 'camStand', Digit3: 'camBack', KeyC: 'camCycle', KeyI: 'inset', KeyL: 'lamp', KeyO: 'sonarSize',
-        KeyG: 'gear', KeyH: 'help', KeyP: 'pause', Escape: 'escape', KeyQ: 'dragDown', KeyE: 'dragUp', KeyU: 'sound',
+        KeyG: 'gear', KeyH: 'help', KeyP: 'pause', Escape: 'escape', KeyQ: 'dragDown', KeyE: 'dragUp', KeyU: 'sound', KeyV: 'sonarView',
       };
       if (map[k]) { a[map[k]]?.(e); e.preventDefault(); }
       if (e.key === '+' || k === 'NumpadAdd') a.faster?.();

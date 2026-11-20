@@ -65,6 +65,18 @@ export function makeBoat(color = '#3d4144') {
   rimPts.push(rimPts[0].clone());
   const rim = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(rimPts, false), 160, 0.035, 6), new THREE.MeshStandardMaterial({ color: '#2a2c2e', roughness: 0.6 }));
   g.add(rim);
+  // Maske over åpningen i båten: vannflaten tegnes ikke innenfor ripa (ellers ser det ut som det står vann i båten)
+  {
+    const pos = [secs[Math.floor(secs.length / 2)].x, 0, 0.5];
+    for (const p of rimPts) pos.push(p.x, p.y, p.z - 0.01);
+    const idx = [];
+    for (let k = 1; k < rimPts.length; k++) idx.push(0, k, k + 1 <= rimPts.length ? k + 1 : 1);
+    const mg = new THREE.BufferGeometry();
+    mg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); mg.setIndex(idx);
+    const mm = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false, side: THREE.DoubleSide, stencilWrite: true, stencilRef: 1, stencilFunc: THREE.AlwaysStencilFunc, stencilZPass: THREE.ReplaceStencilOp });
+    const mask = new THREE.Mesh(mg, mm); mask.renderOrder = 1; mask.frustumCulled = false;
+    g.add(mask);
+  }
   const inner = new THREE.MeshStandardMaterial({ color: '#8d9091', roughness: 0.85 });
   const floor = new THREE.Mesh(new THREE.BoxGeometry(3.7, 1.25, 0.04), inner); floor.position.set(-0.15, 0, 0.04); g.add(floor);
   const tofte = (x, w) => { const m = new THREE.Mesh(new THREE.BoxGeometry(0.32, w, 0.06), inner); m.position.set(x, 0, 0.36); g.add(m); };

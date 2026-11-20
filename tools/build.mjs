@@ -9,7 +9,7 @@ for (const f of ['maplibre-gl.mjs', 'maplibre-gl-worker.mjs', 'maplibre-gl.css']
 }
 
 const opts = {
-  entryPoints: { app: 'src/main.js', 'terrain.worker': 'src/workers/terrain.worker.js', 'spottest.worker': 'src/workers/spottest.worker.js' },
+  entryPoints: { app: 'src/main.js', 'terrain.worker': 'src/workers/terrain.worker.js', 'spottest.worker': 'src/workers/spottest.worker.js', 'relief.worker': 'src/workers/relief.worker.js' },
   outdir: 'assets',
   bundle: true,
   format: 'esm',
