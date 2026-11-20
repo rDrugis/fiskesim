@@ -96,7 +96,7 @@ function oneRun({ world, env, setup, start, timeMs, hours, technique, anchor, la
     if (strike) { strikeAt = null; out.strikes++; }
     const F = eng.update({
       t, dt, e, boat: { x: boat.x, y: boat.y, speed: Math.hypot(boat.vx, boat.vy), motor: false },
-      hooks, term: { x: tx, y: ty, z, onBottom: tech === 'agn' }, tension: wetW + 0.5, strike, strikeTransfer,
+      hooks, term: { x: tx, y: ty, z, onBottom: tech === 'agn' }, tension: wetW + 0.5 + seenF, strike, strikeTransfer,
       line: { d: lineSpec.d / 1000 }, leader: A.rig.kind === 'agn' && A.rig.id !== 'kystmeite',
     });
     // fiskeren ser nappene i tuppen
