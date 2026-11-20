@@ -42,7 +42,7 @@ export class Scene3D {
   build(world, session, near, month) {
     this.world = world; this.session = session; this.month = month;
     this.utm = (E, N, z) => [E - world.E0, z, -(N - world.N0)];
-    this.boatMesh = makeBoat();
+    this.boatMesh = makeBoat('#c4c8c2'); // lys grå plastbåt
     this.scene.add(this.boatMesh);
     const A = session.angler;
     this.rod.setStyle(A.rod, A.lineSpec, A.rig);
@@ -103,16 +103,16 @@ export class Scene3D {
     const cloudDim = 1 - 0.55 * e.cloud;
     this.sunLight.position.copy(this.camera.position).addScaledVector(dir, 200);
     this.sunLight.target.position.copy(this.camera.position);
-    this.sunLight.intensity = Math.max(0, Math.sin(el)) * 3.2 * (1 - 0.7 * e.cloud);
-    this.hemi.intensity = 0.03 + 1.1 * day * cloudDim;
-    this.renderer.toneMappingExposure = 0.16 + 0.42 * day;
-    const fogCol = new THREE.Color().setHSL(0.58, 0.12, 0.05 + 0.62 * day * cloudDim);
+    this.sunLight.intensity = Math.max(0, Math.sin(el)) * 4.2 * (1 - 0.6 * e.cloud);
+    this.hemi.intensity = 0.04 + 1.9 * day * (0.55 + 0.45 * cloudDim);
+    this.renderer.toneMappingExposure = 0.22 + 0.4 * day;
+    const fogCol = new THREE.Color().setHSL(0.58, 0.1, 0.05 + 0.66 * day * (0.6 + 0.4 * cloudDim));
     this.scene.fog.color.copy(fogCol);
     this.scene.fog.density = 0.00011 + 0.00032 * e.cloud + (e.rain > 0.5 ? 0.00045 : 0);
     const wu = this.water.uniforms;
     wu.uFogColor.value.copy(fogCol); wu.uFogDensity.value = this.scene.fog.density;
-    wu.uSkyHorizon.value.copy(fogCol).multiplyScalar(1.05);
-    wu.uSkyTop.value.setHSL(0.58, 0.35, 0.04 + 0.42 * day * cloudDim);
+    wu.uSkyHorizon.value.copy(fogCol).multiplyScalar(1.15);
+    wu.uSkyTop.value.setHSL(0.58, 0.3 - 0.15 * e.cloud, 0.04 + 0.5 * day * (0.5 + 0.5 * cloudDim));
     wu.uSunColor.value.setHSL(0.09, 0.5, 0.5 + 0.4 * Math.min(1, Math.max(0, e.sunElev) / 20));
     this.light = 0.1 + 0.9 * day * (0.6 + 0.4 * cloudDim);
   }

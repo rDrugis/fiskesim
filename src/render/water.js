@@ -61,9 +61,9 @@ void main() {
   float rip = clamp(uWind / 8.0, 0.15, 1.2);
   vec3 rn = ripple(vWorld.xz, 0.045, vec2(0.013, 0.007), uTime);
   vec3 rn2 = ripple(vWorld.xz, 0.011, vec2(-0.004, 0.006), uTime);
-  float far = clamp(vDist / 900.0, 0.0, 1.0);
-  vec3 N = normalize(vNormal + vec3(rn.x + rn2.x * 0.6, 0.0, rn.z + rn2.z * 0.6) * rip * mix(0.32, 0.08, far));
-  float fres = 0.02 + 0.98 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
+  float far = clamp(vDist / 450.0, 0.0, 1.0);
+  vec3 N = normalize(vNormal + vec3(rn.x + rn2.x * 0.6, 0.0, rn.z + rn2.z * 0.6) * rip * mix(0.3, 0.02, far));
+  float fres = 0.04 + 0.96 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
   vec3 R = reflect(-V, N);
   float sky = clamp(R.y, 0.0, 1.0);
   vec3 skyCol = mix(uSkyHorizon, uSkyTop, pow(sky, 0.6));
@@ -81,7 +81,9 @@ void main() {
   col = mix(col, vec3(0.85, 0.9, 0.92) * uLight, foam * 0.6);
   float fog = 1.0 - exp(-uFogDensity * uFogDensity * vDist * vDist);
   col = mix(col, uFogColor, fog);
-  gl_FragColor = vec4(col, mix(0.97, 0.55, shallowK * (1.0 - fres)));
+  // dypt vann er ugjennomsiktig; bare på grunt vann ser man bunnen
+  float alpha = mix(1.0, 0.55, smoothstep(14.0, 2.0, depth) * (1.0 - fres));
+  gl_FragColor = vec4(col, alpha);
 }`;
 
 function rippleTexture() {
@@ -130,7 +132,7 @@ export class Water {
       uTime: { value: 0 }, uK: { value: kArr }, uA: { value: new Array(NWAVES).fill(0) }, uCenter: { value: new THREE.Vector2() },
       uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uSunColor: { value: new THREE.Color(1, 0.95, 0.85) },
       uSkyTop: { value: new THREE.Color(0.35, 0.5, 0.7) }, uSkyHorizon: { value: new THREE.Color(0.7, 0.75, 0.8) },
-      uDeep: { value: new THREE.Color(0.02, 0.07, 0.09) }, uShallow: { value: new THREE.Color(0.18, 0.32, 0.28) },
+      uDeep: { value: new THREE.Color(0.05, 0.11, 0.13) }, uShallow: { value: new THREE.Color(0.2, 0.34, 0.3) },
       uWind: { value: 5 }, uRipple: { value: rippleTexture() }, uDepthTex: { value: null }, uDepthRect: { value: new THREE.Vector4(0, 0, 1, 1) },
       uFogColor: { value: new THREE.Color(0.6, 0.65, 0.7) }, uFogDensity: { value: 0.00025 }, uLight: { value: 1 },
     };
