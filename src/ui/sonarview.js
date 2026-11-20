@@ -125,7 +125,16 @@ export class SonarView {
         this.autoRange = steps.find((v) => v > (this.autoRange || 40) * 1.4) || 600;
       }
       this.colAcc = (this.colAcc || 0) + speedF;
-      while (this.colAcc >= 1) { this.colAcc -= 1; this.push({ amp, R, bottom: this.sonar.lastBottom, hard: this.sonar.lastHard, targets: this.lastTargets }); }
+      // automatisk forsterkning: følger bunnekkoet, slik at bunnen blir tydelig også på dypt vann
+      const bot = this.sonar.lastBottom;
+      if (bot) {
+        const dr = R / amp.length; let peak = -99;
+        for (let i = Math.floor((bot - 1) / dr); i < Math.min(amp.length, Math.ceil((bot + 3) / dr)); i++) if (i >= 0 && amp[i] > peak) peak = amp[i];
+        const want = Math.max(-8, Math.min(30, 47 - peak));
+        this.agc = this.agc == null ? want : this.agc + (want - this.agc) * 0.08;
+      }
+      const agc = this.agc || 0;
+      while (this.colAcc >= 1) { this.colAcc -= 1; this.push({ amp, R, bottom: this.sonar.lastBottom, hard: this.sonar.lastHard, targets: this.lastTargets, agc }); }
     }
     this.overlay(session, range);
   }
@@ -168,7 +177,7 @@ export class SonarView {
 
   gainOffset(col) {
     if (this.s.gainMode === 'manuell') return (this.s.gain - 50) * 0.55;
-    return { lav: -5, middels: 0, høy: 6 }[this.s.auto];
+    return { lav: -5, middels: 0, høy: 6 }[this.s.auto] + (col && col.agc ? col.agc * 0.85 : 0);
   }
 
   drawCol(x, col) {
@@ -184,7 +193,7 @@ export class SonarView {
       let v = i >= 0 && i < n ? col.amp[i] : -99;
       v += go;
       let k;
-      if (v < noiseCut + go * 0.5 || v < -10) k = 0;
+      if (v < noiseCut + go * 0.8 || v < -10) k = 0;
       else k = Math.max(1, Math.min(255, Math.round((v + 10) / 62 * 255)));
       const o = y * 4;
       if (col.bottom && d >= col.bottom && d < col.bottom + 3 && v > wl) { img.data[o] = 245; img.data[o + 1] = 245; img.data[o + 2] = 245; }
