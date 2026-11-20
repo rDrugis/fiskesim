@@ -130,7 +130,7 @@ export class SonarView {
       if (bot) {
         const dr = R / amp.length; let peak = -99;
         for (let i = Math.floor((bot - 1) / dr); i < Math.min(amp.length, Math.ceil((bot + 3) / dr)); i++) if (i >= 0 && amp[i] > peak) peak = amp[i];
-        const want = Math.max(-8, Math.min(30, 47 - peak));
+        const want = Math.max(-28, Math.min(30, 49 - peak));
         this.agc = this.agc == null ? want : this.agc + (want - this.agc) * 0.08;
       }
       const agc = this.agc || 0;
