@@ -46,7 +46,8 @@ export function helpHTML() {
       </dl>
       <p class="note">Bittmønstrene bygger på beskrivelser fra Hooked, NJFF og Fiskeskolen. Styrke og tider er anslag.</p>
       <h3>Ekkoloddet</h3>
-      <p>Bildet ruller fra høyre mot venstre. Fisk blir buer når båten passerer dem. Hard bunn gir tykk, sterk bunnlinje og ofte et dobbeltekko lenger ned. Myk bunn gir tynn, svak linje. 200 kHz har smal kjegle og viser detaljer; 77 kHz har bred kjegle og ser mer av området. I bratt terreng skjuler fisk seg i «død sone» rett over bunnen. Pilken din vises som en strek som går opp og ned.</p>
+      <p>Bildet ruller fra høyre mot venstre og viser alltid fra overflaten ned til litt under bunnen – skalaen følger dybden selv. Fisk blir buer når båten passerer dem. Hard bunn gir tykk, sterk bunnlinje og ofte et dobbeltekko lenger ned. Myk bunn gir tynn, svak linje. Auto bruker 200 kHz (smal kjegle, detaljer) og bytter til 77 kHz på dypt vann.</p>
+      <p><b>Bratt bunn:</b> Lydkjeglen treffer skråningen både grunnere og dypere enn rett under båten, så bunnen blir et bredt, svakere bånd. Den øverste kanten er det grunneste punktet innenfor kjeglen. Fisk og rigg som står tett ved bunnen i skråningen kan se ut som de er «inne i» bunnen – slik er det på ekte lodd også («død sone»). Pilken din vises som en strek som går opp og ned.</p>
     </div>
   </div>
   <h3 style="margin-top:18px">Data og usikkerhet</h3>
@@ -54,7 +55,7 @@ export function helpHTML() {
     ${ATTRIB.map(([n, u, l]) => `<li><a href="${esc(u)}" target="_blank" rel="noopener" style="color:var(--buoy-2)">${esc(n)}</a> <span class="tag">${esc(l)}</span></li>`).join('')}
   </ul>
   <ul>
-    <li><b>Dybde:</b> Kartverkets sjøkart gir dybdeintervaller (dybdekurver), dybdepunkter og en 50 m-modell. Mellom kurvene anslår Fiskesim dybden med en glatt flate innenfor intervallet. Små grunner og steiner som ikke står i sjøkartet finnes ikke i simuleringen. <span class="tag est">anslag</span></li>
+    <li><b>Dybde:</b> Kartverkets sjøkart gir dybdeintervaller (dybdekurver), dybdepunkter og en 50 m-modell. Mellom kurvene anslår Fiskesim dybden ut fra avstanden til nærmeste grunnere og dypere kurve. Broer og flytebruer er tegnet som land i sjøkartet; smale landstriper som er festet til land i begge ender regnes derfor som sjø, med dybden fra vannet rundt. Små grunner og steiner som ikke står i sjøkartet finnes ikke i simuleringen. <span class="tag est">anslag</span></li>
     <li><b>Bunntype:</b> Fra NGU der bunnen er kartlagt. Ellers anslått fra helning og terrengform. <span class="tag est">anslag</span></li>
     <li><b>Fisk:</b> Hvor fisken står (dyp, bunn, terreng, årstid) bygger på kildesjekkede artsopplysninger fra Fiskeguiden. Antall fisk, bittvillighet og kampkraft er anslag kalibrert mot vanlige fangstrater, ikke målt på stedet. Simuleringen kan derfor ikke si om det faktisk står fisk på en plass – bare om plassen har det fisken pleier å se etter. <span class="tag est">anslag</span></li>
     <li><b>Vær og sjø:</b> MET-varsel når tiden er innenfor varselet. Ellers typiske verdier for årstiden. Tidevann fra Kartverket. Strømmen i dypet er anslått fra overflatestrømmen.</li>
