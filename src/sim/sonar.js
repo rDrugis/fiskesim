@@ -105,7 +105,7 @@ export class Sonar {
     const surf = ctx.surfaceNoise;
     for (let i = 0; i < nSamples; i++) {
       const r = (i + 0.5) * dr;
-      if (r < surf.depth) { const v = surf.level - 18 * (r / surf.depth) + (Math.random() - 0.5) * 14; if (v > out[i]) out[i] = v; }
+      if (r < surf.depth && Math.random() < 0.75 - 0.5 * (r / surf.depth)) { const v = surf.level - 18 * (r / surf.depth) + (Math.random() - 0.5) * 14; if (v > out[i]) out[i] = v; }
       for (const L of ctx.layers) {
         const k = Math.exp(-(((r - L.z) / L.w) ** 2));
         if (k > 0.05 && Math.random() < L.density * k) { const v = L.level + 14 + (Math.random() - 0.5) * 10 + tvg(r); if (v > out[i]) out[i] = v; }
