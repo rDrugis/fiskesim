@@ -1,0 +1,164 @@
+/* Fiskesim – nattlig fjordpalett med bøyeoransje som handlingsfarge */
+:root {
+  --night: #0b1820;
+  --hull: rgba(13, 29, 37, 0.88);
+  --hull-solid: #102530;
+  --hull-2: #17313d;
+  --line: rgba(150, 196, 212, 0.16);
+  --line-2: rgba(150, 196, 212, 0.3);
+  --text: #e4ecee;
+  --text-2: #9db2ba;
+  --text-3: #6b8590;
+  --buoy: #ff6a13;
+  --buoy-2: #ff8a45;
+  --signal: #3fc28c;
+  --warn: #f2b134;
+  --alarm: #ef5350;
+  --r-s: 6px;
+  --r-m: 10px;
+  --font: 'Barlow', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --num: 'Barlow Semi Condensed', 'Barlow', system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--night); color: var(--text); font-family: var(--font); font-size: 15px; line-height: 1.45; -webkit-font-smoothing: antialiased; overflow: hidden; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--buoy-2); outline-offset: 2px; }
+.num { font-family: var(--num); font-variant-numeric: tabular-nums; }
+.hidden { display: none !important; }
+
+/* Felles knapper */
+.btn { appearance: none; border: 1px solid var(--line-2); background: var(--hull-2); color: var(--text); border-radius: var(--r-s); padding: 7px 12px; cursor: pointer; font-weight: 500; transition: background .12s, border-color .12s; }
+.btn:hover { background: #1d3b48; border-color: rgba(150,196,212,.45); }
+.btn.primary { background: var(--buoy); border-color: var(--buoy); color: #1b0d04; font-weight: 600; }
+.btn.primary:hover { background: var(--buoy-2); }
+.btn.ghost { background: transparent; }
+.btn[disabled] { opacity: .45; cursor: default; }
+.seg { display: inline-flex; border: 1px solid var(--line-2); border-radius: var(--r-s); overflow: hidden; }
+.seg button { border: 0; background: transparent; padding: 6px 12px; cursor: pointer; color: var(--text-2); }
+.seg button[aria-pressed="true"] { background: var(--hull-2); color: var(--text); box-shadow: inset 0 -2px 0 var(--buoy); }
+
+/* Kartskjerm */
+#map { position: fixed; inset: 0; }
+.brand { position: fixed; top: 14px; left: 14px; z-index: 5; display: flex; gap: 12px; align-items: center; background: var(--hull); backdrop-filter: blur(10px); border: 1px solid var(--line); border-radius: var(--r-m); padding: 8px 10px 8px 14px; }
+.brand h1 { font-family: var(--num); font-weight: 700; font-size: 21px; letter-spacing: .01em; margin: 0; }
+.brand h1 span { color: var(--buoy); }
+.search { position: fixed; top: 14px; right: 14px; z-index: 5; width: min(320px, 40vw); }
+.search input { width: 100%; background: var(--hull); backdrop-filter: blur(10px); border: 1px solid var(--line); border-radius: var(--r-m); padding: 10px 12px; color: var(--text); font: inherit; }
+.search ul { list-style: none; margin: 4px 0 0; padding: 4px; background: var(--hull-solid); border: 1px solid var(--line); border-radius: var(--r-m); max-height: 320px; overflow: auto; }
+.search li { padding: 6px 8px; border-radius: 4px; cursor: pointer; }
+.search li:hover, .search li[aria-selected="true"] { background: var(--hull-2); }
+.search li small { color: var(--text-3); margin-left: 6px; }
+.card { position: fixed; left: 14px; bottom: 14px; z-index: 5; width: min(380px, calc(100vw - 28px)); background: var(--hull); backdrop-filter: blur(12px); border: 1px solid var(--line); border-radius: var(--r-m); padding: 14px 16px; }
+.card h2 { margin: 0 0 2px; font-size: 13px; font-weight: 500; color: var(--text-2); }
+.depthbig { font-family: var(--num); font-size: 40px; font-weight: 600; line-height: 1.05; }
+.depthbig small { font-size: 17px; color: var(--text-2); font-weight: 500; margin-left: 6px; }
+.facts { display: grid; grid-template-columns: auto 1fr; gap: 3px 14px; margin: 10px 0 12px; font-size: 14px; }
+.facts dt { color: var(--text-3); }
+.facts dd { margin: 0; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.note { color: var(--text-3); font-size: 12.5px; margin-top: 8px; }
+.legend { position: fixed; right: 14px; bottom: 96px; z-index: 4; background: var(--hull); border: 1px solid var(--line); border-radius: var(--r-s); padding: 6px 8px; font-size: 11.5px; color: var(--text-2); }
+.legend .bar { width: 180px; height: 8px; border-radius: 3px; margin: 4px 0 2px; }
+.legend .ticks { display: flex; justify-content: space-between; font-family: var(--num); }
+
+/* Lasting */
+.loading { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 40%, #12303c 0%, var(--night) 70%); }
+.loading .box { width: min(460px, 86vw); }
+.loading h2 { font-family: var(--num); font-weight: 600; font-size: 26px; margin: 0 0 6px; }
+.loading ol { list-style: none; padding: 0; margin: 14px 0 0; color: var(--text-2); }
+.loading li { padding: 3px 0; display: flex; gap: 10px; }
+.loading li::before { content: ''; width: 10px; height: 10px; margin-top: 6px; border-radius: 50%; border: 2px solid var(--text-3); flex: none; }
+.loading li.done { color: var(--text); }
+.loading li.done::before { background: var(--signal); border-color: var(--signal); }
+.loading li.now::before { border-color: var(--buoy); border-top-color: transparent; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .loading li.now::before { animation: none; } }
+
+/* Båtskjerm */
+#view3d { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+.instr { position: fixed; top: 0; left: 0; right: 0; z-index: 6; display: flex; align-items: stretch; background: linear-gradient(rgba(6,16,21,.92), rgba(6,16,21,.78)); border-bottom: 1px solid var(--line); height: 58px; }
+.instr .cell { padding: 6px 14px 4px; border-right: 1px solid var(--line); min-width: 82px; }
+.instr .cell small { display: block; color: var(--text-3); font-size: 11.5px; }
+.instr .cell b { font-family: var(--num); font-weight: 600; font-size: 21px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.instr .cell b em { font-style: normal; font-size: 13px; color: var(--text-2); margin-left: 3px; font-weight: 500; }
+.instr .grow { flex: 1; }
+.instr .tools { display: flex; gap: 6px; align-items: center; padding: 0 10px; }
+.instr .warn b { color: var(--warn); }
+.tipframe { position: fixed; left: 14px; top: 72px; z-index: 5; border: 1px solid var(--line-2); border-radius: 4px; pointer-events: none; }
+.tipframe span { position: absolute; left: 0; top: 0; font-size: 11px; color: var(--text); background: rgba(6,16,21,.7); padding: 1px 6px; border-radius: 3px 0 4px 0; }
+.reelbox { position: fixed; left: 14px; bottom: 14px; z-index: 6; background: var(--hull); backdrop-filter: blur(8px); border: 1px solid var(--line); border-radius: var(--r-m); padding: 10px 14px; display: grid; grid-template-columns: repeat(3, auto); gap: 4px 18px; align-items: baseline; }
+.reelbox small { color: var(--text-3); font-size: 11.5px; display: block; }
+.reelbox b { font-family: var(--num); font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.reelbox .state { grid-column: 1 / -1; font-size: 13px; color: var(--text-2); }
+.reelbox .state i { font-style: normal; color: var(--buoy-2); }
+.keys { position: fixed; left: 50%; transform: translateX(-50%); bottom: 14px; z-index: 6; background: var(--hull); border: 1px solid var(--line); border-radius: var(--r-m); padding: 8px 12px; font-size: 12.5px; color: var(--text-2); display: grid; grid-template-columns: repeat(4, auto); gap: 2px 16px; }
+.keys kbd { font-family: var(--num); background: var(--hull-2); border: 1px solid var(--line-2); border-radius: 4px; padding: 0 5px; color: var(--text); font-size: 12px; margin-right: 4px; }
+.toasts { position: fixed; top: 70px; left: 50%; transform: translateX(-50%); z-index: 20; display: flex; flex-direction: column; gap: 6px; align-items: center; pointer-events: none; width: min(560px, 90vw); }
+.toast { background: var(--hull-solid); border: 1px solid var(--line-2); border-left: 3px solid var(--signal); border-radius: var(--r-s); padding: 8px 14px; box-shadow: 0 6px 20px rgba(0,0,0,.35); }
+.toast.warn { border-left-color: var(--warn); }
+.errbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 100; background: #3a1414; color: #ffd9d6; padding: 8px 14px; font-size: 13.5px; cursor: pointer; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+.instr .clockcell { appearance: none; background: transparent; border: 0; border-right: 1px solid var(--line); text-align: left; cursor: pointer; color: inherit; font: inherit; }
+.instr .clockcell:hover { background: rgba(255,255,255,.04); }
+.instr .cell.est small::after { content: ' (anslag)'; color: var(--warn); }
+.instr .tools .btn[aria-pressed="false"] { opacity: .55; text-decoration: line-through; }
+@media (max-width: 1560px) { .instr .opt { display: none; } }
+@media (max-width: 1180px) { .instr .opt2 { display: none; } .instr .cell { min-width: 70px; padding: 6px 9px 4px; } }
+.sheet .body { color: var(--text); }
+.loading li > span { display: block; }
+
+/* Ekkolodd (Garmin-lignende) */
+.sonar { position: fixed; right: 14px; top: 72px; z-index: 6; background: linear-gradient(#262a2e, #17191b); border-radius: 14px; padding: 10px 10px 8px; box-shadow: 0 8px 30px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.08); }
+.sonar .screen { position: relative; border-radius: 4px; overflow: hidden; background: #000; }
+.sonar canvas { display: block; image-rendering: pixelated; }
+.sonar .ovl { position: absolute; inset: 0; pointer-events: none; font-family: 'Arial Narrow', 'Barlow Semi Condensed', sans-serif; color: #fff; text-shadow: 0 0 2px #000, 0 0 2px #000, 1px 1px 0 #000; }
+.sonar .dep { position: absolute; left: 6px; top: 2px; font-size: 30px; font-weight: 700; letter-spacing: -.01em; }
+.sonar .dep small { font-size: 16px; }
+.sonar .aux { position: absolute; left: 7px; top: 36px; font-size: 13px; line-height: 1.25; }
+.sonar .freq { position: absolute; right: 6px; top: 4px; font-size: 13px; }
+.sonar .scale { position: absolute; right: 0; top: 0; bottom: 0; width: 34px; }
+.sonar .scale div { position: absolute; right: 4px; font-size: 12px; transform: translateY(-50%); }
+.sonar .soft { display: flex; gap: 6px; margin-top: 8px; }
+.sonar .soft button { flex: 1; background: #303438; border: 1px solid #44494d; color: #d8dcdf; border-radius: 5px; padding: 4px 6px; font-size: 12px; cursor: pointer; }
+.sonar .soft button:hover { background: #3a3f44; }
+.sonar .brandline { display: flex; justify-content: space-between; color: #8b9196; font-size: 10.5px; letter-spacing: .08em; margin-top: 6px; padding: 0 2px; }
+.sonarmenu { position: absolute; right: 8px; top: 8px; width: 220px; background: rgba(20,22,24,.96); border: 1px solid #50565b; border-radius: 6px; padding: 6px; font-size: 13px; color: #e5e8ea; }
+.sonarmenu label { display: flex; justify-content: space-between; gap: 6px; padding: 3px 4px; align-items: center; }
+.sonarmenu select, .sonarmenu input { background: #2b2f33; color: #e5e8ea; border: 1px solid #4a5055; border-radius: 4px; font: inherit; font-size: 12px; }
+
+/* Ark (utstyr, fangst, hjelp) */
+.sheet { position: fixed; inset: 64px 0 0 0; z-index: 30; display: grid; place-items: start center; background: rgba(4,10,14,.55); padding: 26px 16px; overflow: auto; }
+.sheet .panel { width: min(980px, 100%); background: var(--hull-solid); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px 20px; }
+.sheet h2 { margin: 0; font-family: var(--num); font-weight: 600; font-size: 24px; }
+.sheet header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+.gear { display: grid; grid-template-columns: 1.15fr 1fr; gap: 20px; }
+.field { margin-bottom: 12px; }
+.field > span { display: block; color: var(--text-2); font-size: 13px; margin-bottom: 4px; }
+.field select, .field input[type=number] { width: 100%; background: var(--hull-2); border: 1px solid var(--line-2); color: var(--text); border-radius: var(--r-s); padding: 7px 8px; font: inherit; }
+
+.presets { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.presets button { font-size: 13px; }
+.rigdraw { background: #0c1c24; border: 1px solid var(--line); border-radius: var(--r-m); padding: 8px; }
+.rigdraw svg { width: 100%; height: auto; display: block; }
+.specs { font-size: 13.5px; color: var(--text-2); margin-top: 10px; }
+.specs b { color: var(--text); font-weight: 500; }
+.catchcard { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+.catchcard .fishname { font-family: var(--num); font-size: 34px; font-weight: 600; line-height: 1.1; }
+.catchcard .meas { font-family: var(--num); font-size: 22px; color: var(--text-2); }
+.rule { border-left: 3px solid var(--signal); padding: 6px 10px; background: rgba(63,194,140,.08); margin: 8px 0; border-radius: 0 6px 6px 0; }
+.rule.bad { border-color: var(--alarm); background: rgba(239,83,80,.09); }
+.rule.warn { border-color: var(--warn); background: rgba(242,177,52,.09); }
+table.log { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.log th { text-align: left; color: var(--text-3); font-weight: 500; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+table.log td { padding: 5px 6px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.help { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 30px; }
+.help dl { display: grid; grid-template-columns: 140px 1fr; gap: 5px 10px; margin: 0; }
+.help dt kbd { font-family: var(--num); background: var(--hull-2); border: 1px solid var(--line-2); border-radius: 4px; padding: 1px 6px; }
+.help h3 { font-size: 15px; margin: 10px 0 6px; color: var(--text-2); font-weight: 500; }
+.sources li { margin-bottom: 6px; }
+.tag { display: inline-block; font-size: 11.5px; padding: 0 6px; border-radius: 3px; background: var(--hull-2); border: 1px solid var(--line-2); color: var(--text-2); margin-left: 6px; }
+.tag.est { border-color: rgba(242,177,52,.5); color: var(--warn); }
+.spot table { width: 100%; border-collapse: collapse; }
+.spot td, .spot th { padding: 5px 6px; border-bottom: 1px solid var(--line); text-align: left; font-variant-numeric: tabular-nums; }
+.spot .bar { height: 8px; background: var(--buoy); border-radius: 2px; }
+@media (max-width: 860px) { .gear, .catchcard, .help { grid-template-columns: 1fr; } .keys { display: none; } }
