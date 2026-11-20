@@ -1,0 +1,23 @@
+{
+  "name": "fiskesim",
+  "version": "1.0.0",
+  "description": "Realistisk fiskesimulator for norskekysten",
+  "main": "index.js",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "dev": "node tools/build.mjs --watch"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  },
+  "dependencies": {
+    "@mapbox/vector-tile": "^2.0.5",
+    "maplibre-gl": "^6.19.0",
+    "pbf": "^4.0.2",
+    "three": "^0.187.0"
+  },
+  "type": "module"
+}
