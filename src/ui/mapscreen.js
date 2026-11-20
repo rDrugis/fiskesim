@@ -25,11 +25,11 @@ export class MapScreen {
       <div class="brand">
         <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true"><path d="M3 17c5-7 14-9 20-3l6-4-2 6 2 6-6-4c-6 6-15 4-20-1z" fill="#ff6a13"/><circle cx="9" cy="15" r="1.4" fill="#0b1820"/></svg>
         <h1>Fiskesim</h1>
-        <div class="seg" role="group" aria-label="Karttype">${MAP_STYLES.map((s, i) => `<button data-style="${s.id}" aria-pressed="${i === 0}">${s.label}</button>`).join('')}</div>
+        <div class="seg" role="group" aria-label="Karttype">${MAP_STYLES.map((s) => `<button data-style="${s.id}" aria-pressed="${s.id === (localStorage.getItem('fiskesim.kart') || 'fiskekart')}">${s.label}</button>`).join('')}</div>
         <button class="btn ghost" data-a="help">Hjelp og kilder</button>
       </div>
       <div class="search"><input type="search" placeholder="Søk etter sted, øy eller fiskeplass" aria-label="Søk etter sted" autocomplete="off"><ul class="hidden" role="listbox"></ul></div>
-      <div class="legend" aria-hidden="true"><div>Dybde (m), grovt kart</div><div class="bar"></div><div class="ticks num"><span>0</span><span>20</span><span>50</span><span>100</span><span>250</span></div></div>
+      <div class="legend" aria-hidden="true"><div>Dybde (m)</div><div class="bar"></div><div class="ticks num"><span>0</span><span>20</span><span>50</span><span>100</span><span>250</span></div></div>
       <section class="card" aria-live="polite"></section>`;
     const bar = root.querySelector('.legend .bar');
     const stops = [0, 10, 20, 35, 50, 75, 100, 175, 250];
@@ -52,10 +52,11 @@ export class MapScreen {
     const map = this.api.map;
     map.on('moveend', () => { const c = map.getCenter(); localStorage.setItem('fiskesim.map', JSON.stringify({ c: [c.lng, c.lat], z: map.getZoom() })); });
     this.api.onClick((ll) => this.pick(ll.lng, ll.lat));
+    this.root.querySelector('.legend').classList.toggle('hidden', this.api.style !== 'fiskekart');
     this.root.querySelectorAll('[data-style]').forEach((b) => b.addEventListener('click', () => {
       this.root.querySelectorAll('[data-style]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
       this.api.setStyle(b.dataset.style);
-      this.root.querySelector('.legend').classList.toggle('hidden', b.dataset.style === 'sjokart');
+      this.root.querySelector('.legend').classList.toggle('hidden', b.dataset.style !== 'fiskekart');
     }));
     this.initSearch();
   }
