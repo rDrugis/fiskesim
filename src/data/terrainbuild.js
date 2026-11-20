@@ -119,7 +119,7 @@ export async function buildTerrain(o) {
 
   return {
     x0: bbox[0], y1: bbox[3], res, W, H, z, mask, lo: sol.lo, hi: sol.hi, hard, sed, tpi,
-    stats: { points: points.length / 3, rocks: rocks.length / 2, b50: !!b50, dtm: !!dtm, ngu: !!ngu },
+    stats: { points: points.length / 3, rocks: rocks.length / 3, b50: !!b50, dtm: !!dtm, ngu: !!ngu },
   };
 }
 

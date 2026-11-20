@@ -226,7 +226,7 @@ export class FishEngine {
             if (moving < 0.05) pStrike = S.motion.still * 0.25;
           }
           if (Math.random() < pStrike * dt * 2.5) {
-            f.state = 'biting'; f.bite = makeBite(f.sp, S, f.w, ctx); f.bt = 0; f.mouthT = 0; f.circleT = 0; this.stats.bites++;
+            f.state = 'biting'; f.bite = makeBite(f.sp, S, f.w, { ...ctx, lure: (h.hook.bait || 'ingen') === 'ingen' }); f.bt = 0; f.mouthT = 0; f.circleT = 0; this.stats.bites++;
             f.biteHook = h.hook; if (this.trace) this.trace('bitt', f, info.key);
           } else if (Math.random() < dt * (moving < 0.05 && !info.key.startsWith('agn_') ? 0.25 : 0.05)) {
             f.state = 'idle'; f.lastEval = e.t + 4000; // avviser
@@ -260,7 +260,7 @@ export class FishEngine {
           if (this.trace) this.trace('bom', f, bf.mouth ? 'i munnen' : 'ikke i munnen'); f.state = 'missed'; f.st = rnd(2, 6); f.spook = 0.6; continue;
         }
         // selvkroking: kunstagn i bevegelse, eller sirkelkrok med jevnt drag
-        if (bf.mouth && h.hook.type === 'sirkel' && (bf.dir === 'bort') && ctx.tension > 0.18 * f.w * G) {
+        if (bf.mouth && h.hook.type === 'sirkel' && bf.F > 0 && ctx.tension > 0.18 * f.w * G) {
           f.circleT += dt;
           if (f.circleT > 0.5 && Math.random() < 0.8 * gapeFit * dt * 2) { this.hook(f, h, ctx, 'munnvik'); continue; }
         }

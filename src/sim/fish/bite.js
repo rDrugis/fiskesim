@@ -16,7 +16,14 @@ export function makeBite(sp, S, wKg, ctx) {
   const pause = (a, b) => { t += rnd(a, b); };
   const style = S.bite.stil;
   const tapF = S.bite.tapF;
-  if (style === 'hugg') {
+  if (ctx && ctx.lure && style !== 'makrell' && style !== 'nipp') {
+    // Kunstagn (pilk, shad, gummimakk): fisken tar agnet i ett bestemt tak og holder det et kort øyeblikk
+    // før den spytter det ut – et tydelig rykk eller en tung «vekt» i tuppen.
+    const hold = style === 'hugg' ? rnd(0.25, 0.6) : style === 'lange' || style === 'kveite' ? rnd(0.7, 1.8) : rnd(0.45, 1.2);
+    if (Math.random() < 0.3) { tap(Wn * tapF * rnd(0.5, 1.0), rnd(0.06, 0.12), false); pause(0.15, 0.5); }
+    ev.push({ t0: t, t1: t + 0.12, F: Wn * rnd(0.7, 1.2), dir: style === 'hugg' ? 'bort' : 'ned', mouth: true }); t += 0.12;
+    ev.push({ t0: t, t1: t + hold, F: Wn * rnd(0.35, 0.7), dir: style === 'hugg' ? 'bort' : 'ned', mouth: true }); t += hold;
+  } else if (style === 'hugg') {
     // ett hardt hugg og en rask vending: kroken er kort i munnen
     tap(Wn * rnd(0.7, 1.3), rnd(0.06, 0.12), true);
     ev.push({ t0: t, t1: t + rnd(0.15, 0.5), F: Wn * rnd(0.4, 0.8), dir: 'bort', mouth: true }); t = ev[ev.length - 1].t1;
