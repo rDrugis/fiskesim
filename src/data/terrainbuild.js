@@ -2,6 +2,7 @@
 import { wmsImage, bathy50, landDTM, wfsPoints } from './kartverket.js';
 import { decodeDybdelag, DYBDELAG, SHORE_Z } from './depthmodel.js';
 import { contourDepth, applyPoints } from './contourdepth.js';
+import { openBridges } from './thinland.js';
 import { sample } from './grid.js';
 import { SRC } from './sources.js';
 
@@ -46,6 +47,8 @@ export async function buildTerrain(o) {
   const dec2 = decodeDybdelag(rgba, W2, H2);
   const cls2 = new Int8Array(W2 * H2);
   for (let p = 0; p < W2 * H2; p++) cls2[p] = dec2.mask[p] === 0 ? -1 : dec2.mask[p] === 2 ? -2 : dec2.cls[p] >= 0 ? dec2.cls[p] : 0;
+  // broer og flytebruer er land i sjøkartet: gjør dem om til sjø, så dybden rundt blir riktig
+  const bridges = openBridges(cls2, W2, H2, res, dec2.mask);
   const b50 = await b50P;
   stage('Regner dybden mellom dybdekurvene');
   let prior2 = null;
@@ -119,7 +122,7 @@ export async function buildTerrain(o) {
 
   return {
     x0: bbox[0], y1: bbox[3], res, W, H, z, mask, lo: sol.lo, hi: sol.hi, hard, sed, tpi,
-    stats: { points: points.length / 3, rocks: rocks.length / 3, b50: !!b50, dtm: !!dtm, ngu: !!ngu },
+    stats: { points: points.length / 3, rocks: rocks.length / 3, b50: !!b50, dtm: !!dtm, ngu: !!ngu, bridges },
   };
 }
 

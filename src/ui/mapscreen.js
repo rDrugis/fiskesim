@@ -59,6 +59,33 @@ export class MapScreen {
       this.root.querySelector('.legend').classList.toggle('hidden', b.dataset.style !== 'fiskekart');
     }));
     this.initSearch();
+    this.initCursorDepth(map);
+  }
+
+  // Dybden under musepekeren (fiskekartets modell), som på detstorebla.no
+  initCursorDepth(map) {
+    const tip = document.createElement('div'); tip.className = 'cursordepth num hidden'; tip.setAttribute('aria-hidden', 'true');
+    this.root.appendChild(tip);
+    let timer = 0, seq = 0, last = null;
+    const hide = () => { clearTimeout(timer); seq++; tip.classList.add('hidden'); };
+    map.on('mousemove', (e) => {
+      last = e;
+      tip.style.left = (e.point.x + 16) + 'px'; tip.style.top = (e.point.y + 12) + 'px';
+      clearTimeout(timer);
+      if (map.getZoom() < 10.5) { tip.classList.add('hidden'); return; }
+      timer = setTimeout(async () => {
+        const my = ++seq, ll = last.lngLat;
+        try {
+          const r = await this.api.depthAt(ll.lng, ll.lat);
+          if (my !== seq) return;
+          if (r.land) { tip.classList.add('hidden'); return; }
+          const d = r.depth;
+          tip.textContent = d < 0 ? 'tørrfall' : d < 10 ? `${d.toFixed(1).replace('.', ',')} m` : `${Math.round(d)} m`;
+          tip.classList.remove('hidden');
+        } catch (err) { tip.classList.add('hidden'); }
+      }, 70);
+    });
+    map.on('mouseout', hide); map.on('dragstart', hide); map.on('zoomstart', hide);
   }
 
   initSearch() {

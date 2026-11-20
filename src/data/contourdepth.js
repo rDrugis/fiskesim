@@ -50,7 +50,10 @@ export function edt(feat, W, H) {
  * @param {Float32Array} [prior]  grov dybde (50 m-modellen), NaN der den mangler
  * @returns {Float32Array} dybde (positiv nedover), NaN på land, −0,4 på tørrfall
  */
-export function contourDepth(cls, W, H, res, intervals, prior = null) {
+export function contourDepth(cls, W, H, res, intervals, prior = null, maxDist = 0, smooth = 2) {
+  // maxDist (celler): kurver lenger unna enn dette regnes som «ikke funnet». Gir like svar uansett hvor i
+  // en kartflis punktet ligger, så flisene passer sammen uten skjøter.
+  const cap = maxDist > 0 ? maxDist * maxDist : INF;
   const N = W * H, depth = new Float32Array(N).fill(NaN);
   const present = new Set();
   for (let p = 0; p < N; p++) if (cls[p] >= 0) present.add(cls[p]);
@@ -66,8 +69,8 @@ export function contourDepth(cls, W, H, res, intervals, prior = null) {
     const Ls = Math.max(40, (hi - lo) / 0.05);
     for (let p = 0; p < N; p++) {
       if (cls[p] !== k) continue;
-      const a = dA[p] >= INF ? Infinity : Math.sqrt(dA[p]) * res;
-      const b = !dB || dB[p] >= INF ? Infinity : Math.sqrt(dB[p]) * res;
+      const a = dA[p] >= INF || dA[p] > cap ? Infinity : Math.sqrt(dA[p]) * res;
+      const b = !dB || dB[p] >= INF || dB[p] > cap ? Infinity : Math.sqrt(dB[p]) * res;
       let d;
       if (a < Infinity && b < Infinity) d = lo + (hi - lo) * a / (a + b);
       else {
@@ -83,7 +86,7 @@ export function contourDepth(cls, W, H, res, intervals, prior = null) {
     }
   }
   for (let p = 0; p < N; p++) if (cls[p] === -2) depth[p] = -0.4;
-  smoothWithin(depth, cls, W, H, intervals, 2);
+  smoothWithin(depth, cls, W, H, intervals, smooth);
   return depth;
 }
 

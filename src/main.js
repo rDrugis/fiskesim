@@ -15,6 +15,7 @@ function mount() { app.innerHTML = ''; const d = document.createElement('div'); 
 function showMap(start) {
   current?.destroy?.();
   current = new MapScreen(mount(), { onLaunch: launch, onHelp: showHelp, start });
+  window.fiskesim = { screen: current }; // for feilsøking i konsollen
 }
 
 function showHelp() {

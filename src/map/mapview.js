@@ -12,7 +12,6 @@ export async function loadMapLibre() {
   return ml;
 }
 
-const WMS3857 = (layers, extra = '') => `${SRC.wmsDybde}?service=WMS&version=1.3.0&request=GetMap&layers=${layers}&styles=&crs=EPSG:3857&format=image/png&transparent=true&width=512&height=512&bbox={bbox-epsg-3857}${extra}`;
 const EMPTY = { type: 'FeatureCollection', features: [] };
 
 export const MAP_STYLES = [
@@ -35,7 +34,7 @@ function reliefWorker(k) {
     const n = Math.max(2, Math.min(4, (navigator.hardwareConcurrency || 4) - 1));
     for (let i = 0; i < n; i++) {
       const w = new Worker(new URL('./relief.worker.js?v=' + __V__, import.meta.url), { type: 'module' });
-      w.onmessage = (ev) => { const p = waiting.get(ev.data.id); if (!p) return; waiting.delete(ev.data.id); if (ev.data.error) p.rej(new Error(ev.data.error)); else p.res(ev.data.bmp); };
+      w.onmessage = (ev) => { const p = waiting.get(ev.data.id); if (!p) return; waiting.delete(ev.data.id); if (ev.data.error) p.rej(new Error(ev.data.error)); else p.res(ev.data.info || ev.data.bmp); };
       pool.push(w);
     }
   }
@@ -46,6 +45,14 @@ function reliefTile(z, x, y, pal) {
   const id = ++reqId;
   return new Promise((res, rej) => { waiting.set(id, { res, rej }); reliefWorker(px * 31 + py * 17 + cz).postMessage({ id, z, x, y, pal }); });
 }
+// Dybden i et punkt etter fiskekartets modell (samme tråd som regner flisa der)
+export function reliefDepth(lon, lat) {
+  const n = 4096, R = 6378137;
+  const px = Math.floor((lon + 180) / 360 * n), my = R * Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
+  const py = Math.floor((Math.PI * R - my) / (2 * Math.PI * R) * n);
+  const id = ++reqId;
+  return new Promise((res, rej) => { waiting.set(id, { res: (v) => res(v), rej }); reliefWorker(px * 31 + py * 17 + 12).postMessage({ id, kind: 'depth', lon, lat }); });
+}
 
 function buildStyle(kind) {
   if (kind === 'dybdekart') return dybdekartStyle();
@@ -53,9 +60,7 @@ function buildStyle(kind) {
   const land = night ? '#1c1f1b' : '#22261f';
   const sources = {
     ofm: { type: 'vector', url: SRC.ofm, attribution: '© OpenStreetMap' },
-    relief: { type: 'raster', tiles: [`relief://${night ? 'natt' : 'dag'}/{z}/{x}/{y}`], tileSize: 256, minzoom: 7, maxzoom: 16, attribution: '© Kartverket' },
-    kontur: { type: 'raster', tiles: [WMS3857('Dybdekontur')], tileSize: 512, minzoom: 11 },
-    punkt: { type: 'raster', tiles: [WMS3857('skjaer_punkt,grunne,Torrfall')], tileSize: 512, minzoom: 12 },
+    relief: { type: 'raster', tiles: [`relief://${night ? 'natt' : 'dag'}/{z}/{x}/{y}`], tileSize: 256, minzoom: 7, maxzoom: 17, attribution: '© Kartverket' },
     dem: { type: 'raster-dem', tiles: [SRC.terrarium], encoding: 'terrarium', tileSize: 256, maxzoom: 14, attribution: 'Mapzen' },
     kvsjo: { type: 'raster', tiles: [SRC.wmtsKV('sjokartraster')], tileSize: 256, maxzoom: 18, attribution: '© Kartverket' },
     names: { type: 'geojson', data: EMPTY },
@@ -70,9 +75,9 @@ function buildStyle(kind) {
     layers.push({ id: 'bg', type: 'background', paint: { 'background-color': land } });
     layers.push({ id: 'wood', type: 'fill', source: 'ofm', 'source-layer': 'landcover', filter: ['==', ['get', 'class'], 'wood'], paint: { 'fill-color': night ? '#1d241c' : '#243022', 'fill-opacity': 0.8 } });
     layers.push({ id: 'shade', type: 'hillshade', source: 'dem', paint: { 'hillshade-shadow-color': '#0b0d0b', 'hillshade-highlight-color': night ? '#3a3f38' : '#5d6553', 'hillshade-accent-color': '#151815', 'hillshade-exaggeration': 0.55 } });
-    layers.push({ id: 'water', type: 'fill', source: 'ofm', 'source-layer': 'water', paint: { 'fill-color': night ? '#0c1d30' : '#0f2840' } });
+    // sjø under fiskekartet (synes bare før flisene er regnet ut): middels blå, ikke svart
+    layers.push({ id: 'water', type: 'fill', source: 'ofm', 'source-layer': 'water', paint: { 'fill-color': night ? '#15324c' : '#3a72a6' } });
     layers.push({ id: 'relief', type: 'raster', source: 'relief', paint: { 'raster-opacity': night ? 0.85 : 1, 'raster-resampling': 'linear', 'raster-fade-duration': 150 } });
-    layers.push({ id: 'punkt', type: 'raster', source: 'punkt', paint: { 'raster-opacity': 0.9 } });
     layers.push({ id: 'roads', type: 'line', source: 'ofm', 'source-layer': 'transportation', minzoom: 11, filter: ['in', ['get', 'class'], ['literal', ['primary', 'secondary', 'tertiary', 'minor', 'service', 'trunk']]], paint: { 'line-color': '#4a4f45', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 0.4, 16, 2.2] } });
     layers.push({ id: 'bygg', type: 'fill', source: 'ofm', 'source-layer': 'building', minzoom: 13.5, paint: { 'fill-color': '#5b5f57', 'fill-outline-color': '#2a2d28' } });
     layers.push({ id: 'place', type: 'symbol', source: 'ofm', 'source-layer': 'place', filter: ['in', ['get', 'class'], ['literal', ['city', 'town', 'village', 'hamlet', 'island', 'islet', 'suburb', 'neighbourhood']]],
@@ -168,7 +173,7 @@ export async function createMap(container, opts = {}) {
     nameTimer = setTimeout(async () => {
       if (map.getZoom() < 10.5) return;
       const c = map.getCenter(), b = map.getBounds();
-      const r = Math.min(6000, Math.max(1500, map.getCenter().distanceTo(b.getNorthEast())));
+      const r = Math.min(5000, Math.max(1500, map.getCenter().distanceTo(b.getNorthEast()))); // tjenesten tillater maks 5 km
       const feats = await loadNames(c.lat, c.lng, Math.round(r / 500) * 500);
       for (const f of feats) allNames.set(f.properties.navn + f.geometry.coordinates.join(), f);
       const src = map.getSource('names'); if (src) src.setData({ type: 'FeatureCollection', features: [...allNames.values()] });
@@ -187,6 +192,7 @@ export async function createMap(container, opts = {}) {
     _marks: EMPTY,
     setMarks(fc) { api._marks = fc || EMPTY; const s = map.getSource('marks'); if (s) s.setData(api._marks); },
     onClick(fn) { map.on('click', (e) => fn(e.lngLat)); },
+    depthAt: reliefDepth,
   };
   return api;
 }
