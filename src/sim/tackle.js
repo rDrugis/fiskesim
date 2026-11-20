@@ -68,7 +68,7 @@ export const RIGS = [
   { id: 'pilkopph', navn: 'Pilk med opphengere', kind: 'pilk', opts: { vekt: 200, form: 'slank', farge: 'solv', krok: 'trekrok', krokStr: '4/0', opph: 2, opphType: 'gummimakk', opphFarge: 'rodsvart', opphStr: '4/0', opphAvst: 0.8 } },
   { id: 'shad', navn: 'Jigghode med shad', kind: 'shad', opts: { vekt: 150, shad: 18, farge: 'hvit', krokStr: '8/0' } },
   { id: 'paternoster', navn: 'Paternoster med agn', kind: 'agn', opts: { vekt: 250, kroker: 2, krok: 'j', krokStr: '4/0', agn: 'makrellbit', avst: 0.6, perler: true } },
-  { id: 'fireball', navn: 'Fireball-rigg', kind: 'agn', opts: { vekt: 300, kroker: 1, krok: 'sirkel', krokStr: '10/0', agn: 'makrellside', kule: true, fortom: 1.2 } },
+  { id: 'fireball', navn: 'Fireball-rigg', kind: 'agn', opts: { vekt: 300, kroker: 1, krok: 'sirkel', krokStr: '7/0', agn: 'makrellside', kule: true, fortom: 1.2 } },
   { id: 'kveitebom', navn: 'Bom med hel agnfisk', kind: 'agn', opts: { vekt: 400, kroker: 1, krok: 'j', krokStr: '12/0', agn: 'helmakrell', fortom: 1.8 } },
   { id: 'slo', navn: 'Makrellslo (hekle)', kind: 'slo', opts: { vekt: 80, kroker: 6, krokStr: '#2', farge: 'svart' } },
   { id: 'kystmeite', navn: 'Glidesøkke med agn (kystmeite)', kind: 'agn', opts: { vekt: 80, kroker: 1, krok: 'j', krokStr: '1/0', agn: 'reke', fortom: 0.8 } },
