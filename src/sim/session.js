@@ -45,7 +45,8 @@ export class Session {
     if (this.paused) return;
     const dt = Math.min(0.1, realDt) * this.rate;
     // Spoling: grovere tidssteg for snøret (stanga står i holderen og ingen fisk er på)
-    const sub = this.rate > 5 && !this.fish.hooked ? SUB * 4 : SUB;
+    const Lq = this.angler.line;
+    const sub = this.rate > 5 && !this.fish.hooked && !Lq.snag && Lq.tension < 15 ? SUB * 4 : SUB;
     this.acc += dt;
     let steps = 0;
     const t0 = performance.now();
@@ -97,7 +98,7 @@ export class Session {
     if (this.fishAcc >= 1 / 60) {
       const fdt = this.fishAcc; this.fishAcc = 0;
       this.strikeCool -= fdt;
-      const tipUp = A.tipVel[2], fast = A.pitchV > 2.6 || tipUp > 1.5;
+      const tipUp = A.tipVel[2], fast = !A.inHolder && (A.pitchV > 2.6 || tipUp > 1.5);
       const strike = fast && this.strikeCool <= 0;
       if (strike) this.strikeCool = 0.7;
       const tip = A.frame.tip, tp = L.termPos;

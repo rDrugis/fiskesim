@@ -227,7 +227,9 @@ export class FishingLine {
     this.tension = Math.max(0, -this.lam[0] / dt2);
     this.tensionBottom = Math.max(0, -this.lam[N - 1] / dt2);
     this.tensionAvg += (this.tension - this.tensionAvg) * Math.min(1, dt * 8);
-    this.tensionF = (this.tensionF || 0) + (Math.max(this.tension, this.tensionBottom) - (this.tensionF || 0)) * Math.min(1, dt / 0.02);
+    // brudd krever vedvarende strekk: enkeltsteg med tallmessige topper teller maks 2 × bruddstyrken
+    const Tb = Math.min(Math.max(this.tension, this.tensionBottom), ln.Fb * 2);
+    this.tensionF = (this.tensionF || 0) + (Tb - (this.tensionF || 0)) * Math.min(1, dt / 0.03);
 
     // Fastkjørt: løsner hvis drag overstiger feste, eller ryker snøret
     if (this.snag) {
