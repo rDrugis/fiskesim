@@ -35,7 +35,7 @@ function oneRun({ world, env, setup, start, timeMs, hours, technique, anchor, la
   const eng = new FishEngine(world);
   eng.setTerrain(world.near);
   const boat = new Boat(start.x, start.y, 0);
-  const useAnchor = anchor ?? (tech === 'agn' && world.depthAt(start.x, start.y) < 45);
+  const useAnchor = anchor ?? (tech === 'agn'); // ingen dybdegrense: ankertauet er alltid langt nok (som i spillet)
   if (useAnchor) boat.anchor = { x: start.x, y: start.y, rope: Math.max(15, 3 * world.depthAt(start.x, start.y)) };
   const termMass = A.phys.mass;
   const wetW = termMass * G * (1 - 1025 / 7800);

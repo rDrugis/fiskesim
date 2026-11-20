@@ -11,6 +11,9 @@ import { compass, dec, int, deg3, clock, dateShort, esc, lightWord } from './fmt
 import { fmtLat, fmtLon } from '../geo/proj.js';
 import { saveSetup, buildTerrainAsync, NEAR } from '../app/loader.js';
 import { techniqueFor } from '../sim/spottest.js';
+import { SPECIES, SPECIES_IDS } from '../sim/fish/species.js';
+
+const JUKS_KODE = 'storfisk';
 
 const RATES = [1, 2, 5, 10, 20, 30];
 const KN = 1 / 0.5144;
@@ -42,6 +45,7 @@ export class BoatScreen {
           <button class="btn" data-a="spot">Test plassen</button>
           <button class="btn ghost" data-a="sonar" aria-pressed="true">Ekkolodd</button>
           <button class="btn ghost" data-a="sound" aria-pressed="true">Lyd</button>
+          <button class="btn ghost${localStorage.getItem('fiskesim.juks') === '1' ? '' : ' hidden'}" data-a="cheat" title="Juksekode: velg fisken som skal bite">Juks</button>
           <button class="btn ghost" data-a="help">Hjelp</button>
           <button class="btn ghost" data-a="map">Kart</button>
         </div>
@@ -127,6 +131,7 @@ export class BoatScreen {
     else if (a === 'log') this.openLog();
     else if (a === 'spot') this.openSpotTest();
     else if (a === 'help') this.openHelp();
+    else if (a === 'cheat') this.openCheat();
     else if (a === 'close') this.closeSheet();
     else if (a === 'rate') this.setRate(e?.shiftKey ? -1 : +1, true);
     else if (a === 'sonar') this.sonar.setHidden(!this.sonar.s.hidden);
@@ -183,6 +188,8 @@ export class BoatScreen {
     if (ir) { tf.style.display = ''; tf.style.left = ir.x + 'px'; tf.style.top = ir.y + 'px'; tf.style.width = ir.w + 'px'; tf.style.height = ir.h + 'px'; } else tf.style.display = 'none';
     if (!s.paused) this.sonar.update(dt, s);
     this.audio.update(dt, s);
+    const cs = s.fish.cheat?.status;
+    if (cs && cs !== this.cheatStatus) { this.cheatStatus = cs; this.toast(cs, '', 4500); }
     this.hudT += dt; if (this.hudT > 0.15) { this.hudT = 0; this.updateHUD(); }
     this.recT += dt; if (this.recT > 2) { this.recT = 0; this.checkRecenter(); }
   }
@@ -291,7 +298,42 @@ export class BoatScreen {
     this.openSheet('Utstyr', gs.el);
   }
 
-  openHelp() { this.openSheet('Hjelp og kilder', helpHTML()); }
+  openHelp() {
+    const body = this.openSheet('Hjelp og kilder', helpHTML());
+    const box = document.createElement('div'); box.className = 'help';
+    box.innerHTML = `<h3>Juksekode</h3><form class="row" data-juks><input type="text" autocomplete="off" spellcheck="false" placeholder="Skriv koden" aria-label="Juksekode" style="background:var(--hull-2);border:1px solid var(--line-2);color:var(--text);border-radius:6px;padding:6px 8px;font:inherit"><button class="btn" type="submit">Bruk</button></form><p class="note" data-msg></p>`;
+    body.appendChild(box);
+    box.querySelector('form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const v = box.querySelector('input').value.trim().toLowerCase();
+      const msg = box.querySelector('[data-msg]');
+      if (v === JUKS_KODE) { localStorage.setItem('fiskesim.juks', '1'); this.$('[data-a="cheat"]').classList.remove('hidden'); msg.textContent = 'Låst opp: knappen «Juks» er lagt til øverst. Der velger du art og vekt på fisken som skal bite.'; }
+      else msg.textContent = 'Feil kode.';
+    });
+  }
+
+  // Juksekode: velg art og vekt. Fisken svømmer inn (synlig på ekkoloddet), står ved agnet og biter.
+  openCheat() {
+    const fe = this.session.fish;
+    const ids = SPECIES_IDS.filter((id) => SPECIES[id].lw);
+    const wrap = document.createElement('div');
+    const cur = fe.cheat;
+    wrap.innerHTML = `<p>Velg fisken som skal komme. Den starter 40–50 m unna, svømmer inn mot agnet (du ser den på ekkoloddet når den er under båten), står ved agnet en stund og biter. Så må du gjøre tilslag og fighte den opp. Bommer du, prøver den igjen.</p>
+      <div class="row"><label class="field" style="margin:0"><span>Art</span><select data-k="sp">${ids.map((id) => `<option value="${id}" ${id === (localStorage.getItem('fiskesim.juksArt') || 'torsk') ? 'selected' : ''}>${esc(SPECIES[id].navn)}</option>`).join('')}</select></label>
+      <label class="field" style="margin:0"><span>Vekt (kg)</span><input type="number" data-k="w" min="0.1" max="250" step="0.1" value="${localStorage.getItem('fiskesim.juksVekt') || '8'}" style="width:90px"></label>
+      <button class="btn primary" data-a="send" style="align-self:end">Send fisken</button>${cur ? '<button class="btn ghost" data-a="stop" style="align-self:end">Avbryt</button>' : ''}</div>
+      <p class="note" data-st>${cur ? esc(cur.status) : 'Riggen må være i vannet.'}</p>`;
+    this.openSheet('Juks: velg fisken', wrap);
+    wrap.addEventListener('click', (e) => {
+      const a = e.target.closest('[data-a]')?.dataset.a;
+      if (a === 'send') {
+        const sp = wrap.querySelector('[data-k="sp"]').value, w = Math.max(0.1, Math.min(250, parseFloat(String(wrap.querySelector('[data-k="w"]').value).replace(',', '.')) || 1));
+        localStorage.setItem('fiskesim.juksArt', sp); localStorage.setItem('fiskesim.juksVekt', String(w));
+        fe.cancelSummon(); fe.summon(sp, w); this.cheatStatus = null;
+        this.closeSheet(); this.toast(`${SPECIES[sp].navn} på ${dec(w, 1)} kg er bestilt.`, '', 3500);
+      } else if (a === 'stop') { fe.cancelSummon(); this.closeSheet(); this.toast('Juksefisken er avbestilt.', '', 2500); }
+    });
+  }
 
   openLog() {
     const body = this.openSheet('Fangstlogg', logHTML(this.log, this.tripId));
@@ -319,14 +361,17 @@ export class BoatScreen {
     const wrap = document.createElement('div');
     wrap.className = 'spot';
     wrap.innerHTML = `
-      <p>Simulerer flere fisketurer her, med utstyret du har nå (${esc(A.rig.navn)}), fra ${esc(clock(s.t))} og framover. Samme fiskemodell som i spillet, men fiskeren er forenklet: ${tech === 'pilk' ? 'pilker i drift og kjører opp igjen etter ca. 200 m' : tech === 'slo' ? 'slipper sloen ned og sveiver den opp gjennom vannet' : 'ligger med agnet på bunnen, ankret der det er under 45 m'}.</p>
-      <div class="row"><label class="field" style="margin:0"><span>Timer per tur</span><select data-k="h"><option>2</option><option selected>3</option><option>6</option></select></label>
+      <p>Simulerer flere fisketurer her, med utstyret du har nå (${esc(A.rig.navn)}), fra ${esc(clock(s.t))} og framover. Samme fiskemodell som i spillet, men fiskeren er forenklet: ${tech === 'pilk' ? 'pilker og kjører opp igjen etter ca. 200 m drift' : tech === 'slo' ? 'slipper sloen ned og sveiver den opp gjennom vannet' : 'ligger med agnet på bunnen'}. Ankret båt ligger i ro på plassen uansett dybde (tauet er alltid langt nok).</p>
+      <div class="row"><label class="field" style="margin:0"><span>Båten</span><select data-k="a"><option value="auto" selected>${s.boat.anchor ? 'Som nå (ankret)' : tech === 'agn' ? 'Ankret (agn)' : 'Drift (som nå)'}</option><option value="anker">Ankret</option><option value="drift">Drift</option></select></label>
+      <label class="field" style="margin:0"><span>Timer per tur</span><select data-k="h"><option>2</option><option selected>3</option><option>6</option></select></label>
       <label class="field" style="margin:0"><span>Antall turer</span><select data-k="n"><option>4</option><option selected>8</option><option>16</option></select></label>
       <button class="btn primary" data-a="run" style="align-self:end">Start testen</button></div>
       <div data-out style="margin-top:14px"></div>`;
     this.openSheet('Test plassen', wrap, () => { if (this.spotWorker) { this.spotWorker.terminate(); this.spotWorker = null; } });
     wrap.querySelector('[data-a="run"]').addEventListener('click', () => {
       const hours = +wrap.querySelector('[data-k="h"]').value, runs = +wrap.querySelector('[data-k="n"]').value;
+      const av = wrap.querySelector('[data-k="a"]').value;
+      const anchor = av === 'anker' ? true : av === 'drift' ? false : (s.boat.anchor ? true : tech === 'agn');
       const out = wrap.querySelector('[data-out]');
       out.innerHTML = '<div class="note">Kjører … <span data-p>0</span> %</div><div style="height:6px;background:var(--hull-2);border-radius:3px;margin-top:6px"><div data-bar style="height:6px;width:0;background:var(--buoy);border-radius:3px"></div></div>';
       if (this.spotWorker) this.spotWorker.terminate();
@@ -335,7 +380,7 @@ export class BoatScreen {
       const copy = (gr) => gr && ({ ...gr, z: gr.z.slice(), mask: gr.mask.slice(), hard: gr.hard.slice(), sed: gr.sed?.slice(), tpi: gr.tpi?.slice(), lo: gr.lo?.slice(), hi: gr.hi?.slice() });
       const env = this.env;
       wk.postMessage({
-        E0: w.E0, N0: w.N0, near: copy(g), far: null, start: { x: s.boat.x, y: s.boat.y }, setup: A.setup, timeMs: s.t, hours, runs,
+        E0: w.E0, N0: w.N0, near: copy(g), far: null, start: { x: s.boat.x, y: s.boat.y }, setup: A.setup, timeMs: s.t, hours, runs, anchor,
         env: { lat: env.lat, lon: env.lon, loc: env.loc, ocean: env.ocean, period: env.period, tide: env.tide, levels: env.levels, status: env.status, override: env.override },
       });
       wk.onmessage = (ev) => {
