@@ -401,14 +401,14 @@ export class FishEngine {
     this.bait = this.bait || [];
     const m = e.month, season = [0.5, 0.45, 0.5, 0.7, 0.9, 1, 1, 1, 1, 1, 0.85, 0.65][m];
     const night = e.sunElev < -4;
-    const want = Math.round(6 * season);
+    const want = Math.round(3 * season); // noen få stimer innenfor ca. 400 m – ikke småfisk overalt
     this.bait = this.bait.filter((s) => s.life > 0 && Math.hypot(s.x - cx, s.y - cy) < 420);
     while (this.bait.length < want) {
       const a = Math.random() * 6.283, r = 60 + Math.random() * 300;
       const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r, bed = this.world.bedZ(x, y);
       if (bed > water - 6) { if (Math.random() < 0.7) continue; else break; }
       const sp = Math.random() < 0.5 ? 'sild' : Math.random() < 0.6 ? 'brisling' : 'tobis';
-      this.bait.push({ sp, x, y, z: bed + 3, rx: rnd(4, 16), rz: rnd(1.2, 5), dens: rnd(0.25, 1), heading: Math.random() * 6.283, speed: rnd(0.1, 0.35), life: rnd(600, 2400) });
+      this.bait.push({ sp, x, y, z: bed + 3, rx: rnd(4, 14), rz: rnd(1.2, 4), dens: rnd(0.2, 0.8), heading: Math.random() * 6.283, speed: rnd(0.1, 0.35), life: rnd(600, 2400) });
     }
     for (const s of this.bait) {
       s.life -= dt; s.heading += gauss() * 0.2 * dt;
