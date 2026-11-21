@@ -43,7 +43,8 @@ function reliefWorker(k) {
 // Fra zoom 13 fordeles flisene etter den fine flisa (zoom 13/14) de hører til, så alle trådene jobber samtidig.
 // (Før gikk alt under samme zoom 12-flis til én tråd, og de andre sto stille.) Ferdige fliser deles via IndexedDB.
 function reliefTile(z, x, y, pal) {
-  const cz = z <= 12 ? z : 13, px = x >> (z - cz), py = y >> (z - cz); // zoom 14 regnes i blokker på zoom 13-ruter
+  // zoom 13–14: én tråd per blokk (zoom 13-rute); zoom 15+: én tråd per zoom 14-flis, så flere tråder jobber samtidig
+  const cz = z <= 12 ? z : z <= 14 ? 13 : 14, px = x >> (z - cz), py = y >> (z - cz);
   const id = ++reqId;
   const hd = z >= 12 && (self.devicePixelRatio || 1) >= 1.5; // skarpe tall og kurver på mobil og retina
   return new Promise((res, rej) => { waiting.set(id, { res, rej }); reliefWorker(px * 31 + py * 17 + cz).postMessage({ id, z, x, y, pal, hd }); });
