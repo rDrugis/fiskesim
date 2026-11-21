@@ -77,8 +77,12 @@ async function fetchRetry(url) {
   throw err;
 }
 
+// målinger (for live-testen): tid brukt på henting og utregning
+const STATS = { fetch: [], comp: [] };
 async function pngPixels(url, N) {
+  const t0 = performance.now();
   const buf = await fetchRetry(url);
+  STATS.fetch.push([Math.round(t0), Math.round(performance.now() - t0), N]);
   const bmp = await createImageBitmap(new Blob([buf], { type: 'image/png' }));
   const c = new OffscreenCanvas(N, N), ctx = c.getContext('2d', { willReadFrequently: true });
   ctx.drawImage(bmp, 0, 0);
@@ -151,6 +155,10 @@ function isletMask(c2, N) {
 
 // Beregner dybde for en flis. Lagrer bare kjernen pluss en kant (keep) for å spare minne.
 function finish(c2, N, res, prior, keep, core = SIZE) {
+  const t0 = performance.now();
+  try { return finishInner(c2, N, res, prior, keep, core); } finally { STATS.comp.push([Math.round(t0), Math.round(performance.now() - t0), N]); }
+}
+function finishInner(c2, N, res, prior, keep, core) {
   let water = 0;
   for (let p = 0; p < N * N; p++) if (c2[p] !== -1) water++;
   openBridges(c2, N, N, res);
@@ -423,6 +431,7 @@ async function depthAt(lon, lat, coarseOnly = false) {
 self.onmessage = async (ev) => {
   const { id, kind, z, x, y, pal, lon, lat } = ev.data; // hd: skarp flis
   try {
+    if (kind === 'stats') { self.postMessage({ id, info: { ...STATS, origin: Math.round(performance.timeOrigin) } }); return; }
     if (kind === 'depth') { self.postMessage({ id, info: await depthAt(lon, lat) }); return; }
     // mange punkter på én gang (dybdeprofil); grovt nivå for lange streker
     if (kind === 'depths') { const out = await Promise.all(ev.data.pts.map(([lo, la]) => depthAt(lo, la, !!ev.data.coarse).catch(() => null))); self.postMessage({ id, info: out }); return; }
