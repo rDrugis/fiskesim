@@ -43,6 +43,7 @@ export class App {
       <section class="sheet-p layers hidden" aria-label="Kartlag"></section>
       <section class="sheet-p info hidden" aria-live="polite"></section>
       <section class="sheet-p prof hidden" aria-label="Dybdeprofil"></section>
+      <div class="xhair hidden" aria-hidden="true"></div>
       <div class="legend${style === 'fiskekart' ? '' : ' hidden'}" aria-hidden="true"><div class="bar"></div><div class="ticks num"><span>0</span><span>20</span><span>50</span><span>100</span><span>250 m</span></div></div>`;
     const bar = root.querySelector('.legend .bar');
     const stops = [0, 10, 20, 35, 50, 75, 100, 175, 250];
@@ -65,7 +66,7 @@ export class App {
     this.algo = new AlgoLayer(api, { onNote: (t, busy) => this.note(t, busy), onSaved: () => this.renderLayers && this.renderLayers() });
     // dybdeprofil: knappen i høyre kant, panelet nederst
     const pbtn = this.root.querySelector('[data-a="prof"]'), ppanel = this.root.querySelector('.prof');
-    this.profile = new Profile(api, ppanel, { getPos: () => (this.lastPos && Date.now() - this.lastPos[3] < 30 * 60e3 ? this.lastPos : null), onMode: (on) => pbtn.setAttribute('aria-pressed', String(on)) });
+    this.profile = new Profile(api, ppanel, { getPos: () => (this.lastPos && Date.now() - this.lastPos[3] < 30 * 60e3 ? this.lastPos : null), onMode: (on) => { pbtn.setAttribute('aria-pressed', String(on)); this.root.querySelector('.xhair').classList.toggle('hidden', !on); } });
     pbtn.addEventListener('click', () => {
       if (this.profile.active) { this.profile.clear(); return; }
       this.closeInfo(); this.root.querySelector('.layers').classList.add('hidden'); this.profile.start();
