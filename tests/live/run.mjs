@@ -136,7 +136,7 @@ if (want('raw') || want('tiles')) {
   const ORIG = 20037508.342789244, SIZE = 256, MARG = 128, N = SIZE + 2 * MARG;
   const tileOf = (z, lon, lat) => { const n = 2 ** z, la = lat * Math.PI / 180; return [Math.floor((lon + 180) / 360 * n), Math.floor((1 - Math.log(Math.tan(la) + 1 / Math.cos(la)) / Math.PI) / 2 * n)]; };
   const want3 = [];
-  for (const [lon, lat] of [[5.2645, 60.519], [5.258, 60.517]]) {
+  for (const [lon, lat] of [[5.2645, 60.519], [5.258, 60.517], [5.2605, 60.4985], [5.268, 60.507], [5.278, 60.514]]) {
     const [cx, cy] = tileOf(12, lon, lat); want3.push([12, cx, cy]);
     const [fx, fy] = tileOf(14, lon, lat); for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) want3.push([14, fx + dx, fy + dy]);
   }
