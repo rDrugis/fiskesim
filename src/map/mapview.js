@@ -6,7 +6,7 @@ let ml = null;
 export async function loadMapLibre() {
   if (!ml) {
     // MapLibre ligger ved siden av app.js og finner selv sin worker der
-    const url = new URL('./vendor/maplibre-gl.mjs', import.meta.url).href;
+    const url = new URL('assets/vendor/maplibre-gl.mjs', document.baseURI).href;
     ml = await import(/* @vite-ignore */ url);
   }
   return ml;
@@ -15,14 +15,14 @@ export async function loadMapLibre() {
 const EMPTY = { type: 'FeatureCollection', features: [] };
 
 export const MAP_STYLES = [
-  { id: 'fiskekart', label: 'Fiskekart' },
-  { id: 'dybdekart', label: 'Dybdekart' },
-  { id: 'sjokart', label: 'Sjøkart' },
-  { id: 'natt', label: 'Natt' },
+  { id: 'fiskekart', label: 'Fiskekart', short: 'Fisk' },
+  { id: 'dybdekart', label: 'Dybdekart', short: 'Dybde' },
+  { id: 'sjokart', label: 'Sjøkart', short: 'Sjø' },
+  { id: 'natt', label: 'Natt', short: 'Natt' },
 ];
 
-// Området spillet dekker foreløpig: Stad i nord, Stord i sør, vest forbi Temba (Askvoll)
-export const REGION = { w: 4.25, s: 59.68, e: 7.8, n: 62.25 };
+// Norskekysten (Kartverkets dybdedata dekker hele kysten)
+export const REGION = { w: 3.5, s: 57.6, e: 31.5, n: 71.4 };
 export const inRegion = (lon, lat) => lon >= REGION.w && lon <= REGION.e && lat >= REGION.s && lat <= REGION.n;
 
 // Fiskekart-flisene regnes i egne tråder; samme overordnede flis går alltid til samme tråd (felles mellomlager)
@@ -31,9 +31,9 @@ let reqId = 0;
 const waiting = new Map();
 function reliefWorker(k) {
   if (!pool.length) {
-    const n = Math.max(2, Math.min(4, (navigator.hardwareConcurrency || 4) - 1));
+    const n = Math.max(2, Math.min(6, (navigator.hardwareConcurrency || 4) - 1));
     for (let i = 0; i < n; i++) {
-      const w = new Worker(new URL('./relief.worker.js?v=' + __V__, import.meta.url), { type: 'module' });
+      const w = new Worker(new URL('assets/relief.worker.js?v=' + __V__, document.baseURI), { type: 'module' });
       w.onmessage = (ev) => { const p = waiting.get(ev.data.id); if (!p) return; waiting.delete(ev.data.id); if (ev.data.error) p.rej(new Error(ev.data.error)); else p.res(ev.data.info || ev.data.bmp); };
       pool.push(w);
     }
@@ -43,7 +43,8 @@ function reliefWorker(k) {
 function reliefTile(z, x, y, pal) {
   const cz = Math.min(z, 12), px = x >> (z - cz), py = y >> (z - cz);
   const id = ++reqId;
-  return new Promise((res, rej) => { waiting.set(id, { res, rej }); reliefWorker(px * 31 + py * 17 + cz).postMessage({ id, z, x, y, pal }); });
+  const hd = z >= 12 && (self.devicePixelRatio || 1) >= 1.5; // skarpe tall og kurver på mobil og retina
+  return new Promise((res, rej) => { waiting.set(id, { res, rej }); reliefWorker(px * 31 + py * 17 + cz).postMessage({ id, z, x, y, pal, hd }); });
 }
 // Dybden i et punkt etter fiskekartets modell (samme tråd som regner flisa der)
 export function reliefDepth(lon, lat) {
@@ -160,11 +161,14 @@ export async function createMap(container, opts = {}) {
   const map = new maplibregl.Map({
     container, style: buildStyle(kind), center: opts.center || [4.83, 61.57], zoom: opts.zoom || 11.5,
     attributionControl: { compact: true }, maxPitch: 0, dragRotate: false, pitchWithRotate: false, hash: false,
-    maxBounds: [[REGION.w - 0.6, REGION.s - 0.25], [REGION.e + 0.6, REGION.n + 0.25]], minZoom: 7,
+    maxBounds: [[REGION.w - 1, REGION.s - 0.5], [REGION.e + 1, REGION.n + 0.5]], minZoom: 5,
   });
   map.touchZoomRotate.disableRotation();
-  map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right');
-  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
+  map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-left');
+  if (!opts.mobile) map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
+  // egne lag (sjømerker, fiskeplasser …) legges inn på nytt hver gang karttypen byttes
+  const onStyle = [];
+  map.on('style.load', () => { for (const f of onStyle) { try { f(map); } catch (e) { console.warn(e); } } });
 
   // Stedsnavn for området som vises
   let nameTimer = 0, allNames = new Map();
@@ -191,7 +195,8 @@ export async function createMap(container, opts = {}) {
     get style() { return kind; },
     _marks: EMPTY,
     setMarks(fc) { api._marks = fc || EMPTY; const s = map.getSource('marks'); if (s) s.setData(api._marks); },
-    onClick(fn) { map.on('click', (e) => fn(e.lngLat)); },
+    onClick(fn) { map.on('click', (e) => fn(e.lngLat, e)); },
+    onStyle(fn) { onStyle.push(fn); if (map.isStyleLoaded()) fn(map); },
     depthAt: reliefDepth,
   };
   return api;

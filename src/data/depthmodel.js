@@ -14,6 +14,22 @@ export const DYBDELAG = [
   [184, 50, 100], [171, 100, 150], [166, 150, 200], [161, 200, 250], [156, 250, 300],
   [150, 300, 350], [145, 350, 400], [140, 400, 450], [137, 450, 500], [133, 500, 800], [120, 800, 1500],
 ];
+// Grove intervaller i sjøkartet («0,5–100 m» o.l.) har samme farge som 0,5–5 m i Kartverkets standardstil.
+// De hentes med en egen stil (SLD) og får egne klasser her, så dybden kan anslås mellom land og neste kurve.
+export const GENERAL = [10, 20, 30, 50, 100, 150, 200, 250, 300].map((hi) => [0, 0.5, hi]);
+export const DYB_ALL = DYBDELAG.concat(GENERAL);
+export const GEN0 = DYBDELAG.length; // første klasseindeks for grove intervaller
+export function generalSLD() {
+  const eq = (p, v) => `<PropertyIsEqualTo><PropertyName>${p}</PropertyName><Literal>${v}</Literal></PropertyIsEqualTo>`;
+  const rules = GENERAL.map(([, , hi], k) => `<Rule><Filter xmlns="http://www.opengis.net/ogc"><And>${eq('minimumsdybde', 0.5)}${eq('maksimumsdybde', hi)}</And></Filter><PolygonSymbolizer><Fill><CssParameter name="fill">#${(40 + k * 20).toString(16).padStart(2, '0')}c040</CssParameter></Fill></PolygonSymbolizer></Rule>`).join('');
+  return `<StyledLayerDescriptor version="1.0.0" xmlns="http://www.opengis.net/sld"><NamedLayer><Name>Dybdelag</Name><UserStyle><FeatureTypeStyle>${rules}</FeatureTypeStyle></UserStyle></NamedLayer></StyledLayerDescriptor>`;
+}
+// fargen i SLD-bildet → klasseindeks (eller −1)
+export function generalClassOf(r, g, b, a) {
+  if (a < 128 || g < 170 || g > 210 || b > 90) return -1;
+  const k = Math.round((r - 40) / 20);
+  return k >= 0 && k < GENERAL.length && Math.abs(r - (40 + k * 20)) <= 6 ? GEN0 + k : -1;
+}
 export const SHORE_Z = 1.6; // strandlinja (middel høyvann) over sjøkartnull, typisk Vestlandet
 
 function classOf(r, g, b) {

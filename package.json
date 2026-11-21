@@ -1,7 +1,7 @@
 {
   "name": "fiskesim",
   "version": "1.0.0",
-  "description": "Realistisk fiskesimulator for norskekysten",
+  "description": "Fiskekart for norskekysten",
   "main": "index.js",
   "scripts": {
     "build": "node tools/build.mjs",

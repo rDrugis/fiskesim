@@ -1,16 +1,19 @@
 // Bygger appen til assets/ (ES-moduler) og kopierer MapLibre som egen fil.
 import * as esbuild from 'esbuild';
-import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 
 const watch = process.argv.includes('--watch');
+rmSync('assets/chunks', { recursive: true, force: true }); // gamle delbiter fra forrige bygg
 mkdirSync('assets/vendor', { recursive: true });
 for (const f of ['maplibre-gl.mjs', 'maplibre-gl-worker.mjs', 'maplibre-gl.css']) {
   cpSync(`node_modules/maplibre-gl/dist/${f}`, `assets/vendor/${f}`);
 }
 
 const opts = {
-  entryPoints: { app: 'src/main.js', 'terrain.worker': 'src/workers/terrain.worker.js', 'spottest.worker': 'src/workers/spottest.worker.js', 'relief.worker': 'src/workers/relief.worker.js' },
+  entryPoints: { app: 'src/main.js', 'terrain.worker': 'src/workers/terrain.worker.js', 'relief.worker': 'src/workers/relief.worker.js', 'algo.worker': 'src/algo/algo.worker.js' },
+  // 3D-visningen lastes først når den åpnes
+  splitting: true, chunkNames: 'chunks/[name]-[hash]',
   outdir: 'assets',
   bundle: true,
   format: 'esm',
