@@ -70,21 +70,24 @@ export function contourDepth(cls, W, H, res, intervals, prior = null, maxDist = 
     const dB = anyDeeper ? edt(feat, W, H) : null;
     // typisk avstand mellom kurvene brukes der en av dem mangler (5 % helning)
     const Ls = Math.max(40, (hi - lo) / 0.05);
+    // Når en kurve nærmer seg rekkevidden (maxDist), tones den ut mykt i stedet for å forsvinne brått:
+    // da blir det ingen synlige kanter i flaten der den ene kurven går ut av rekkevidde.
+    const capM = cap < INF ? Math.sqrt(cap) * res : Infinity, fadeM = capM * 0.45;
+    const wOf = (m) => capM === Infinity ? 1 : m >= capM ? 0 : m <= capM - fadeM ? 1 : (() => { const t = (capM - m) / fadeM; return t * t * (3 - 2 * t); })();
     for (let p = 0; p < N; p++) {
       if (cls[p] !== k) continue;
       const a = dA[p] >= INF || dA[p] > cap ? Infinity : Math.sqrt(dA[p]) * res;
       const b = !dB || dB[p] >= INF || dB[p] > cap ? Infinity : Math.sqrt(dB[p]) * res;
-      let d;
-      if (a < Infinity && b < Infinity) d = lo + (hi - lo) * a / (a + b);
-      else {
-        const pr = prior && prior[p] === prior[p] ? Math.min(hi, Math.max(lo, prior[p])) : null;
-        if (a < Infinity) {
-          // bunnen av et basseng: dybden øker bort fra den grunnere kurven og flater ut
-          const ramp = lo + (hi - lo) * (1 - Math.exp(-a / Ls));
-          d = pr != null ? lo + (pr - lo) * (1 - Math.exp(-a / Math.min(Ls, 200))) : ramp;
-        } else if (b < Infinity) d = pr != null ? hi - (hi - pr) * (1 - Math.exp(-b / Math.min(Ls, 200))) : hi - (hi - lo) * (1 - Math.exp(-b / Ls));
-        else d = pr != null ? pr : (lo + hi) / 2;
-      }
+      const fa = a < Infinity ? wOf(a) : 0, fb = b < Infinity ? wOf(b) : 0;
+      const pr = prior && prior[p] === prior[p] ? Math.min(hi, Math.max(lo, prior[p])) : null;
+      // fire tilfeller blandes etter hvor godt kurvene «sees»
+      const eAB = fa > 0 && fb > 0 ? lo + (hi - lo) * a / (a + b) : 0;
+      // bare grunnere kurve: bunnen av et basseng, dybden øker bort fra kurven og flater ut
+      const eA = fa > 0 && fb < 1 ? (pr != null ? lo + (pr - lo) * (1 - Math.exp(-a / Math.min(Ls, 200))) : lo + (hi - lo) * (1 - Math.exp(-a / Ls))) : 0;
+      // bare dypere kurve: toppen av en grunne
+      const eB = fb > 0 && fa < 1 ? (pr != null ? hi - (hi - pr) * (1 - Math.exp(-b / Math.min(Ls, 200))) : hi - (hi - lo) * (1 - Math.exp(-b / Ls))) : 0;
+      const e0 = pr != null ? pr : (lo + hi) / 2;
+      const d = fa * fb * eAB + fa * (1 - fb) * eA + (1 - fa) * fb * eB + (1 - fa) * (1 - fb) * e0;
       depth[p] = d;
     }
   }

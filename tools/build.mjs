@@ -1,9 +1,10 @@
 // Bygger appen til assets/ (ES-moduler) og kopierer MapLibre som egen fil.
 import * as esbuild from 'esbuild';
-import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 
 const watch = process.argv.includes('--watch');
+rmSync('assets/chunks', { recursive: true, force: true }); // gamle delbiter fra forrige bygg
 mkdirSync('assets/vendor', { recursive: true });
 for (const f of ['maplibre-gl.mjs', 'maplibre-gl-worker.mjs', 'maplibre-gl.css']) {
   cpSync(`node_modules/maplibre-gl/dist/${f}`, `assets/vendor/${f}`);
