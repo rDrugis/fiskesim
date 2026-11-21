@@ -122,6 +122,14 @@ if (want('speed')) {
       await waitFor(pg, () => !!(window.fiskesim && window.fiskesim.api && window.fiskesim.api.map), 30000, 100);
       const ok = await waitFor(pg, () => { const m = window.fiskesim.api.map; return m.getSource('relief') && m.isSourceLoaded('relief') && m.areTilesLoaded(); }, 180000, 200);
       out.push(ok ? Math.round((Date.now() - t0) / 100) / 10 : null);
+      if (k === 0) {
+        const st = await pg.evaluate(async () => { const a = window.fiskesim.api; if (!a.reliefStats) return null; const w = await a.reliefStats(); const t0 = performance.timeOrigin;
+          const F = [], C = []; w.forEach((x) => { if (!x) return; x.fetch.forEach((f) => F.push([f[0] + x.origin - t0, f[1], f[2]])); x.comp.forEach((c) => C.push([c[0] + x.origin - t0, c[1], c[2]])); });
+          const sum = (a) => a.reduce((s, x) => s + x[1], 0), end = (a) => a.reduce((m, x) => Math.max(m, x[0] + x[1]), 0);
+          return { workers: w.length, nFetch: F.length, fetchSum: sum(F), fetchMax: Math.max(0, ...F.map((x) => x[1])), lastFetchEnd: end(F), nComp: C.length, compSum: sum(C), compMax: Math.max(0, ...C.map((x) => x[1])), lastCompEnd: end(C), firstFetch: Math.min(...F.map((x) => x[0])) };
+        });
+        out.push(st);
+      }
     }
     await ctx.close(); return out;
   };
