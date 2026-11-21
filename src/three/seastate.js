@@ -87,33 +87,36 @@ export function stateAt(S, t, depth = 100) {
   return { t, ws: ws ?? 0, wd: wd ?? 0, gust, cloud, hs: hs ?? 0, from, sys, metHs, metDir, src, warn, noWind: ws == null };
 }
 
-/* Bølgekomponenter fra spektrene (JONSWAP for vindsjø, smal JONSWAP for dønning), retningsspredning cos^2s.
-   Hver komponent får lik energi (frekvensene trekkes fra spekteret), tilfeldig fase og retning. */
+/* Bølgekomponenter fra spektrene (JONSWAP for vindsjø, smal JONSWAP for dønning), retningsspredning cos^2s. */
 function rng(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
-function jonswapCDF(fp, gamma, n) {
-  const fs = [], S = [];
-  for (let i = 0; i < 400; i++) { const f = fp * (0.55 + i * 0.012); const sig = f <= fp ? 0.07 : 0.09; const r = Math.exp(-((f - fp) ** 2) / (2 * sig * sig * fp * fp));
-    S.push(Math.pow(f, -5) * Math.exp(-1.25 * Math.pow(fp / f, 4)) * Math.pow(gamma, r)); fs.push(f); }
-  const cum = []; let acc = 0; for (const v of S) { acc += v; cum.push(acc); }
-  const out = []; for (let k = 0; k < n; k++) { const target = (k + 0.5) / n * acc; const i = cum.findIndex((c) => c >= target); out.push(fs[Math.max(0, i)]); }
-  return out;
-}
 // sys: [{h, tp, dir (grader i kartets rutenett, der bølgene kommer fra), kind}]
+// Frekvensene spres logaritmisk fra litt under toppen og et stykke ut i halen av spekteret, og hver komponent får
+// amplituden spekteret gir (a = √(2·S(f)·Δf)), skalert så summen gir riktig Hs. Halen har lite energi, men mye
+// helning, så den gjør flaten naturlig uregelmessig. Retningsspredningen øker utover i halen (Mitsuyasu m.fl. 1975).
+// Komponentene deles mellom systemene etter helning (det øyet ser), ikke bare etter energi.
+const jonswap = (f, fp, gamma) => { const sig = f <= fp ? 0.07 : 0.09, r = Math.exp(-((f - fp) ** 2) / (2 * sig * sig * fp * fp)); return Math.pow(f, -5) * Math.exp(-1.25 * Math.pow(fp / f, 4)) * Math.pow(gamma, r); };
 export function components(sys, depth, n = 48, seed = 7) {
   const r = rng(seed), out = [];
-  const tot = sys.reduce((a, x) => a + x.h * x.h, 0) || 1;
-  for (const S of sys) {
-    const swell = /dønning/.test(S.kind), gamma = swell ? 6 : 3.3, s = swell ? 35 : 8;
-    const nk = Math.max(6, Math.round(n * Math.max(0.2, (S.h * S.h) / tot)));
-    const fp = 1 / Math.max(0.8, S.tp), freqs = jonswapCDF(fp, gamma, nk);
-    const a = S.h / 4 * Math.sqrt(2 / nk); // lik energi: m0 = Hs²/16 fordelt på nk komponenter
-    for (const f of freqs) {
-      const w = 2 * Math.PI * f, k = waveNumber(w, Math.max(1, depth));
-      let dth = 0; for (let t = 0; t < 40; t++) { const x = (r() - 0.5) * Math.PI * 1.6; if (r() < Math.pow(Math.cos(x / 2), 2 * s)) { dth = x; break; } }
-      const toDir = ((S.dir ?? 0) + 180) * Math.PI / 180 + dth; // gå mot
-      out.push({ kx: k * Math.sin(toDir), ky: k * Math.cos(toDir), a, w, ph: r() * Math.PI * 2 });
+  const vis = sys.map((S) => S.h * (2 * Math.PI / Math.max(0.8, S.tp)) ** 2 / G); // ~ helning (Hs·kp)
+  const totV = vis.reduce((a, x) => a + x, 0) || 1;
+  sys.forEach((S, si) => {
+    const swell = /dønning/.test(S.kind), gamma = swell ? 6 : 3.3, sp = swell ? 30 : 8;
+    const nk = Math.max(8, Math.round(n * Math.max(0.22, vis[si] / totV)));
+    const fp = 1 / Math.max(0.8, S.tp), f0 = fp * (swell ? 0.8 : 0.72), f1 = fp * (swell ? 2.2 : 4.0);
+    const fs = [], amps = [];
+    for (let i = 0; i < nk; i++) {
+      const u0 = i / nk, u1 = (i + 1) / nk, fa = f0 * Math.pow(f1 / f0, u0), fb = f0 * Math.pow(f1 / f0, u1), f = fa * Math.pow(fb / fa, 0.25 + 0.5 * r());
+      fs.push(f); amps.push(Math.sqrt(2 * jonswap(f, fp, gamma) * (fb - fa)));
     }
-  }
+    const m0 = amps.reduce((a, x) => a + x * x / 2, 0), k0 = Math.sqrt((S.h * S.h / 16) / (m0 || 1));
+    fs.forEach((f, i) => {
+      const w = 2 * Math.PI * f, k = waveNumber(w, Math.max(1, depth));
+      const s = Math.max(2, sp * (f <= fp ? Math.pow(f / fp, 5) : Math.pow(f / fp, -2.5)));
+      let dth = 0; for (let t = 0; t < 60; t++) { const x = (r() - 0.5) * Math.PI * 1.8; if (r() < Math.pow(Math.cos(x / 2), 2 * s)) { dth = x; break; } }
+      const toDir = ((S.dir ?? 0) + 180) * Math.PI / 180 + dth;
+      out.push({ kx: k * Math.sin(toDir), ky: k * Math.cos(toDir), a: amps[i] * k0, w, ph: r() * Math.PI * 2 });
+    });
+  });
   return out;
 }
 
