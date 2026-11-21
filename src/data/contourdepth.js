@@ -147,3 +147,35 @@ export function applyPoints(depth, cls, W, H, res, points, intervals, sigma = 30
     depth[p] = v;
   }
 }
+
+/**
+ * Utglatting med føringer: gjentatt lite boksfilter over sjøcellene, og etter hver runde klemmes hver celle inn i
+ * sitt eget intervall igjen. Det gir den glatteste flaten som fortsatt holder seg innenfor sjøkartets intervaller
+ * (kurvene blir liggende der de ligger), og fjerner «kammer» som oppstår ved taggete kurver i dypt vann.
+ * iters runder med radius r: glatter over omtrent r·√(iters·2/3) celler.
+ */
+export function diffuseWithin(depth, cls, W, H, intervals, iters, r = 2) {
+  if (iters < 1) return;
+  const N = W * H, ok = new Uint8Array(N), lo = new Float32Array(N), hi = new Float32Array(N);
+  for (let p = 0; p < N; p++) { const k = cls[p]; if (k >= 0 && depth[p] === depth[p]) { ok[p] = 1; lo[p] = intervals[k][1]; hi[p] = intervals[k][2]; } }
+  const v = new Float32Array(N), c = new Float32Array(N), tv = new Float32Array(N), tc = new Float32Array(N);
+  const pass = (src, srcC, dst, dstC, horiz) => {
+    const L = horiz ? W : H, M = horiz ? H : W, st = horiz ? 1 : W, ln = horiz ? W : 1;
+    for (let m = 0; m < M; m++) {
+      const o = m * ln; let s = 0, n = 0;
+      for (let q = 0; q <= Math.min(L - 1, r); q++) { s += src[o + q * st]; n += srcC[o + q * st]; }
+      for (let q = 0; q < L; q++) {
+        const p = o + q * st; dst[p] = s; dstC[p] = n;
+        const a = q + r + 1, b = q - r;
+        if (a < L) { s += src[o + a * st]; n += srcC[o + a * st]; }
+        if (b >= 0) { s -= src[o + b * st]; n -= srcC[o + b * st]; }
+      }
+    }
+  };
+  for (let it = 0; it < iters; it++) {
+    // land og tørrfall står fast på 0 m, så flaten går mot null ved land også der sjøkartet bare har et grovt intervall
+    for (let p = 0; p < N; p++) { if (ok[p]) { v[p] = depth[p]; c[p] = 1; } else if (cls[p] === -1 || cls[p] === -2) { v[p] = 0; c[p] = 1; } else { v[p] = 0; c[p] = 0; } }
+    pass(v, c, tv, tc, true); pass(tv, tc, v, c, false);
+    for (let p = 0; p < N; p++) if (ok[p] && c[p] > 0) { const d = v[p] / c[p]; depth[p] = d < lo[p] ? lo[p] : d > hi[p] ? hi[p] : d; }
+  }
+}

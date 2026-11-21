@@ -5,7 +5,7 @@
 // og bruker zoom 12-resultatet som føring langt fra kurvene, så flisene passer sammen. Over 14 skaleres 14 jevnt opp.
 // Broer (også flytebruer) gjøres om til sjø før dybden regnes ut.
 import { decodeDybdelag, DYB_ALL, GEN0, generalSLD, generalClassOf, parseWfsPoints } from '../data/depthmodel.js';
-import { contourDepth } from '../data/contourdepth.js';
+import { contourDepth, diffuseWithin } from '../data/contourdepth.js';
 import { openBridges } from '../data/thinland.js';
 import { fetchCached, SRC } from '../data/sources.js';
 import { PAL, rgb } from '../map/palette.js';
@@ -19,6 +19,7 @@ const mercX = (lon) => lon * Math.PI / 180 * R;
 const mercY = (lat) => R * Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
 
 const CZ = 12, FZ = 14, SIZE = 256;
+const BLUR_M = globalThis.__BLUR_M ?? 40; // utglatting (m) i brede intervaller
 const MARG = 128; // kant rundt flisa som hentes (piksler), så kurver like utenfor teller med
 const KEEP_C = 96, KEEP_F = 3; // kant som beholdes i minnet (grove fliser trengs som føring for de fine)
 const coarse = new Map(), fine = new Map(), sound = new Map();
@@ -57,9 +58,29 @@ async function wmsClasses(bb, N) {
         const g = generalClassOf(px[p * 4], px[p * 4 + 1], px[p * 4 + 2], px[p * 4 + 3]);
         if (g >= 0) c2[p] = g;
       }
+      cleanSeams(c2, N);
     } catch (e) { /* uten grove intervaller: regnes som 0,5–5 m */ }
   }
   return c2;
+}
+
+// Kanten mellom et grovt område (samme farge som 0,5–5 m) og et dypt område (f.eks. 100–150 m) er kantutjevnet i
+// bildet, og blandingsfargene ligner 5–50 m-fargene. Slike tynne «kurver» ved et grovt område hører til det grove.
+function cleanSeams(c2, N) {
+  for (let pass = 0; pass < 2; pass++) {
+    const src = c2.slice();
+    for (let j = 1; j < N - 1; j++) for (let i = 1; i < N - 1; i++) {
+      const p = j * N + i, c = src[p];
+      if (c < 0 || c >= GEN0) continue;
+      let gen = -1, same = 0;
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+        if (!di && !dj) continue;
+        const q = src[p + dj * N + di];
+        if (q === c) same++; else if (q >= GEN0) gen = q;
+      }
+      if (gen >= 0 && same <= 3 && DYB_ALL[c][2] <= DYB_ALL[gen][2]) c2[p] = gen;
+    }
+  }
 }
 
 // Små holmer og skjær som er land i sjøkartet, men ofte mangler i bakgrunnskartet: tegnes som egne flekker
@@ -89,6 +110,8 @@ function finish(c2, N, res, prior, keep) {
   for (let p = 0; p < N * N; p++) if (c2[p] !== -1) water++;
   openBridges(c2, N, N, res);
   const dep = water ? contourDepth(c2, N, N, res, DYB_ALL, prior, MARG, Math.max(2, Math.round(22 / res))) : null;
+  // glatt flate innenfor intervallene (ca. BLUR_M meter), mot kammer ved taggete kurver i dypet
+  if (dep && BLUR_M > 0) diffuseWithin(dep, c2, N, N, DYB_ALL, Math.max(1, Math.min(40, Math.round((BLUR_M / res) ** 2 / 4))), 2);
   const isl = water ? isletMask(c2, N) : null;
   const S = SIZE + 2 * keep, o = MARG - keep;
   const d = new Float32Array(S * S).fill(NaN), wet = new Uint8Array(S * S), flag = new Uint8Array(S * S), cl = new Uint8Array(S * S);
@@ -231,16 +254,19 @@ async function renderTile(z, x, y, palName, hd = false) {
     else c = rgb(d, pal);
     const dl = D[p - 1], dr = D[p + 1], du = D[p - S], dd = D[p + S];
     const gx = ((dr === dr ? dr : d) - (dl === dl ? dl : d)) / (2 * pxm), gy = ((dd === dd ? dd : d) - (du === du ? du : d)) / (2 * pxm);
-    const nx = gx * ex, ny = -gy * ex, nl = Math.hypot(nx, ny, 1);
+    // svakere relieff i dypet: der er flaten mest anslag, og små ujevnheter i kurvene skal ikke se ut som terreng
+    const exd = ex / (1 + Math.max(0, d) / 150);
+    const nx = gx * exd, ny = -gy * exd, nl = Math.hypot(nx, ny, 1);
     const lam = (nx * L[0] + ny * L[1] + L[2]) / nl;
     const shade = Math.max(0.8, Math.min(1.22, 1 + 0.28 * (lam - 0.63) / 0.37)); // dempet skygge: ingen svarte prikker i bratte skråninger
     let r = c[0] * shade, g = c[1] * shade, b = c[2] * shade;
     // tynne dybdekurver der flaten krysser en kurvedybde
     for (const lv of LEVELS) {
       if ((d - lv) * (dr - lv) < 0 || (d - lv) * (dd - lv) < 0) {
-        const a = lv % 50 === 0 ? 0.45 : 0.28;
+        // i anslåtte områder er kurvene våre egne, ikke sjøkartets: svake og uten tall
+        const est = FG[p] === 1, a = (lv % 50 === 0 ? 0.45 : 0.28) * (est ? 0.35 : 1);
         r = r * (1 - a) + 20 * a; g = g * (1 - a) + 34 * a; b = b * (1 - a) + 52 * a;
-        if (z >= 13 && i > 18 * k && j > 10 * k && i < T - 18 * k && j < T - 10 * k && (z >= 15 || MAJOR.has(lv)) && ((i * 7 + j * 13) % (5 * k) === 0)) labelCand.push([i / k, j / k, lv, gx, gy]);
+        if (!est && z >= 13 && i > 18 * k && j > 10 * k && i < T - 18 * k && j < T - 10 * k && (z >= 15 || MAJOR.has(lv)) && ((i * 7 + j * 13) % (5 * k) === 0)) labelCand.push([i / k, j / k, lv, gx, gy]);
         break;
       }
     }
