@@ -25,10 +25,12 @@ export async function fetchSea(lat, lon) {
   const la = lat.toFixed(4), lo = lon.toFixed(4);
   const vars = ['wave_height', 'wave_direction', 'wave_period', 'wave_peak_period', 'wind_wave_height', 'wind_wave_direction', 'wind_wave_period', 'wind_wave_peak_period',
     'swell_wave_height', 'swell_wave_direction', 'swell_wave_period', 'swell_wave_peak_period', 'secondary_swell_wave_height', 'secondary_swell_wave_direction', 'secondary_swell_wave_period'];
+  // to forsøk per kilde (tjenestene svarer av og til med feil eller «for mange forespørsler»)
+  const get = async (url) => { for (let k = 0; k < 2; k++) { try { const r = await fetch(url); if (r.ok) return await r.json(); if (r.status === 404 || r.status === 422) return null; } catch (e) { /* prøv igjen */ } await new Promise((res) => setTimeout(res, 1200)); } return null; };
   const [loc, oce, om] = await Promise.all([
-    fetch(`${SRC.met}/locationforecast/2.0/compact?lat=${la}&lon=${lo}`).then((r) => r.ok ? r.json() : null).catch(() => null),
-    fetch(`${SRC.met}/oceanforecast/2.0/complete?lat=${la}&lon=${lo}`).then((r) => r.ok ? r.json() : null).catch(() => null),
-    fetch(`${SRC.openMeteoMarine}?latitude=${la}&longitude=${lo}&hourly=${vars.join(',')}&cell_selection=sea&timezone=UTC&forecast_days=3`).then((r) => r.ok ? r.json() : null).catch(() => null),
+    get(`${SRC.met}/locationforecast/2.0/compact?lat=${la}&lon=${lo}`),
+    get(`${SRC.met}/oceanforecast/2.0/complete?lat=${la}&lon=${lo}`),
+    get(`${SRC.openMeteoMarine}?latitude=${la}&longitude=${lo}&hourly=${vars.join(',')}&cell_selection=sea&timezone=UTC&forecast_days=3`),
   ]);
   const wind = loc ? loc.properties.timeseries.map((x) => { const d = x.data.instant.details; return { t: Date.parse(x.time), ws: d.wind_speed, wd: d.wind_from_direction, gust: d.wind_speed_of_gust ?? null, at: d.air_temperature, cloud: d.cloud_area_fraction }; }) : [];
   const ocean = oce ? oce.properties.timeseries.map((x) => { const d = x.data.instant.details; return { t: Date.parse(x.time), hs: d.sea_surface_wave_height ?? null, wd: d.sea_surface_wave_from_direction ?? null,
@@ -80,7 +82,7 @@ export function stateAt(S, t, depth = 100) {
   } else warn.push('Fant ikke bølgevarsel for punktet. Viser bare krusninger fra vinden.');
   sys.forEach((s) => { if (s.dir == null) s.dir = metDir ?? wd ?? 0; });
   // periode mangler (sjelden): vis med vanlig bratthet (Hs/L ≈ 1/20), og si det
-  sys.forEach((s) => { if (!(s.tp > 0)) { s.tp = Math.sqrt(2 * Math.PI * 20 * Math.max(0.05, s.h) / G); s.tpEst = true; warn.push(`Varselet mangler periode for ${s.kind} – vist med vanlig bratthet.`); } });
+  sys.forEach((s) => { if (!(s.tp > 0)) { s.tp = Math.sqrt(2 * Math.PI * 20 * Math.max(0.05, s.h) / G); s.tpEst = true; warn.push(S.ok.part ? `Varselet mangler periode for ${s.kind} – vist med vanlig bratthet (anslag).` : 'Fikk ikke hentet perioder fra Open-Meteo nå (MET oppgir bare høyde og retning). Bølgene vises med vanlig bratthet – perioden og lengden er anslag.'); } });
   sys = sys.filter((s) => s.h > 0.005);
   sys.forEach((s) => { s.L = waveLength(s.tp, depth); });
   if (ws != null) src.push('vind: MET');

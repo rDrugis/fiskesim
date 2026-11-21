@@ -178,7 +178,11 @@ if (want('shots')) {
     if (mob) await pg.tap('[data-a="prof"]'); else await pg.click('[data-a="prof"]');
     const p2px = (lon, lat) => pg.evaluate(([lo, la]) => { const p = window.fiskesim.api.map.project([lo, la]); return [p.x, p.y]; }, [lon, lat]);
     const a = await p2px(5.2505, 60.5185), b = await p2px(5.2700, 60.5165);
-    await tap(a[0], a[1]); await pg.waitForTimeout(400); await tap(b[0], b[1]);
+    if (mob) {
+      // på mobil: flytt kartet og bruk krysset (det samme som en bruker kan gjøre med én finger)
+      await pg.evaluate(() => window.fiskesim.api.map.jumpTo({ center: [5.2505, 60.5185] })); await pg.waitForTimeout(600); await pg.tap('[data-p="here"]');
+      await pg.evaluate(() => window.fiskesim.api.map.jumpTo({ center: [5.2700, 60.5165] })); await pg.waitForTimeout(600); await pg.tap('[data-p="here"]');
+    } else { await tap(a[0], a[1]); await pg.waitForTimeout(400); await tap(b[0], b[1]); }
     await pg.waitForTimeout(25000);
     const svg = await pg.$('svg.pchart'); if (svg) { const bb = await svg.boundingBox(); await pg.mouse.move(bb.x + bb.width * 0.3, bb.y + bb.height * 0.5); await pg.waitForTimeout(600); }
     return pg.evaluate(() => document.querySelector('.prof')?.innerText.slice(0, 500));

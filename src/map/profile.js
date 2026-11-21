@@ -22,6 +22,7 @@ export class Profile {
     panel.addEventListener('click', (e) => {
       const b = e.target.closest('[data-p]'); if (!b) return;
       if (b.dataset.p === 'clear') this.clear(); else if (b.dataset.p === 'new') this.start();
+      else if (b.dataset.p === 'here') { const c = this.api.map.getCenter(); this.click(c.lng, c.lat); }
     });
   }
   get active() { return this.picking; }
@@ -44,12 +45,12 @@ export class Profile {
     this.clear(true);
     this.picking = true; this.onMode(true);
     this.api.map.getCanvas().style.cursor = 'crosshair';
-    this.show(this.head('Trykk startpunktet (A) i kartet …', true));
+    this.show(this.head('Trykk startpunktet (A) i kartet, eller flytt kartet og bruk krysset', true, 'A'));
   }
   // kalles fra kartet når profilmodus er på; returnerer true når klikket er brukt
   click(lng, lat) {
     if (!this.picking) return false;
-    if (!this.a) { this.a = [lng, lat]; this.marker('a'); this.sync(); this.show(this.head('Trykk sluttpunktet (B) i kartet …', true)); }
+    if (!this.a) { this.a = [lng, lat]; this.marker('a'); this.sync(); this.show(this.head('Trykk sluttpunktet (B) i kartet, eller bruk krysset', true, 'B')); }
     else { this.b = [lng, lat]; this.picking = false; this.onMode(false); this.api.map.getCanvas().style.cursor = ''; this.marker('b'); this.sync(); this.calc(); }
     return true;
   }
@@ -71,11 +72,11 @@ export class Profile {
     if (!keepPanel) this.panel.classList.add('hidden');
   }
   show(html) { this.panel.innerHTML = html; this.panel.classList.remove('hidden'); }
-  head(note, picking) {
+  head(note, picking, next) {
     let meta = '';
     if (this.a && this.b) { const L = dist(this.a, this.b), br = bearing(this.a, this.b); meta = `A → B · ${fmtD(L)} · ${fmt(br)}° ${DIRS[Math.round(br / 22.5) % 16]}`; }
     return `<header><h2>Dybdeprofil</h2><span class="pmut">${note || meta}</span><span class="psp"></span>
-      ${picking ? '' : '<button class="btn sm" data-p="new">Ny strek</button>'}<button class="btn sm" data-p="clear">${picking ? 'Avbryt' : 'Fjern'}</button></header>`;
+      ${picking ? `<button class="btn sm primary" data-p="here">Sett ${next} ved krysset</button>` : '<button class="btn sm" data-p="new">Ny strek</button>'}<button class="btn sm" data-p="clear">${picking ? 'Avbryt' : 'Fjern'}</button></header>`;
   }
 
   async calc() {
