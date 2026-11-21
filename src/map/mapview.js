@@ -40,27 +40,29 @@ function reliefWorker(k) {
   }
   return pool[k % pool.length];
 }
+// Fra zoom 13 fordeles flisene etter den fine flisa (zoom 13/14) de hører til, så alle trådene jobber samtidig.
+// (Før gikk alt under samme zoom 12-flis til én tråd, og de andre sto stille.) Ferdige fliser deles via IndexedDB.
 function reliefTile(z, x, y, pal) {
-  const cz = Math.min(z, 12), px = x >> (z - cz), py = y >> (z - cz);
+  const cz = z <= 12 ? z : Math.min(z, 14), px = x >> (z - cz), py = y >> (z - cz);
   const id = ++reqId;
   const hd = z >= 12 && (self.devicePixelRatio || 1) >= 1.5; // skarpe tall og kurver på mobil og retina
   return new Promise((res, rej) => { waiting.set(id, { res, rej }); reliefWorker(px * 31 + py * 17 + cz).postMessage({ id, z, x, y, pal, hd }); });
 }
 // Dybden i et punkt etter fiskekartets modell (samme tråd som regner flisa der)
 export function reliefDepth(lon, lat) {
-  const n = 4096, R = 6378137;
+  const n = 16384, R = 6378137;
   const px = Math.floor((lon + 180) / 360 * n), my = R * Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
   const py = Math.floor((Math.PI * R - my) / (2 * Math.PI * R) * n);
   const id = ++reqId;
-  return new Promise((res, rej) => { waiting.set(id, { res: (v) => res(v), rej }); reliefWorker(px * 31 + py * 17 + 12).postMessage({ id, kind: 'depth', lon, lat }); });
+  return new Promise((res, rej) => { waiting.set(id, { res: (v) => res(v), rej }); reliefWorker(px * 31 + py * 17 + 14).postMessage({ id, kind: 'depth', lon, lat }); });
 }
 
 // dybder for mange punkter (dybdeprofil): hvert punkt til tråden som eier z12-flisen, så flisene gjenbrukes
 export async function reliefDepths(pts, coarse = false) {
-  const n = 4096, R = 6378137, groups = new Map();
+  const n = coarse ? 4096 : 16384, zk = coarse ? 12 : 14, R = 6378137, groups = new Map();
   pts.forEach(([lon, lat], i) => {
     const px = Math.floor((lon + 180) / 360 * n), my = R * Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)), py = Math.floor((Math.PI * R - my) / (2 * Math.PI * R) * n);
-    const k = px * 31 + py * 17 + 12; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(i);
+    const k = px * 31 + py * 17 + zk; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(i);
   });
   const out = new Array(pts.length).fill(null);
   await Promise.all([...groups].map(([k, idx]) => new Promise((res, rej) => {
