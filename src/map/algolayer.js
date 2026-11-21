@@ -62,9 +62,19 @@ export class AlgoLayer {
       const pop = new ml.Popup({ maxWidth: '340px', className: 'pop algo', offset: 14 }).setHTML(this.popupHTML(grp));
       pop.on('open', () => this.wirePopup(pop, grp));
       const mk = new ml.Marker({ element: el }).setLngLat([r.lon, r.lat]).setPopup(pop).addTo(this.api.map);
-      el.addEventListener('click', (e) => e.stopPropagation());
+      // trykk på forslaget åpner forklaringen (som i Fiskeguide). Klikket stoppes her så kartet ikke også åpner
+      // punktinfo – derfor åpnes boblen direkte, ikke via kartets klikk.
+      el.addEventListener('click', (e) => { e.stopPropagation(); this.toggle(mk); });
       this.markers.push(mk);
     });
+  }
+
+  // én boble om gangen
+  toggle(mk) {
+    const pop = mk.getPopup(); if (!pop) return;
+    if (pop.isOpen()) { pop.remove(); return; }
+    if (this.openPop && this.openPop !== pop) this.openPop.remove();
+    mk.togglePopup(); this.openPop = pop;
   }
 
   popupHTML(grp) {
@@ -107,8 +117,9 @@ export class AlgoLayer {
         `<div class="pfoot"><button class="btn sm" data-a="del">Fjern fra kartet</button></div></div>`;
       const pop = new ml.Popup({ maxWidth: '340px', className: 'pop algo', offset: 14 }).setHTML(html);
       pop.on('open', () => pop.getElement()?.querySelector('[data-a="del"]')?.addEventListener('click', () => { pop.remove(); this.remove(s.id); }));
-      el.addEventListener('click', (e) => e.stopPropagation());
-      this.savedMarkers.push(new ml.Marker({ element: el }).setLngLat([s.lon, s.lat]).setPopup(pop).addTo(this.api.map));
+      const mk = new ml.Marker({ element: el }).setLngLat([s.lon, s.lat]).setPopup(pop).addTo(this.api.map);
+      el.addEventListener('click', (e) => { e.stopPropagation(); this.toggle(mk); });
+      this.savedMarkers.push(mk);
     }
   }
 }

@@ -22,7 +22,7 @@ export const ART = DATA.art, SRC = DATA.src;
    topp, liten topp og grop måles mot bunnen ca. 400 m unna. */
 export const FCFG = { e0: 15, e1: 75, pk: 30, kn: 10, bs: 30, fo: 8, fl: 40, s0: 5, s1: 10, s2: 35, s3: 25 };
 export const ALV = 'a12', ACELL = 10, ATILE = 6000, AMAXT = 24, AKEEP = 8;
-export const VERSION = ALV + '+fs2'; // Fiskeguide-versjon + Fiskesims tillegg (endres når resultatet kan endre seg)
+export const VERSION = ALV + '+fs3'; // Fiskeguide-versjon + Fiskesims tillegg (endres når resultatet kan endre seg)
 
 export const clamp01 = (v) => v < 0 ? 0 : v > 1 ? 1 : v;
 export const RM = 6378137, D2R = Math.PI / 180;
@@ -226,6 +226,11 @@ export async function computeTile(tx, ty, m, inp, { pause = null, now = new Date
   const dirs = Array.from({ length: 16 }, (_, a) => [Math.cos(a * Math.PI / 8), Math.sin(a * Math.PI / 8)]);
   const offs = (rs) => { const o = []; dirs.forEach(([dx, dy]) => rs.forEach((r) => o.push(Math.round(dy * r) * W + Math.round(dx * r)))); return Int32Array.from(o); };
   const O1 = offs([r1, r1 >> 1]), O1b = offs([r1]), O2 = offs([r2]), O3 = offs([r3, r3 >> 1]), O4 = offs([r4, Math.max(1, r4 >> 1)]), O5 = offs([r5]);
+  /* Fiskesim: hylle – nesten flatt like rundt (innen ca. 50 m), med en kant ned mot mye dypere vann innen ca. 100–250 m
+     (nærmest kanten teller mest). Dybden mellom kurvene er interpolert, så en bratt kant blir smurt ut over et par hundre meter.
+     Regnes bare når en art bruker den (kveite), og bare på 3–160 m. */
+  const SHELF = Object.keys(R.algo).some((k) => R.algo[k].b && R.algo[k].b.shelf), r6 = rr(50), O6 = offs([r6, Math.max(1, r6 >> 1)]);
+  const O7 = [[offs([rr(100)]), 1], [offs([rr(150)]), 0.95], [offs([rr(200)]), 0.85], [offs([rr(250)]), 0.7]];
   const isLand = (c) => LAND[c] === 1;
   function feat(c, fe) {
     const d = D[c]; if (isNaN(d)) return false;
@@ -245,6 +250,15 @@ export async function computeTile(tx, ty, m, inp, { pause = null, now = new Date
     fe.basin = nr >= 12 ? clamp01((fracS - 0.6) / 0.4) * clamp01((d - ringMean) / K.bs) : 0; fe.flat = 1 - clamp01((Sd - K.fo) / K.fl); fe.neardeep = nd; fe.shore = sh;
     fe.slake = clamp01((Sd - K.s0) / K.s1) * (1 - clamp01((Sd - K.s2) / K.s3));             /* slak bakke: jevn helning, verken flat eller bratt */
     if (SU) { const ci = Math.floor((offL + (c % W + 0.5) * ACELL) / LC), cj = Math.floor((offL + (((c / W) | 0) + 0.5) * ACELL) / LC), k = cj * nL + ci; fe.sund = SU.s[k] / 255; fe.sundW = SU.w[k] * 10; } else { fe.sund = 0; fe.sundW = 0; }
+    fe.shelf = 0; fe.shD = 0;
+    if (SHELF && d >= 3 && d <= 160) {
+      let lmn = d, lmx = d; for (let a = 0; a < O6.length; a++) { const v = D[c + O6[a]]; if (v === v) { if (v < lmn) lmn = v; if (v > lmx) lmx = v; } else if (isLand(c + O6[a])) lmn = 0; }
+      const flatL = 1 - clamp01((lmx - lmn - 4) / 8);
+      if (flatL > 0) { const need = Math.max(10, 0.25 * d); let best = 0, bD = 0;
+        for (const [O, wt] of O7) { let deep = d; for (let a = 0; a < O.length; a++) { const v = D[c + O[a]]; if (v === v && v > deep) deep = v; }
+          const s = wt * clamp01((deep - d - need) / 25); if (s > best) { best = s; bD = deep; } }
+        fe.shelf = flatL * best; fe.shD = bD; }
+    }
     fe.ringMean = ringMean; fe.d0 = d; fe.bt = BT[c]; fe.ov = ov; return true;
   }
   /* artene: dybdekrav og vekter for måneden; poeng per celle, beste celle i hver blokk på ca. 175 m */

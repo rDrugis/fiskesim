@@ -1,5 +1,5 @@
 // Fiskesims tillegg til Fiskeguide-algoritmen. Alt annet er likt Fiskeguide (se core.js og fgdata.js).
-// Tilleggene endrer ikke poengene for artene som allerede er med – de legger bare til nye arter.
+// Tilleggene: blåkjeft (ny art) og hylle for kveite (gir bare høyere poeng der det finnes en hylle).
 
 export function applyExtra(D) {
   const SRC = D.src;
@@ -20,6 +20,22 @@ export function applyExtra(D) {
     kilde: ['snl_blakjeft', 'ahp_blakjeft', 'blueye_blakjeft', 'seeberg_s5e15'], fs: true, fsim: true,
     hvorfor: 'bratte skråninger og kanter i dype fjorder, ca. 120–600 m (SNL: vanlig på 200–800 m; filmet ned til ca. 120 m); Fiskeskolen viser typiske plasser langs skråningene fra ca. 100 m og nedover og på nebb der kurvene buler ut',
   };
+  /* ---- Kveite: hylle ved kant mot dypere vann (Fiskesim) ----
+     Tips fra kveitefisker Henrik Sten Gran (TikTok «Kveite guide»): «Kveitene står ofte på hyller i kanter nært dypere
+     vann». Støttes av Alt om Fiske (flate kanter og hyller ved struktur, sandsletter nær struktur samler byttefisk) og av
+     råd for stillehavskveite (kanten av undervannsplatåer der bunnen faller brått). Algoritmen hadde allerede kant, topp,
+     liten topp og flat bunn for kveite; hyllen kommer som et tillegg (inntil +40 %) som bare slår inn der det er nesten
+     flatt like rundt og en kant ned mot mye dypere vann innen ca. 250 m. Den endrer ikke dybdekravet (10–70 m) eller
+     bunntypen (sand og grus). Merk: HIs merkeforsøk viser at kveita i Vestlandsfjordene står dypt store deler av året
+     og grunt om sommeren – det er ikke lagt inn her. */
+  SRC.gran_kveite = ['Henrik Sten Gran, TikTok «Kveite guide»: kveita står ofte på hyller i kanter nær dypere vann', 'https://www.tiktok.com/search?q=Henrik%20sten%20gran%20kveite%20guide'];
+  SRC.aof_hylle = ['Alt om Fiske (klikk.no): Slik lykkes du med jakten på kveita – flate kanter og hyller ved struktur', 'https://www.klikk.no/friluftsliv/fiske/slik-fisker-du-kveite-7331575'];
+  SRC.fbc_halibut = ['FishnBC: stillehavskveite på kanten av undervannsplatåer (beslektet art)', 'https://fishnbc.com/species/pacific_halibut.html'];
+  if (D.algo.kveite) {
+    D.algo.kveite.b = Object.assign({}, D.algo.kveite.b || {}, { shelf: 0.4 });
+    D.algo.kveite.kilde = (D.algo.kveite.kilde || []).concat(['gran_kveite', 'aof_hylle', 'fbc_halibut']);
+    D.algo.kveite.hvorfor = (D.algo.kveite.hvorfor || '') + '; hyller – nesten flatt parti helt inntil en kant ned mot dypere vann';
+  }
   D.art.blakjeft = { no: 'Blåkjeft', lat: 'Helicolenus dactylopterus', col: '#4f6fd8', kort: 'Dype fjorder, ca. 200–800 m', omr: null };
   D.algoUt = String(D.algoUt || '').replace('Flyndrer, blåkjeft og skjellbrosme er ikke med ennå', 'Flyndrer og skjellbrosme er ikke med ennå (blåkjeft er lagt til i Fiskesim)');
   return D;

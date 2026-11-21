@@ -8,8 +8,8 @@ Fiskekart for norskekysten: dybden mellom dybdekurvene, sjømerker, fiskeplasser
 
 - **Fiskekart:** dybden mellom Kartverkets dybdekurver, fargelagt fra grunt (varmt) til dypt (kaldt), med kurver, kurvetall og loddskudd. Der sjøkartet bare har et grovt intervall (f.eks. 0,5–100 m) er dybden anslått og skravert. Bruer, også flytebruer, regnes som sjø.
 - **Dybdekart, Sjøkart og Natt:** Kartverkets egne kart, og et mørkt kart for bruk om natta.
-- **Sjømerker** fra Kystverket (lys med karakter og sektorer, staker, varder, bøyer) og **skjær og grunner** fra Kartverket. Trykk på et merke for detaljer.
-- **Fiskeplasser:** hele algoritmen fra Fiskeguide (dybde, bunnform, bunntype, måned, fredning, oppdrett, kjente fiskeplasser), regnet på samme 10 m-rutenett og kontrollert mot Kartverkets dybde. Blåkjeft er lagt til. Velg arter og måned under kartlag.
+- **Sjømerker** fra Kystverket (lys med karakter, staker, varder, bøyer) og **skjær og grunner** fra Kartverket. Trykk på et merke for detaljer.
+- **Fiskeplasser:** hele algoritmen fra Fiskeguide (dybde, bunnform, bunntype, måned, fredning, oppdrett, kjente fiskeplasser), regnet på samme 10 m-rutenett og kontrollert mot Kartverkets dybde. Blåkjeft er lagt til, og kveite får ekstra poeng på hyller (nesten flatt parti helt inntil en kant ned mot dypere vann). Trykk på et forslag for forklaring. Velg arter og måned under kartlag.
 - **Mine plasser:** «Behold i kartet» på et forslag (eller alle i utsnittet) – plassene blir liggende når forslagene slås av, og fjernes under Kartlag.
 - **Dybdeprofil:** trykk A og B i kartet. Kurven er den anslåtte dybden lest i tette punkter langs streken, med sjøkartets intervall som bånd bak.
 - **GPS:** posisjon, følg-modus, fart og kurs.
@@ -22,7 +22,7 @@ Direkte til en plass: `?sted=60.52,5.27&z=13` (valgfritt `&vis=3d`).
 | Kilde | Brukes til | Lisens |
 | --- | --- | --- |
 | Kartverket | Dybdedata, sjøkart, terrengmodell, stedsnavn | CC BY 4.0 |
-| Kystverket | Navigasjonsinstallasjoner (lys, sektorer, merker) | NLOD |
+| Kystverket | Navigasjonsinstallasjoner (lys, merker) | NLOD |
 | Fiskeridirektoratet | Fiskeplasser, akvakultur | NLOD |
 | NGU | Bunnsedimenter | Åpne data |
 | MET Norway | Vind og bølger | CC BY 4.0 |
