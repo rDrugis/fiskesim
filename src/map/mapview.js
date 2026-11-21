@@ -182,12 +182,14 @@ export async function createMap(container, opts = {}) {
   if (!MAP_STYLES.some((s) => s.id === kind)) kind = 'fiskekart';
   const map = new maplibregl.Map({
     container, style: buildStyle(kind), center: opts.center || [4.83, 61.57], zoom: opts.zoom || 11.5,
-    attributionControl: { compact: true }, maxPitch: 0, dragRotate: false, pitchWithRotate: false, hash: false,
+    attributionControl: { compact: true }, maxPitch: 0, dragRotate: true, pitchWithRotate: false, hash: false,
     maxBounds: [[REGION.w - 1, REGION.s - 0.5], [REGION.e + 1, REGION.n + 0.5]], minZoom: 5,
   });
-  map.touchZoomRotate.disableRotation();
+  // kartet kan snus fritt (høyreklikk/ctrl + dra, eller to fingre på mobil); kompasset snur det tilbake mot nord
+  map.touchPitch.disable();
   map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-left');
-  if (!opts.mobile) map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
+  if (!opts.mobile) map.addControl(new maplibregl.NavigationControl({ showCompass: true, visualizePitch: false }), 'bottom-right');
+  else map.addControl(new maplibregl.NavigationControl({ showCompass: true, showZoom: false, visualizePitch: false }), 'bottom-right');
   // egne lag (sjømerker, fiskeplasser …) legges inn på nytt hver gang karttypen byttes
   const onStyle = [];
   map.on('style.load', () => { for (const f of onStyle) { try { f(map); } catch (e) { console.warn(e); } } });
