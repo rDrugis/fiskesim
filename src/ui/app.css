@@ -86,7 +86,7 @@ a { color: #8fd0ec; }
 .sel { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 14px; color: var(--text-2); }
 .sel select { flex: 1; background: var(--hull-2); color: var(--text); border: 1px solid var(--line-2); border-radius: 6px; padding: 6px 8px; font: inherit; }
 .hint { color: var(--text-3); font-size: 12.5px; margin: 10px 0 0; }
-.info { left: 12px; bottom: calc(14px + var(--safe-b)); width: min(360px, calc(100vw - 24px)); }
+.info { z-index: 8; left: 12px; bottom: calc(14px + var(--safe-b)); width: min(360px, calc(100vw - 24px)); }
 .info header span { color: var(--text-2); font-size: 13px; }
 .depthbig { font-family: var(--num); font-size: 40px; font-weight: 600; line-height: 1.05; margin: 2px 0 4px; }
 .sub { margin: 2px 0; color: var(--text-2); font-size: 13.5px; }
@@ -95,6 +95,53 @@ a { color: #8fd0ec; }
 .legend .bar { width: 200px; height: 7px; border-radius: 3px; }
 .legend .ticks { display: flex; justify-content: space-between; font-family: var(--num); margin-top: 1px; }
 .cursordepth { position: fixed; z-index: 5; pointer-events: none; background: rgba(10, 20, 28, .9); color: #fff; border: 1px solid rgba(255,255,255,.22); border-radius: 6px; padding: 2px 8px; font-size: 13px; white-space: nowrap; }
+
+/* mine plasser (i kartlag) */
+.mine { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
+.mine h3 { margin: 0 0 6px; font-size: 14px; font-weight: 600; }
+.mine ul { list-style: none; margin: 0 0 8px; padding: 0; max-height: 220px; overflow: auto; }
+.mine li { display: flex; align-items: center; gap: 4px; }
+.mine .go { flex: 1; display: flex; align-items: center; gap: 8px; text-align: left; background: none; border: 0; padding: 7px 4px; border-radius: 6px; cursor: pointer; color: var(--text); }
+.mine .go:hover { background: var(--hull-2); }
+.mine .go small { margin-left: auto; color: var(--text-3); }
+.mine .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; box-shadow: 0 0 0 2px #ffe08a; }
+.algo-opts .btn[data-a="keepall"] { margin-top: 10px; }
+
+/* dybdeprofil */
+.iconbtn[aria-pressed="true"] { border-color: var(--buoy); color: var(--buoy-2); }
+.prof { left: 12px; right: 66px; bottom: calc(14px + var(--safe-b)); max-width: 820px; max-height: 52vh; overflow: auto; }
+.prof header { justify-content: flex-start; }
+.prof header .pmut { color: var(--text-2); font-size: 13px; }
+.prof header .psp { flex: 1; }
+.pchart { width: 100%; height: auto; display: block; margin-top: 6px; touch-action: none; }
+.pchart .pgrid { stroke: var(--line); stroke-width: 1; }
+.pchart .plbl { fill: var(--text-3); font-size: 11px; font-family: var(--num); }
+.pchart .pab { fill: var(--text-2); font-weight: 700; font-size: 12px; }
+.pchart .pband { fill: rgba(143, 208, 236, .16); }
+.pchart .pbed { fill: rgba(120, 96, 64, .38); }
+.pchart .pcurve { fill: none; stroke: #8fd0ec; stroke-width: 2; stroke-linejoin: round; }
+.pchart .pest { fill: none; stroke: #8fd0ec; stroke-width: 2; stroke-dasharray: 5 4; }
+.pchart .pdot { fill: #e6f4fa; }
+.pchart .pdot.e { fill: #9fb3c2; }
+.pchart .pland { fill: rgba(126, 118, 98, .55); }
+.pchart .pnod { fill: rgba(255, 255, 255, .06); }
+.pchart .ppos line { stroke: #2f9bff; stroke-width: 1.5; stroke-dasharray: 3 3; }
+.pchart .ppos circle { fill: #2f9bff; stroke: #fff; stroke-width: 1.5; }
+.pchart .ppos text { fill: #8cc7ff; font-size: 11px; font-weight: 700; }
+.pchart .phov line { stroke: var(--buoy-2); stroke-width: 1.5; }
+.pchart .phov circle { fill: var(--buoy); stroke: #fff; stroke-width: 1.5; }
+.phovt { min-height: 1.4em; margin: 2px 0 0; font-size: 13.5px; color: var(--text); }
+.pstat { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; color: var(--text-2); margin-top: 4px; }
+.pstat b { color: var(--text); }
+.pf-pt { width: 24px; height: 24px; border-radius: 50%; background: var(--buoy); color: #1b0d04; font-weight: 700; font-size: 13px; display: grid; place-items: center; border: 2px solid #fff; box-shadow: 0 1px 6px rgba(0,0,0,.5); cursor: grab; }
+.hasprof .info { bottom: calc(var(--profh) + 24px + var(--safe-b)); }
+.hasprof .legend { display: none; }
+
+/* sikte midt i kartet når dybdeprofilen settes */
+.xhair { position: fixed; left: 50%; top: 50%; width: 34px; height: 34px; margin: -17px 0 0 -17px; z-index: 4; pointer-events: none; }
+.xhair::before, .xhair::after { content: ''; position: absolute; background: var(--buoy); box-shadow: 0 0 0 1px rgba(0,0,0,.45); }
+.xhair::before { left: 16px; top: 0; width: 2px; height: 34px; }
+.xhair::after { top: 16px; left: 0; height: 2px; width: 34px; }
 
 /* modal (om kartet) */
 .modal { position: fixed; inset: 0; z-index: 30; background: rgba(5, 12, 16, .55); display: grid; place-items: center; padding: 16px; }
@@ -182,6 +229,8 @@ a { color: #8fd0ec; }
   .maplibregl-ctrl-bottom-right { margin-bottom: calc(6px + var(--safe-b)); }
   .chip { padding: 6px 11px; font-size: 14px; }
   .tog { padding: 12px 2px; }
+  .prof { max-height: 62vh; }
+  .hasprof .info { bottom: calc(var(--profh) + 8px) !important; border-radius: 16px; }
   .seacard { top: auto; bottom: calc(76px + var(--safe-b)); left: 8px; right: 8px; width: auto; padding: 10px 12px; }
   .seacard .big { font-size: 30px; }
   .seacard dl { font-size: 13px; margin: 6px 0 2px; }
