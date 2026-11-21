@@ -185,6 +185,7 @@ a { color: #8fd0ec; }
   .seacard { top: auto; bottom: calc(76px + var(--safe-b)); left: 8px; right: 8px; width: auto; padding: 10px 12px; }
   .seacard .big { font-size: 30px; }
   .seacard dl { font-size: 13px; margin: 6px 0 2px; }
+  .seacard .src:not(.warn):not(.note) { display: none; } /* kildene står under «Om kartet» */
   .sea3d footer { left: 8px; right: 8px; transform: none; bottom: calc(10px + var(--safe-b)); flex-wrap: wrap; gap: 6px 12px; padding: 8px 12px; }
   .sea3d .time input { width: 100%; flex: 1; }
   .sea3d .time { flex: 1; min-width: 220px; }
