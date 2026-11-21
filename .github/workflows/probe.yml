@@ -1,0 +1,9 @@
+name: probe
+on: { push: { branches: [ci-probe] } }
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          for u in "https://wms.geonorge.no/skwms1/wms.dybdedata2?service=WMS&request=GetCapabilities" "https://geo.ngu.no/mapserver/MarinBunnsedimenterWMS2?service=WMS&request=GetCapabilities" "https://gis.fiskeridir.no/server/services/FiskeridirWFS_akva/MapServer/WFSServer?SERVICE=WFS&REQUEST=GetCapabilities" "https://maps.kystverket.cloudgis.no/enterprise/rest/services/PROD/nfs_sistop_ekstern_prod/MapServer?f=json" "https://api.met.no/weatherapi/oceanforecast/2.0/complete?lat=60.5&lon=4.9" "https://rdrugis.github.io/Fiskeguide/"; do
+            echo "$(curl -s -o /dev/null -w '%{http_code} %{time_total}s' -A 'fiskesim-test github.com/rDrugis/fiskesim' "$u") $u"; done
