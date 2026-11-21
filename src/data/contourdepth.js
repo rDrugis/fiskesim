@@ -58,12 +58,15 @@ export function contourDepth(cls, W, H, res, intervals, prior = null, maxDist = 
   const present = new Set();
   for (let p = 0; p < N; p++) if (cls[p] >= 0) present.add(cls[p]);
   const feat = new Uint8Array(N);
+  // grunnere/dypere avgjøres av intervallene (ikke rekkefølgen), så også grove intervaller som 0,5–100 m virker
+  const shallowerThan = (c, lo) => c < 0 || intervals[c][2] <= lo + 1e-6;
+  const deeperThan = (c, hi) => c >= 0 && intervals[c][1] >= hi - 1e-6;
   for (const k of present) {
     const lo = intervals[k][1], hi = intervals[k][2];
-    for (let p = 0; p < N; p++) feat[p] = cls[p] < k ? 1 : 0;   // land, tørrfall og grunnere områder
+    for (let p = 0; p < N; p++) feat[p] = shallowerThan(cls[p], lo) ? 1 : 0;   // land, tørrfall og grunnere områder
     const dA = edt(feat, W, H);
     let anyDeeper = false;
-    for (let p = 0; p < N; p++) { const b = cls[p] > k ? 1 : 0; feat[p] = b; if (b) anyDeeper = true; }
+    for (let p = 0; p < N; p++) { const b = deeperThan(cls[p], hi) ? 1 : 0; feat[p] = b; if (b) anyDeeper = true; }
     const dB = anyDeeper ? edt(feat, W, H) : null;
     // typisk avstand mellom kurvene brukes der en av dem mangler (5 % helning)
     const Ls = Math.max(40, (hi - lo) / 0.05);
