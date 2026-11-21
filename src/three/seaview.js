@@ -16,6 +16,8 @@ import { fetchSea, stateAt, components } from './seastate.js';
 const MAXC = 64;
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const n1 = (v) => (Math.round(v * 10) / 10).toFixed(1).replace('.', ',');
+// bølgehøyde: centimeter når det er nesten blankt
+const hm = (v) => v < 0.095 ? `${Math.max(0, Math.round(v * 100))} cm` : `${n1(v)} m`;
 const DIRS = ['N', 'NNØ', 'NØ', 'ØNØ', 'Ø', 'ØSØ', 'SØ', 'SSØ', 'S', 'SSV', 'SV', 'VSV', 'V', 'VNV', 'NV', 'NNV'];
 const dirName = (d) => DIRS[Math.round(((d % 360) + 360) % 360 / 22.5) % 16];
 
@@ -282,12 +284,12 @@ export class SeaView {
     this.el.querySelector('[data-tl]').textContent = when;
     const ws = st.windsea, sw = st.swell;
     this.card.innerHTML = `
-      <div class="big num">${n1(st.hs)} m<small>bølgehøyde</small></div>
+      <div class="big num">${hm(st.hs)}<small>bølgehøyde</small></div>
       <dl>
         <dt>Vind</dt><dd class="num">${Math.round(st.ws)} m/s fra ${dirName(st.wd)}${st.gust ? `, kast ${Math.round(st.gust)}` : ''}</dd>
-        <dt>Vindsjø</dt><dd class="num">${n1(ws.h)} m · ${n1(ws.tp)} s · fra ${dirName(ws.dir ?? st.wd)}</dd>
-        <dt>Dønning</dt><dd class="num">${sw ? `${n1(sw.h)} m · ${Math.round(sw.tp)} s · fra ${dirName(sw.dir)}` : 'ingen her (skjermet)'}</dd>
-        ${st.metHs != null ? `<dt>MET</dt><dd class="num">${n1(st.metHs)} m i nærmeste modellpunkt</dd>` : ''}
+        <dt>Vindsjø</dt><dd class="num">${hm(ws.h)} · ${n1(ws.tp)} s · fra ${dirName(ws.dir ?? st.wd)}</dd>
+        <dt>Dønning</dt><dd class="num">${sw ? `${hm(sw.h)} · ${Math.round(sw.tp)} s · fra ${dirName(sw.dir)}` : st.swellOff ? `skjermet her (${hm(st.swellOff)} ute)` : 'ingen'}</dd>
+        ${st.metHs != null ? `<dt>MET</dt><dd class="num">${hm(st.metHs)} i nærmeste modellpunkt</dd>` : ''}
       </dl>
       ${!this.S.ok.wind && !this.S.ok.part ? '<p class="src warn">Fikk ikke hentet vær- og bølgedata nå – tallene over er ikke riktige.</p>' : ''}${this.terrainNote ? `<p class="src warn">${esc(this.terrainNote)}</p>` : ''}
       <p class="src">${esc(st.src.join(' · '))}. Bølgehøyde = signifikant (snitt av den høyeste tredjedelen). Enkeltbølger kan bli nesten dobbelt så høye. Modell, ikke målt.</p>`;

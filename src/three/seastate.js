@@ -69,12 +69,14 @@ export function stateAt(S, t, fetchAt) {
     swell = { h: p.shs * expo, tp: p.stp || 10, dir: p.swd, expo };
     src.push(expo < 0.98 ? `dønning: Open-Meteo, dempet til ${Math.round(expo * 100)} % for skjerming` : 'dønning: Open-Meteo');
   }
+  // dønning som modellen har ute, men som knapt når inn hit: vises som «skjermet»
+  const swellOff = swell && swell.h < 0.05 && p.shs > 0.1 ? p.shs : 0;
   if (swell && swell.h < 0.05) swell = null;
   const hs = Math.sqrt(windsea.h ** 2 + (swell ? swell.h ** 2 : 0));
   // tøffeste perioden styrer «følelsen»: kort periode = bratt sjø
   const tp = swell && swell.h > windsea.h ? swell.tp : windsea.tp;
   const cloud = interp(S.wind, t, 'cloud');
-  return { t, ws, wd, gust, hs, tp, windsea, swell, metHs, metDir, fetch: Fw, src, cloud };
+  return { t, ws, wd, gust, hs, tp, windsea, swell, swellOff, metHs, metDir, fetch: Fw, src, cloud };
 }
 
 /* Bølgekomponenter fra spektrene (JONSWAP for vindsjø, smal JONSWAP for dønning), retningsspredning cos^2s.
