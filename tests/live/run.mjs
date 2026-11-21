@@ -172,6 +172,30 @@ if (want('shots')) {
   await shot('merker-z14', '?sted=60.527,5.24&z=14.2', { wait: 25000, act: async (pg) => pg.evaluate(() => { const s = window.fiskesim.api.map.getSource('sm'); return s ? s._data?.features?.length ?? 'ukjent' : 'ingen kilde'; }) });
   await shot('algo-salhus', '?sted=60.52,5.27&z=13', { wait: 5000, act: async (pg) => { await pg.evaluate(() => window.fiskesim.algo.setOn(true)); await pg.waitForTimeout(120000); return pg.evaluate(() => ({ n: document.querySelectorAll('.algo-pt').length, st: document.querySelector('.status')?.textContent })); } });
   await shot('mobil', '?sted=60.52,5.27&z=13.5', { mobile: true, wait: 20000 });
+  // dybdeprofil over Salhusfjorden (A ved Frekhaug, B ved Klauvaneset)
+  const prof = async (pg) => {
+    await pg.click('[data-a="prof"]');
+    const p2px = (lon, lat) => pg.evaluate(([lo, la]) => { const p = window.fiskesim.api.map.project([lo, la]); return [p.x, p.y]; }, [lon, lat]);
+    const a = await p2px(5.2505, 60.5185), b = await p2px(5.2700, 60.5165);
+    await pg.mouse.click(a[0], a[1]); await pg.waitForTimeout(300); await pg.mouse.click(b[0], b[1]);
+    await pg.waitForTimeout(25000);
+    const svg = await pg.$('svg.pchart'); if (svg) { const bb = await svg.boundingBox(); await pg.mouse.move(bb.x + bb.width * 0.3, bb.y + bb.height * 0.5); await pg.waitForTimeout(600); }
+    return pg.evaluate(() => document.querySelector('.prof')?.innerText.slice(0, 500));
+  };
+  await shot('profil', '?sted=60.5175,5.26&z=14.3', { wait: 12000, act: prof });
+  await shot('profil-mobil', '?sted=60.5175,5.26&z=14', { mobile: true, wait: 12000, act: prof });
+  // valgte fiskeplasser blir liggende når forslagene slås av
+  await shot('mine-plasser', '?sted=60.52,5.27&z=13', { wait: 5000, act: async (pg) => {
+    await pg.evaluate(() => { localStorage.removeItem('fiskesim.plasser'); window.fiskesim.algo.saved = []; window.fiskesim.algo.drawSaved(); window.fiskesim.algo.setOn(true); });
+    await pg.waitForTimeout(110000);
+    const n1 = await pg.evaluate(() => { const a = window.fiskesim.algo; const n = a.keepAll(); return { kept: n, pts: document.querySelectorAll('.algo-pt').length }; });
+    await pg.evaluate(() => window.fiskesim.algo.setOn(false)); await pg.waitForTimeout(800);
+    const n2 = await pg.evaluate(() => ({ saved: document.querySelectorAll('.algo-pt.saved').length, other: document.querySelectorAll('.algo-pt:not(.saved)').length }));
+    await pg.click('[data-a="layers"]'); await pg.waitForTimeout(600);
+    const first = await pg.evaluate(() => window.fiskesim.algo.saved[0]?.id); await pg.evaluate((id) => window.fiskesim.algo.remove(id), first); await pg.waitForTimeout(400);
+    const n3 = await pg.evaluate(() => ({ saved: document.querySelectorAll('.algo-pt.saved').length, ls: JSON.parse(localStorage.getItem('fiskesim.plasser') || '[]').length }));
+    return { n1, n2, n3 };
+  } });
   await shot('gps', '?sted=60.5,5.2&z=11', { mobile: true, wait: 8000, geo: { latitude: 60.5185, longitude: 5.2745, accuracy: 8 }, act: async (pg) => { await pg.click('.maplibregl-ctrl-geolocate'); await pg.waitForTimeout(6000); return pg.evaluate(() => ({ info: document.querySelector('.gpsinfo')?.innerText, c: window.fiskesim.api.map.getCenter(), z: window.fiskesim.api.map.getZoom() })); } });
   for (const st of ['dybdekart', 'sjokart', 'natt']) await shot('stil-' + st, '?sted=60.519,5.265&z=14', { style: st, wait: 15000 });
   await shot('punkt', '?sted=60.5177,5.2495&z=15', { wait: 15000, act: async (pg) => { await pg.mouse.click(640, 400); await pg.waitForTimeout(4000); return pg.evaluate(() => document.querySelector('.info')?.innerText); } });
@@ -185,7 +209,7 @@ const day3d = async (pg) => {
     const v = window.fiskesim.app.view3d; if (!v) return 'ingen 3D';
     const w = v.world, g = w.near;
     const st = (a) => { let mn = Infinity, mx = -Infinity, nan = 0; for (const x of a) { if (x !== x) nan++; else { if (x < mn) mn = x; if (x > mx) mx = x; } } return [mn, mx, nan]; };
-    return { card: document.querySelector('.seacard')?.innerText.slice(0, 260), E0: w.E0, N0: w.N0, near: g && { W: g.W, H: g.H, res: g.res, x0: g.x0, y1: g.y1, z: st(g.z) }, far: !!w.far, bp: v.bp, d00: w.depthAt(0, 0), dbp: v.bp && w.depthAt(v.bp[0], v.bp[1]), fetch: [0, 90, 180, 270].map((d) => Math.round(v.fetchAt(d))), note: v.terrainNote, comps: v.comps?.length };
+    return { card: document.querySelector('.seacard')?.innerText.slice(0, 600), sys: v.st && v.st.sys, metHs: v.st && v.st.metHs, from: v.st && v.st.from, oceanKeys: v.S && v.S.oceanKeys, omKm: v.S && v.S.omKm, nRip: v.U && v.U.uNR.value, nComp: v.U && v.U.uN.value, foamT: v.U && v.U.uFoamT.value, E0: w.E0, N0: w.N0, near: g && { W: g.W, H: g.H, res: g.res, x0: g.x0, y1: g.y1, z: st(g.z) }, far: !!w.far, bp: v.bp, d00: w.depthAt(0, 0), dbp: v.bp && w.depthAt(v.bp[0], v.bp[1]), fetch: [0, 90, 180, 270].map((d) => Math.round(v.fetchAt(d))), note: v.terrainNote, comps: v.comps?.length };
   });
 };
 if (want('shots') || want('3d')) {
