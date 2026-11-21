@@ -51,4 +51,8 @@ python3 -m http.server 8000
 Algoritmedata hentes fra Fiskeguide med `node tools/fgsync.mjs ../Fiskeguide/index.html`.
 Live-testen (`.github/workflows/livetest.yml`) sammenligner fiskeplassene med Fiskeguide og tar skjermbilder; resultatet havner i grenen `livetest-results`.
 
-Koden er under MIT-lisens. Dataene har sine egne lisenser (se over).
+## Lisens
+
+Koden er under [PolyForm Noncommercial 1.0.0](LICENSE) fra og med 21.11.2026: fri til ikke-kommersiell bruk (privat bruk, hobby, forskning, skoler, frivillige og offentlige organisasjoner), men ikke til kommersiell bruk uten egen avtale. Den som deler koden videre, må ta med lisensen og linjen «Required Notice» øverst i LICENSE. Versjoner publisert før denne datoen var under MIT-lisens.
+
+Tredjepartskode har egne lisenser (se `LICENSES/`): MapLibre GL JS (BSD-3-Clause) og three.js (MIT). Dataene har sine egne lisenser (se over).
