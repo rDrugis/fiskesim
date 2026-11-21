@@ -58,30 +58,36 @@ export function contourDepth(cls, W, H, res, intervals, prior = null, maxDist = 
   const present = new Set();
   for (let p = 0; p < N; p++) if (cls[p] >= 0) present.add(cls[p]);
   const feat = new Uint8Array(N);
+  // grunnere/dypere avgjøres av intervallene (ikke rekkefølgen), så også grove intervaller som 0,5–100 m virker
+  const shallowerThan = (c, lo) => c < 0 || intervals[c][2] <= lo + 1e-6;
+  const deeperThan = (c, hi) => c >= 0 && intervals[c][1] >= hi - 1e-6;
   for (const k of present) {
     const lo = intervals[k][1], hi = intervals[k][2];
-    for (let p = 0; p < N; p++) feat[p] = cls[p] < k ? 1 : 0;   // land, tørrfall og grunnere områder
+    for (let p = 0; p < N; p++) feat[p] = shallowerThan(cls[p], lo) ? 1 : 0;   // land, tørrfall og grunnere områder
     const dA = edt(feat, W, H);
     let anyDeeper = false;
-    for (let p = 0; p < N; p++) { const b = cls[p] > k ? 1 : 0; feat[p] = b; if (b) anyDeeper = true; }
+    for (let p = 0; p < N; p++) { const b = deeperThan(cls[p], hi) ? 1 : 0; feat[p] = b; if (b) anyDeeper = true; }
     const dB = anyDeeper ? edt(feat, W, H) : null;
     // typisk avstand mellom kurvene brukes der en av dem mangler (5 % helning)
     const Ls = Math.max(40, (hi - lo) / 0.05);
+    // Når en kurve nærmer seg rekkevidden (maxDist), tones den ut mykt i stedet for å forsvinne brått:
+    // da blir det ingen synlige kanter i flaten der den ene kurven går ut av rekkevidde.
+    const capM = cap < INF ? Math.sqrt(cap) * res : Infinity, fadeM = capM * 0.45;
+    const wOf = (m) => capM === Infinity ? 1 : m >= capM ? 0 : m <= capM - fadeM ? 1 : (() => { const t = (capM - m) / fadeM; return t * t * (3 - 2 * t); })();
     for (let p = 0; p < N; p++) {
       if (cls[p] !== k) continue;
       const a = dA[p] >= INF || dA[p] > cap ? Infinity : Math.sqrt(dA[p]) * res;
       const b = !dB || dB[p] >= INF || dB[p] > cap ? Infinity : Math.sqrt(dB[p]) * res;
-      let d;
-      if (a < Infinity && b < Infinity) d = lo + (hi - lo) * a / (a + b);
-      else {
-        const pr = prior && prior[p] === prior[p] ? Math.min(hi, Math.max(lo, prior[p])) : null;
-        if (a < Infinity) {
-          // bunnen av et basseng: dybden øker bort fra den grunnere kurven og flater ut
-          const ramp = lo + (hi - lo) * (1 - Math.exp(-a / Ls));
-          d = pr != null ? lo + (pr - lo) * (1 - Math.exp(-a / Math.min(Ls, 200))) : ramp;
-        } else if (b < Infinity) d = pr != null ? hi - (hi - pr) * (1 - Math.exp(-b / Math.min(Ls, 200))) : hi - (hi - lo) * (1 - Math.exp(-b / Ls));
-        else d = pr != null ? pr : (lo + hi) / 2;
-      }
+      const fa = a < Infinity ? wOf(a) : 0, fb = b < Infinity ? wOf(b) : 0;
+      const pr = prior && prior[p] === prior[p] ? Math.min(hi, Math.max(lo, prior[p])) : null;
+      // fire tilfeller blandes etter hvor godt kurvene «sees»
+      const eAB = fa > 0 && fb > 0 ? lo + (hi - lo) * a / (a + b) : 0;
+      // bare grunnere kurve: bunnen av et basseng, dybden øker bort fra kurven og flater ut
+      const eA = fa > 0 && fb < 1 ? (pr != null ? lo + (pr - lo) * (1 - Math.exp(-a / Math.min(Ls, 200))) : lo + (hi - lo) * (1 - Math.exp(-a / Ls))) : 0;
+      // bare dypere kurve: toppen av en grunne
+      const eB = fb > 0 && fa < 1 ? (pr != null ? hi - (hi - pr) * (1 - Math.exp(-b / Math.min(Ls, 200))) : hi - (hi - lo) * (1 - Math.exp(-b / Ls))) : 0;
+      const e0 = pr != null ? pr : (lo + hi) / 2;
+      const d = fa * fb * eAB + fa * (1 - fb) * eA + (1 - fa) * fb * eB + (1 - fa) * (1 - fb) * e0;
       depth[p] = d;
     }
   }
@@ -139,5 +145,37 @@ export function applyPoints(depth, cls, W, H, res, points, intervals, sigma = 30
     let v = depth[p] + sum[p] / (wsum[p] + 0.15);
     if (cls[p] >= 0) { const lo = intervals[cls[p]][1] - 1, hi = intervals[cls[p]][2] + 1; v = Math.min(hi, Math.max(lo, v)); }
     depth[p] = v;
+  }
+}
+
+/**
+ * Utglatting med føringer: gjentatt lite boksfilter over sjøcellene, og etter hver runde klemmes hver celle inn i
+ * sitt eget intervall igjen. Det gir den glatteste flaten som fortsatt holder seg innenfor sjøkartets intervaller
+ * (kurvene blir liggende der de ligger), og fjerner «kammer» som oppstår ved taggete kurver i dypt vann.
+ * iters runder med radius r: glatter over omtrent r·√(iters·2/3) celler.
+ */
+export function diffuseWithin(depth, cls, W, H, intervals, iters, r = 2) {
+  if (iters < 1) return;
+  const N = W * H, ok = new Uint8Array(N), lo = new Float32Array(N), hi = new Float32Array(N);
+  for (let p = 0; p < N; p++) { const k = cls[p]; if (k >= 0 && depth[p] === depth[p]) { ok[p] = 1; lo[p] = intervals[k][1]; hi[p] = intervals[k][2]; } }
+  const v = new Float32Array(N), c = new Float32Array(N), tv = new Float32Array(N), tc = new Float32Array(N);
+  const pass = (src, srcC, dst, dstC, horiz) => {
+    const L = horiz ? W : H, M = horiz ? H : W, st = horiz ? 1 : W, ln = horiz ? W : 1;
+    for (let m = 0; m < M; m++) {
+      const o = m * ln; let s = 0, n = 0;
+      for (let q = 0; q <= Math.min(L - 1, r); q++) { s += src[o + q * st]; n += srcC[o + q * st]; }
+      for (let q = 0; q < L; q++) {
+        const p = o + q * st; dst[p] = s; dstC[p] = n;
+        const a = q + r + 1, b = q - r;
+        if (a < L) { s += src[o + a * st]; n += srcC[o + a * st]; }
+        if (b >= 0) { s -= src[o + b * st]; n -= srcC[o + b * st]; }
+      }
+    }
+  };
+  for (let it = 0; it < iters; it++) {
+    // land og tørrfall står fast på 0 m, så flaten går mot null ved land også der sjøkartet bare har et grovt intervall
+    for (let p = 0; p < N; p++) { if (ok[p]) { v[p] = depth[p]; c[p] = 1; } else if (cls[p] === -1 || cls[p] === -2) { v[p] = 0; c[p] = 1; } else { v[p] = 0; c[p] = 0; } }
+    pass(v, c, tv, tc, true); pass(tv, tc, v, c, false);
+    for (let p = 0; p < N; p++) if (ok[p] && c[p] > 0) { const d = v[p] / c[p]; depth[p] = d < lo[p] ? lo[p] : d > hi[p] ? hi[p] : d; }
   }
 }

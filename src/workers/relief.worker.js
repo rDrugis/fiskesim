@@ -1,15 +1,14 @@
 // Fiskekart-fliser: dybden mellom sjøkartets dybdekurver (samme metode som i 3D-terrenget), glatt fargelagt
-// med svak skyggelegging, tynne dybdekurver med tall, og loddskudd (dybdepunkter), grunner og skjær ved stor zoom.
+// med svak skyggelegging, tynne dybdekurver med kurvetall. Loddskudd, grunner og skjær tegnes som vektor i kartet.
 //
 // Nivåer: zoom ≤ 12 regnes direkte. Zoom 13 og 14 regnes på nytt med finere oppløsning (ca. 9 og 5 m per piksel)
 // og bruker zoom 12-resultatet som føring langt fra kurvene, så flisene passer sammen. Over 14 skaleres 14 jevnt opp.
 // Broer (også flytebruer) gjøres om til sjø før dybden regnes ut.
-import { decodeDybdelag, DYBDELAG, parseWfsPoints } from '../data/depthmodel.js';
-import { contourDepth } from '../data/contourdepth.js';
+import { decodeDybdelag, DYB_ALL, GEN0, generalSLD, generalClassOf } from '../data/depthmodel.js';
+import { contourDepth, diffuseWithin } from '../data/contourdepth.js';
 import { openBridges } from '../data/thinland.js';
 import { fetchCached, SRC } from '../data/sources.js';
 import { PAL, rgb } from '../map/palette.js';
-import { UTM33 } from '../geo/proj.js';
 
 const R = 6378137, ORIG = Math.PI * R;
 const tileMerc = (z, x, y) => { const s = (2 * ORIG) / 2 ** z; return [-ORIG + x * s, ORIG - (y + 1) * s, -ORIG + (x + 1) * s, ORIG - y * s]; };
@@ -19,9 +18,10 @@ const mercX = (lon) => lon * Math.PI / 180 * R;
 const mercY = (lat) => R * Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
 
 const CZ = 12, FZ = 14, SIZE = 256;
+const BLUR_M = globalThis.__BLUR_M ?? 40; // utglatting (m) i brede intervaller
 const MARG = 128; // kant rundt flisa som hentes (piksler), så kurver like utenfor teller med
 const KEEP_C = 96, KEEP_F = 3; // kant som beholdes i minnet (grove fliser trengs som føring for de fine)
-const coarse = new Map(), fine = new Map(), sound = new Map();
+const coarse = new Map(), fine = new Map();
 
 function lru(map, key, val, max) { map.set(key, val); val.catch && val.catch(() => map.delete(key)); while (map.size > max) map.delete(map.keys().next().value); return val; }
 
@@ -34,16 +34,73 @@ async function fetchRetry(url) {
   throw err;
 }
 
-async function wmsClasses(bb, N) {
-  const url = `${SRC.wmsDybde}?service=WMS&version=1.1.1&request=GetMap&layers=Dybdelag,Torrfall&styles=&srs=EPSG:3857&format=image/png&transparent=true&width=${N}&height=${N}&bbox=${bb.map((v) => v.toFixed(2)).join(',')}`;
+async function pngPixels(url, N) {
   const buf = await fetchRetry(url);
   const bmp = await createImageBitmap(new Blob([buf], { type: 'image/png' }));
   const c = new OffscreenCanvas(N, N), ctx = c.getContext('2d', { willReadFrequently: true });
   ctx.drawImage(bmp, 0, 0);
-  const { mask, cls } = decodeDybdelag(ctx.getImageData(0, 0, N, N).data, N, N);
+  return ctx.getImageData(0, 0, N, N).data;
+}
+
+async function wmsClasses(bb, N) {
+  const q = `service=WMS&version=1.1.1&request=GetMap&srs=EPSG:3857&format=image/png&transparent=true&width=${N}&height=${N}&bbox=${bb.map((v) => v.toFixed(2)).join(',')}`;
+  const { mask, cls } = decodeDybdelag(await pngPixels(`${SRC.wmsDybde}?${q}&layers=Dybdelag,Torrfall&styles=`, N), N, N);
   const c2 = new Int8Array(N * N);
-  for (let p = 0; p < N * N; p++) c2[p] = mask[p] === 0 ? -1 : mask[p] === 2 ? -2 : cls[p] >= 0 ? cls[p] : 0;
+  let shallow = false;
+  for (let p = 0; p < N * N; p++) { c2[p] = mask[p] === 0 ? -1 : mask[p] === 2 ? -2 : cls[p] >= 0 ? cls[p] : 0; if (c2[p] === 0) shallow = true; }
+  // Det lyseste intervallet kan være et grovt «0,5–100 m»-område. Hent dem med egen stil og gi dem riktig intervall.
+  if (shallow) {
+    try {
+      const px = await pngPixels(`${SRC.wmsDybde}?${q}&layers=Dybdelag&SLD_BODY=${encodeURIComponent(generalSLD())}`, N);
+      for (let p = 0; p < N * N; p++) {
+        if (c2[p] !== 0) continue;
+        const g = generalClassOf(px[p * 4], px[p * 4 + 1], px[p * 4 + 2], px[p * 4 + 3]);
+        if (g >= 0) c2[p] = g;
+      }
+      cleanSeams(c2, N);
+    } catch (e) { /* uten grove intervaller: regnes som 0,5–5 m */ }
+  }
   return c2;
+}
+
+// Kanten mellom et grovt område (samme farge som 0,5–5 m) og et dypt område (f.eks. 100–150 m) er kantutjevnet i
+// bildet, og blandingsfargene ligner 5–50 m-fargene. Slike tynne «kurver» ved et grovt område hører til det grove.
+function cleanSeams(c2, N) {
+  for (let pass = 0; pass < 2; pass++) {
+    const src = c2.slice();
+    for (let j = 1; j < N - 1; j++) for (let i = 1; i < N - 1; i++) {
+      const p = j * N + i, c = src[p];
+      if (c < 0 || c >= GEN0) continue;
+      let gen = -1, same = 0;
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+        if (!di && !dj) continue;
+        const q = src[p + dj * N + di];
+        if (q === c) same++; else if (q >= GEN0) gen = q;
+      }
+      if (gen >= 0 && same <= 3 && DYB_ALL[c][2] <= DYB_ALL[gen][2]) c2[p] = gen;
+    }
+  }
+}
+
+// Små holmer og skjær som er land i sjøkartet, men ofte mangler i bakgrunnskartet: tegnes som egne flekker
+function isletMask(c2, N) {
+  const out = new Uint8Array(N * N), seen = new Uint8Array(N * N), stack = new Int32Array(N * N), pix = new Int32Array(N * N);
+  const maxA = 2500; // celler
+  for (let s0 = 0; s0 < N * N; s0++) {
+    if (c2[s0] !== -1 || seen[s0]) continue;
+    let sp = 0, n = 0, edge = false; stack[sp++] = s0; seen[s0] = 1;
+    while (sp) {
+      const p = stack[--sp]; if (n < maxA + 1) pix[n] = p; n++;
+      const i = p % N, j = (p / N) | 0;
+      if (i === 0 || j === 0 || i === N - 1 || j === N - 1) edge = true;
+      if (i > 0 && c2[p - 1] === -1 && !seen[p - 1]) { seen[p - 1] = 1; stack[sp++] = p - 1; }
+      if (i < N - 1 && c2[p + 1] === -1 && !seen[p + 1]) { seen[p + 1] = 1; stack[sp++] = p + 1; }
+      if (j > 0 && c2[p - N] === -1 && !seen[p - N]) { seen[p - N] = 1; stack[sp++] = p - N; }
+      if (j < N - 1 && c2[p + N] === -1 && !seen[p + N]) { seen[p + N] = 1; stack[sp++] = p + N; }
+    }
+    if (!edge && n <= maxA) for (let k = 0; k < n; k++) out[pix[k]] = 1;
+  }
+  return out;
 }
 
 // Beregner dybde for en flis. Lagrer bare kjernen pluss en kant (keep) for å spare minne.
@@ -51,15 +108,21 @@ function finish(c2, N, res, prior, keep) {
   let water = 0;
   for (let p = 0; p < N * N; p++) if (c2[p] !== -1) water++;
   openBridges(c2, N, N, res);
-  const dep = water ? contourDepth(c2, N, N, res, DYBDELAG, prior, MARG, Math.max(2, Math.round(22 / res))) : null;
+  const dep = water ? contourDepth(c2, N, N, res, DYB_ALL, prior, MARG, Math.max(2, Math.round(22 / res))) : null;
+  // glatt flate innenfor intervallene (ca. BLUR_M meter), mot kammer ved taggete kurver i dypet
+  if (dep && BLUR_M > 0) diffuseWithin(dep, c2, N, N, DYB_ALL, Math.max(1, Math.min(40, Math.round((BLUR_M / res) ** 2 / 4))), 2);
+  const isl = water ? isletMask(c2, N) : null;
   const S = SIZE + 2 * keep, o = MARG - keep;
-  const d = new Float32Array(S * S).fill(NaN), wet = new Uint8Array(S * S);
+  const d = new Float32Array(S * S).fill(NaN), wet = new Uint8Array(S * S), flag = new Uint8Array(S * S), cl = new Uint8Array(S * S);
   for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) {
     const q = (j + o) * N + i + o, p = j * S + i;
     wet[p] = c2[q] === -1 ? 0 : 1;
+    // 1 = anslått (grovt intervall i sjøkartet), 2 = liten holme/skjær
+    flag[p] = c2[q] >= GEN0 ? 1 : isl && isl[q] ? 2 : 0;
+    cl[p] = c2[q] >= 0 ? c2[q] + 1 : 0;
     if (dep) d[p] = dep[q];
   }
-  return { dep: dep ? d : null, wet, N: S, m: keep, res };
+  return { dep: dep ? d : null, wet, flag, cl, N: S, m: keep, res };
 }
 
 function computeCoarse(z, x, y) {
@@ -126,111 +189,73 @@ async function baseFor(z, x, y) {
   return { base, u0: (x - (bx << k)) * SIZE * scale, v0: (y - (by << k)) * SIZE * scale, scale, lz, bx, by };
 }
 
-// Loddskudd, grunner og skjær (Kartverket WFS) for en zoom 14-flis, i flisens pikselkoordinater
-function soundings(bx, by) {
-  const key = bx + '/' + by;
-  if (sound.has(key)) return sound.get(key);
-  return lru(sound, key, (async () => {
-    const [mx0, my0, mx1, my1] = tileMerc(FZ, bx, by);
-    const cs = [[mx0, my0], [mx1, my0], [mx0, my1], [mx1, my1]].map(([a, b]) => UTM33.forward(lonOfMercX(a), latOfMercY(b)));
-    const bb = [Math.min(...cs.map((c) => c[0])) - 20, Math.min(...cs.map((c) => c[1])) - 20, Math.max(...cs.map((c) => c[0])) + 20, Math.max(...cs.map((c) => c[1])) + 20];
-    const get = async (type) => {
-      const url = `${SRC.wfsDybde}?service=WFS&version=2.0.0&request=GetFeature&typeNames=${encodeURIComponent('app:' + type)}&srsName=urn:ogc:def:crs:EPSG::25833&bbox=${bb.map((v) => Math.round(v)).join(',')},urn:ogc:def:crs:EPSG::25833&count=6000`;
-      const txt = await fetchCached(url, { timeout: 40000, as: 'text' });
-      return parseWfsPoints(txt, type === 'Skjær' ? null : 'dybde');
-    };
-    const [dp, gr, sk] = await Promise.all([get('Dybdepunkt').catch(() => []), get('Grunne').catch(() => []), get('Skjær').catch(() => [])]);
-    const pts = [];
-    const add = (arr, kind) => {
-      for (let k = 0; k < arr.length; k += 3) {
-        const [lon, lat] = UTM33.inverse(arr[k], arr[k + 1]);
-        const u = (mercX(lon) - mx0) / (mx1 - mx0) * SIZE, v = (my1 - mercY(lat)) / (my1 - my0) * SIZE;
-        if (u < -40 || v < -40 || u > SIZE + 40 || v > SIZE + 40) continue;
-        pts.push({ u, v, d: arr[k + 2], kind });
-      }
-    };
-    add(sk, 'skjær'); add(gr, 'grunne'); add(dp, 'dybde');
-    return pts;
-  })(), 40);
-}
-
 const LEVELS = [5, 10, 20, 30, 40, 50, 100, 150, 200, 250, 300, 400, 500];
 const MAJOR = new Set([10, 20, 50, 100, 200, 300, 500]);
-const fmtDepth = (d) => d < 10 ? (Math.round(d * 10) / 10).toString().replace('.', ',') : String(Math.round(d));
 
-async function renderTile(z, x, y, palName) {
+async function renderTile(z, x, y, palName, hd = false) {
+  const k = hd ? 2 : 1, T = SIZE * k; // skarpe fliser på skjermer med høy oppløsning (512 px vist som 256)
   const pal = PAL[palName] || PAL.dag;
   const night = palName === 'natt';
-  const { base, u0, v0, scale, lz, bx, by } = await baseFor(z, x, y);
-  const img = new ImageData(SIZE, SIZE);
+  const { base, u0, v0, scale: sc0 } = await baseFor(z, x, y);
+  const scale = sc0 / k;
+  const img = new ImageData(T, T);
   if (!base.dep) return createImageBitmap(img);
-  const S = SIZE + 2, D = new Float32Array(S * S), Wt = new Float32Array(S * S);
+  const S = T + 2, D = new Float32Array(S * S), Wt = new Float32Array(S * S), FG = new Uint8Array(S * S);
   for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) {
     const u = u0 + (i - 0.5) * scale, v = v0 + (j - 0.5) * scale;
     D[j * S + i] = bil(base.dep, base.N, base.m, u, v);
     Wt[j * S + i] = bilU8(base.wet, base.N, base.m, u, v);
+    if (base.flag) FG[j * S + i] = nearU8(base.flag, base.N, base.m, u, v);
   }
   const pxm = base.res * scale; // meter per piksel i denne flisen
   const ex = 2.2, L = [-0.55, 0.55, 0.63];
   const labelCand = [];
-  for (let j = 0; j < SIZE; j++) for (let i = 0; i < SIZE; i++) {
-    const p = (j + 1) * S + i + 1, o = (j * SIZE + i) * 4;
+  for (let j = 0; j < T; j++) for (let i = 0; i < T; i++) {
+    const p = (j + 1) * S + i + 1, o = (j * T + i) * 4;
     const d = D[p], w = Wt[p];
-    if (!(d === d) || w < 0.02) { img.data[o + 3] = 0; continue; }
+    if (!(d === d) || w < 0.02) {
+      // små holmer og skjær fra sjøkartet (mangler ofte i bakgrunnskartet)
+      if (FG[p] === 2) { const c = night ? [70, 68, 60] : [126, 118, 98]; img.data[o] = c[0]; img.data[o + 1] = c[1]; img.data[o + 2] = c[2]; img.data[o + 3] = 255; }
+      else img.data[o + 3] = 0;
+      continue;
+    }
     let c;
     if (d < 0) c = [148, 152, 112]; // tørrfall
     else c = rgb(d, pal);
     const dl = D[p - 1], dr = D[p + 1], du = D[p - S], dd = D[p + S];
     const gx = ((dr === dr ? dr : d) - (dl === dl ? dl : d)) / (2 * pxm), gy = ((dd === dd ? dd : d) - (du === du ? du : d)) / (2 * pxm);
-    const nx = gx * ex, ny = -gy * ex, nl = Math.hypot(nx, ny, 1);
+    // svakere relieff i dypet: der er flaten mest anslag, og små ujevnheter i kurvene skal ikke se ut som terreng
+    const exd = ex / (1 + Math.max(0, d) / 150);
+    const nx = gx * exd, ny = -gy * exd, nl = Math.hypot(nx, ny, 1);
     const lam = (nx * L[0] + ny * L[1] + L[2]) / nl;
-    const shade = Math.min(1.3, 1 + 0.3 * (lam - 0.63) / 0.37);
+    const shade = Math.max(0.8, Math.min(1.22, 1 + 0.28 * (lam - 0.63) / 0.37)); // dempet skygge: ingen svarte prikker i bratte skråninger
     let r = c[0] * shade, g = c[1] * shade, b = c[2] * shade;
     // tynne dybdekurver der flaten krysser en kurvedybde
     for (const lv of LEVELS) {
       if ((d - lv) * (dr - lv) < 0 || (d - lv) * (dd - lv) < 0) {
-        const a = lv % 50 === 0 ? 0.45 : 0.28;
+        // i anslåtte områder er kurvene våre egne, ikke sjøkartets: svake og uten tall
+        const est = FG[p] === 1, a = (lv % 50 === 0 ? 0.45 : 0.28) * (est ? 0.35 : 1);
         r = r * (1 - a) + 20 * a; g = g * (1 - a) + 34 * a; b = b * (1 - a) + 52 * a;
-        if (z >= 13 && i > 18 && j > 10 && i < SIZE - 18 && j < SIZE - 10 && (z >= 15 || MAJOR.has(lv)) && ((i * 7 + j * 13) % 5 === 0)) labelCand.push([i, j, lv, gx, gy]);
+        if (!est && z >= 13 && i > 18 * k && j > 10 * k && i < T - 18 * k && j < T - 10 * k && (z >= 15 || MAJOR.has(lv)) && ((i * 7 + j * 13) % (5 * k) === 0)) labelCand.push([i / k, j / k, lv, gx, gy]);
         break;
       }
     }
+    // anslått dybde (sjøkartet har bare et grovt intervall her): fint prikkmønster, synlig også i smale belter
+    if (FG[p] === 1 && ((x * T + i) % (5 * k)) < k && ((y * T + j) % (5 * k)) < k) { r = r * 0.78 + 255 * 0.22; g = g * 0.78 + 255 * 0.22; b = b * 0.78 + 255 * 0.22; }
     img.data[o] = Math.min(255, r); img.data[o + 1] = Math.min(255, g); img.data[o + 2] = Math.min(255, b); img.data[o + 3] = Math.round(255 * Math.min(1, w * 1.6));
   }
   if (z < 13) return createImageBitmap(img);
 
   // Tall på kurvene og loddskudd. Tekst tegnes på et lerret i tråden.
   let cv, ctx;
-  try { cv = new OffscreenCanvas(SIZE, SIZE); ctx = cv.getContext('2d'); ctx.putImageData(img, 0, 0); } catch (e) { return createImageBitmap(img); }
+  try { cv = new OffscreenCanvas(T, T); ctx = cv.getContext('2d'); ctx.putImageData(img, 0, 0); ctx.scale(k, k); } catch (e) { return createImageBitmap(img); }
   const placed = [];
   const free = (u, v, r) => placed.every(([a, b, rr]) => (a - u) ** 2 + (b - v) ** 2 > (r + rr) ** 2);
   const halo = night ? 'rgba(10,20,30,.85)' : 'rgba(255,255,255,.8)', ink = night ? '#cfe3ef' : '#16324a';
   try {
-    // soundings først (de er målt), så kurvetall
-    if (z >= 15 && lz === FZ) {
-      const pts = await soundings(bx, by).catch(() => []);
-      const sc = 2 ** (z - FZ);
-      const list = pts.map((q) => ({ ...q, u: (q.u - u0) * sc, v: (q.v - v0) * sc }))
-        .filter((q) => q.u > 6 && q.v > 6 && q.u < SIZE - 6 && q.v < SIZE - 6)
-        .sort((a, b) => (a.kind === 'skjær' ? -1 : 0) - (b.kind === 'skjær' ? -1 : 0) || a.d - b.d); // grunneste først, som i sjøkart
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
-      const minSp = z >= 16 ? 15 : 19;
-      for (const q of list) {
-        if (!free(q.u, q.v, minSp)) continue;
-        placed.push([q.u, q.v, minSp * 0.6]);
-        if (q.kind === 'skjær') {
-          ctx.strokeStyle = halo; ctx.lineWidth = 3.2; ctx.beginPath(); ctx.moveTo(q.u - 4, q.v); ctx.lineTo(q.u + 4, q.v); ctx.moveTo(q.u, q.v - 4); ctx.lineTo(q.u, q.v + 4); ctx.stroke();
-          ctx.strokeStyle = night ? '#e8eef2' : '#1a1a1a'; ctx.lineWidth = 1.4; ctx.stroke();
-          continue;
-        }
-        const t = fmtDepth(Math.max(0, q.d));
-        ctx.font = (q.kind === 'grunne' ? 'bold ' : '') + '10px system-ui, sans-serif';
-        ctx.strokeStyle = halo; ctx.lineWidth = 2.6; ctx.strokeText(t, q.u, q.v);
-        ctx.fillStyle = q.kind === 'grunne' ? (night ? '#ffd0c0' : '#7a1a10') : ink; ctx.fillText(t, q.u, q.v);
-      }
-    }
+    // loddskudd, grunner og skjær tegnes som vektor i kartet (skarpe på alle zoomnivåer); her bare kurvetall
     // kurvetall langs kurvene, rotert etter kurven
-    ctx.font = '600 10px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '600 11px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     let n = 0;
     for (const [i, j, lv, gx, gy] of labelCand) {
       if (n >= 2) break;
@@ -245,6 +270,11 @@ async function renderTile(z, x, y, palName) {
     }
   } catch (e) { /* tekst er ikke kritisk */ }
   return createImageBitmap(cv);
+}
+
+function nearU8(a, N, m, u, v) {
+  const i = Math.max(0, Math.min(N - 1, Math.round(u + m - 0.5))), j = Math.max(0, Math.min(N - 1, Math.round(v + m - 0.5)));
+  return a[j * N + i];
 }
 
 function bilU8(a, N, m, u, v) {
@@ -264,14 +294,15 @@ async function depthAt(lon, lat) {
   const w = bilU8(b.wet, b.N, b.m, u, v);
   if (!b.dep || w < 0.5) return { land: true };
   const d = bil(b.dep, b.N, b.m, u, v);
-  return d === d ? { depth: d } : { land: true };
+  const c = nearU8(b.cl, b.N, b.m, u, v) - 1, iv = c >= 0 ? DYB_ALL[c] : null;
+  return d === d ? { depth: d, lo: iv ? iv[1] : null, hi: iv ? iv[2] : null, est: c >= GEN0 } : { land: true };
 }
 
 self.onmessage = async (ev) => {
-  const { id, kind, z, x, y, pal, lon, lat } = ev.data;
+  const { id, kind, z, x, y, pal, lon, lat } = ev.data; // hd: skarp flis
   try {
     if (kind === 'depth') { self.postMessage({ id, info: await depthAt(lon, lat) }); return; }
-    const bmp = await renderTile(z, x, y, pal);
+    const bmp = await renderTile(z, x, y, pal, !!ev.data.hd);
     self.postMessage({ id, bmp }, [bmp]);
   } catch (e) {
     self.postMessage({ id, error: String(e.message || e) });
