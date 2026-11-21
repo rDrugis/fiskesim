@@ -165,8 +165,8 @@ export class Profile {
     for (let i = 0; i < S.length; i++) { if (S[i].z != null) continue; let j = i; while (j + 1 < S.length && S[j + 1].z == null) j++;
       gaps += `<rect x="${X(S[i].d).toFixed(1)}" y="${t}" width="${Math.max(1.5, X(S[j].d) - X(S[i].d)).toFixed(1)}" height="${ph}" class="${S[i].land ? 'pland' : 'pnod'}"/>`; i = j; }
     const shal = ok.reduce((p, s) => s.z < p.z ? s : p), deep = ok.reduce((p, s) => s.z > p.z ? s : p);
-    // brattest: største helning over ca. 50 m
-    let st = null; const ds = L / (S.length - 1), k = Math.max(2, Math.round(50 / ds));
+    // brattest: største helning over ca. 100 m (som i Fiskeguide)
+    let st = null; const ds = L / (S.length - 1), k = Math.max(2, Math.round(100 / ds));
     for (let i = 0; i + k < S.length; i++) { const p = S[i], q = S[i + k]; if (p.z == null || q.z == null) continue; const dv = Math.abs(q.z - p.z), sl = dv / (q.d - p.d); if (!st || sl > st.sl) st = { sl, at: (p.d + q.d) / 2, from: p, to: q }; }
     let me = '', meTxt = '';
     const pos = this.posOn();
