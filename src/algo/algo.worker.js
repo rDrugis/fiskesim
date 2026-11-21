@@ -19,7 +19,7 @@ async function wmsImg(url, W, H) {
 }
 
 self.onmessage = async (ev) => {
-  const { id, tx, ty, m, now, wfs } = ev.data;
+  const { id, tx, ty, m, now, wfs, grid } = ev.data;
   try {
     const G = tileGeom(tx, ty), { bx, W, H, bl, nL } = G;
     const [dd, bd, ld, dl] = await Promise.all([
@@ -28,7 +28,9 @@ self.onmessage = async (ev) => {
       wmsImg(NMG + q(bl, nL, nL) + '&layers=Landareal', nL, nL).catch(() => null),
       wmsImg(DYB + q(bl, nL, nL) + '&layers=Dybdelag', nL, nL).catch(() => null),
     ]);
-    const res = await computeTile(tx, ty, m, { dd, bd, ld, dl, akF: wfs.akF, akP: wfs.akP, pasF: wfs.pasF }, { now: new Date(now) });
+    const dbg = grid ? { grid } : null;
+    const res = await computeTile(tx, ty, m, { dd, bd, ld, dl, akF: wfs.akF, akP: wfs.akP, pasF: wfs.pasF }, { now: new Date(now), dbg });
+    if (dbg) res.blocks = dbg.blocks || [];
     self.postMessage({ id, res });
   } catch (e) {
     self.postMessage({ id, error: String(e && e.message || e) });
