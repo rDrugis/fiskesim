@@ -98,11 +98,29 @@ async function algoArea(A, sel) {
   return true;
 }
 
-if (!ONLY || ONLY.includes('algo')) {
-  for (const A of AREAS) {
+const want = (k) => !ONLY || ONLY.split(',').includes(k);
+if (want('algo') || want('algo2')) {
+  for (const A of (want('algo') ? AREAS : AREAS.filter((a) => a.id === 'salhus' || a.id === 'floro'))) {
     try { await algoArea(A, []); } catch (e) { report.errors.push(A.id + ': ' + e.message); log('FEIL', A.id, e.message); }
   }
-  try { await algoArea(AREAS[0], ['lange', 'brosme']); } catch (e) { report.errors.push('salhus utvalg: ' + e.message); }
+  if (want('algo')) try { await algoArea(AREAS[0], ['lange', 'brosme']); } catch (e) { report.errors.push('salhus utvalg: ' + e.message); }
+}
+
+// ---------- Rådata fra Kartverket (for å se hva som er data og hva som er beregning) ----------
+if (want('raw')) {
+  const merc = (lon, lat) => [lon * 20037508.34 / 180, Math.log(Math.tan((90 + lat) * Math.PI / 360)) * 6378137];
+  const RAW = [
+    { id: 'raw-salhus', w: 5.24, s: 60.505, e: 5.29, n: 60.535, W: 1400 },
+    { id: 'raw-floro', w: 4.98, s: 61.59, e: 5.06, n: 61.62, W: 1400 },
+  ];
+  for (const r of RAW) {
+    const [x0, y0] = merc(r.w, r.s), [x1, y1] = merc(r.e, r.n), H = Math.round(r.W * (y1 - y0) / (x1 - x0));
+    const q = `service=WMS&version=1.1.1&request=GetMap&srs=EPSG:3857&format=image/png&transparent=true&width=${r.W}&height=${H}&bbox=${[x0, y0, x1, y1].map((v) => v.toFixed(2)).join(',')}`;
+    for (const [suf, url] of [['', `https://wms.geonorge.no/skwms1/wms.dybdedata2?${q}&layers=Dybdelag,Torrfall&styles=`], ['-kurver', `https://wms.geonorge.no/skwms1/wms.dybdedata2?${q}&layers=Dybdekurver&styles=`]]) {
+      try { const res = await fetch(url); const buf = Buffer.from(await res.arrayBuffer()); await writeFile(join(OUT, r.id + suf + '.png'), buf); log('rådata', r.id + suf, res.status, buf.length, 'byte'); }
+      catch (e) { log('rådata feilet', r.id + suf, e.message); }
+    }
+  }
 }
 
 // ---------- 2. Skjermbilder ----------
@@ -120,7 +138,7 @@ async function shot(name, url, { mobile = false, wait = 12000, act = null } = {}
   log('bilde', name, errs.length ? 'feil: ' + errs.join(' | ').slice(0, 300) : 'ok', extra ? JSON.stringify(extra).slice(0, 300) : '');
   await ctx.close();
 }
-if (!ONLY || ONLY.includes('shots')) {
+if (want('shots')) {
   const pre = (style, extra = {}) => async (pg) => {};
   const setStyle = async (pg, s) => { await pg.evaluate((s) => { localStorage.setItem('fiskesim.kart', s); }, s); };
   await shot('bro-z13', '?sted=60.519,5.272&z=13.3', { wait: 25000 });

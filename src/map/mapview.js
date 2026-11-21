@@ -6,7 +6,7 @@ let ml = null;
 export async function loadMapLibre() {
   if (!ml) {
     // MapLibre ligger ved siden av app.js og finner selv sin worker der
-    const url = new URL('./vendor/maplibre-gl.mjs', import.meta.url).href;
+    const url = new URL('assets/vendor/maplibre-gl.mjs', document.baseURI).href;
     ml = await import(/* @vite-ignore */ url);
   }
   return ml;
@@ -33,7 +33,7 @@ function reliefWorker(k) {
   if (!pool.length) {
     const n = Math.max(2, Math.min(6, (navigator.hardwareConcurrency || 4) - 1));
     for (let i = 0; i < n; i++) {
-      const w = new Worker(new URL('./relief.worker.js?v=' + __V__, import.meta.url), { type: 'module' });
+      const w = new Worker(new URL('assets/relief.worker.js?v=' + __V__, document.baseURI), { type: 'module' });
       w.onmessage = (ev) => { const p = waiting.get(ev.data.id); if (!p) return; waiting.delete(ev.data.id); if (ev.data.error) p.rej(new Error(ev.data.error)); else p.res(ev.data.info || ev.data.bmp); };
       pool.push(w);
     }
@@ -43,7 +43,8 @@ function reliefWorker(k) {
 function reliefTile(z, x, y, pal) {
   const cz = Math.min(z, 12), px = x >> (z - cz), py = y >> (z - cz);
   const id = ++reqId;
-  return new Promise((res, rej) => { waiting.set(id, { res, rej }); reliefWorker(px * 31 + py * 17 + cz).postMessage({ id, z, x, y, pal }); });
+  const hd = z >= 12 && (self.devicePixelRatio || 1) >= 1.5; // skarpe tall og kurver på mobil og retina
+  return new Promise((res, rej) => { waiting.set(id, { res, rej }); reliefWorker(px * 31 + py * 17 + cz).postMessage({ id, z, x, y, pal, hd }); });
 }
 // Dybden i et punkt etter fiskekartets modell (samme tråd som regner flisa der)
 export function reliefDepth(lon, lat) {

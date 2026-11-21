@@ -8,7 +8,7 @@ let worker = null, nextId = 1;
 const pending = new Map();
 function terrainWorker() {
   if (!worker) {
-    worker = new Worker(new URL('./terrain.worker.js?v=' + __V__, import.meta.url), { type: 'module' });
+    worker = new Worker(new URL('assets/terrain.worker.js?v=' + __V__, document.baseURI), { type: 'module' });
     worker.onmessage = (ev) => {
       const { id } = ev.data, p = pending.get(id); if (!p) return;
       if (ev.data.stage) { p.onStage?.(ev.data.stage); return; }

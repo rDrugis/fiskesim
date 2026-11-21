@@ -11,7 +11,7 @@ async function wmsImg(url, W, H) {
     try {
       const r = await fetch(url); if (!r.ok) throw new Error('Svar ' + r.status);
       const bm = await createImageBitmap(await r.blob());
-      const c = new OffscreenCanvas(W, H), x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(bm, 0, 0);
+      const c = new OffscreenCanvas(W, H), x = c.getContext('2d'); x.drawImage(bm, 0, 0); // som i Fiskeguide (uten willReadFrequently)
       return x.getImageData(0, 0, W, H).data;
     } catch (e) { err = e; await new Promise((res) => setTimeout(res, 800 * (k + 1))); }
   }

@@ -152,7 +152,9 @@ export class SeaMarks {
     const vis = this.on ? 'visible' : 'none';
     const sjokart = this.api.style === 'sjokart';
     if (!map.getLayer('sm-sektor')) map.addLayer({ id: 'sm-sektor', type: 'fill', source: 'sm', minzoom: 12, filter: ['==', ['get', 'kind'], 'sektor'], layout: { visibility: vis },
-      paint: { 'fill-color': ['match', ['get', 'c'], 'r', '#e0262b', 'g', '#1f9d48', '#f4d34a'], 'fill-opacity': sjokart ? 0.08 : 0.13, 'fill-outline-color': ['match', ['get', 'c'], 'r', '#e0262b88', 'g', '#1f9d4888', '#f4d34a88'] } });
+      paint: { 'fill-color': ['match', ['get', 'c'], 'r', '#e0262b', 'g', '#1f9d48', '#f4d34a'], 'fill-opacity': ['interpolate', ['linear'], ['zoom'], 12, sjokart ? 0.1 : 0.12, 15, 0.05] } });
+    if (!map.getLayer('sm-sektorl')) map.addLayer({ id: 'sm-sektorl', type: 'line', source: 'sm', minzoom: 12, filter: ['==', ['get', 'kind'], 'sektor'], layout: { visibility: vis },
+      paint: { 'line-color': ['match', ['get', 'c'], 'r', '#e0262b', 'g', '#1f9d48', '#f4d34a'], 'line-opacity': 0.55, 'line-width': 1 } });
     if (!map.getLayer('sm-grunne')) map.addLayer({ id: 'sm-grunne', type: 'symbol', source: 'sm', minzoom: 13, filter: ['==', ['get', 'kind'], 'grunne'], layout: { visibility: vis,
       'text-field': ['number-format', ['get', 'd'], { 'max-fraction-digits': 1, locale: 'nb-NO' }], 'text-font': ['literal', ['Noto Sans Bold']], 'text-size': 11, 'text-allow-overlap': false },
       paint: { 'text-color': '#7a1a10', 'text-halo-color': '#ffffffdd', 'text-halo-width': 1.4 } });
@@ -167,7 +169,7 @@ export class SeaMarks {
   setOn(on) {
     this.on = on; localStorage.setItem('fiskesim.merker', on ? 'på' : 'av');
     const map = this.api.map;
-    for (const l of ['sm-sektor', 'sm-grunne', 'sm-skjaer', 'sm-sym']) if (map.getLayer(l)) map.setLayoutProperty(l, 'visibility', on ? 'visible' : 'none');
+    for (const l of ['sm-sektor', 'sm-sektorl', 'sm-grunne', 'sm-skjaer', 'sm-sym']) if (map.getLayer(l)) map.setLayoutProperty(l, 'visibility', on ? 'visible' : 'none');
     if (on) this.refresh();
   }
   async refresh() {

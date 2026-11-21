@@ -4,7 +4,7 @@ name: livetest
 on:
   workflow_dispatch:
     inputs:
-      only: { description: 'algo, shots eller tomt for alt', required: false, default: '' }
+      only: { description: 'algo, shots eller tomt for alt', required: false, default: 'algo2,raw,shots' }
   push:
     branches: [livetest]
 permissions:
