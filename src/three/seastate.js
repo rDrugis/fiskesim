@@ -1,82 +1,90 @@
-// Sjøtilstanden der du klikket: vind og bølger fra modellene, justert for strøklengde og skjerming lokalt.
-//  • Vind (10 m), bølgehøyde og -retning: MET Norway (locationforecast og oceanforecast).
-//  • Fordeling på vindsjø og dønning, og perioder: Open-Meteo Marine.
-//  • Inne i fjorder og bak øyer når modellbølgene ikke inn. Der regnes vindsjøen ut fra vinden og strøklengden
-//    (avstanden til land mot vinden) med JONSWAP-vekstkurvene, og dønningen dempes etter hvor åpent det er mot havet.
+// Sjøtilstanden der du klikket, rett fra varslene – ingen egne anslag for bølgehøyden:
+//  • Vind (10 m) og kast: MET Norway locationforecast.
+//  • Bølgehøyde og -retning: MET Norway oceanforecast (MET sin bølgemodell langs kysten, nærmeste modellpunkt).
+//  • Fordeling på vindsjø og dønning, perioder og retninger: Open-Meteo Marine (nærmeste havrute).
+// Når begge har bølger, får hvert bølgesystem perioden og retningen fra Open-Meteo og høyden skalert slik at
+// den samlede høyden blir METs. Bølgelengden regnes ut fra perioden og dybden (dispersjonsrelasjonen).
 import { SRC } from '../data/sources.js';
 
 const G = 9.81;
 const interp = (arr, t, key) => {
   if (!arr || !arr.length) return null;
-  if (t <= arr[0].t) return arr[0][key];
-  for (let i = 1; i < arr.length; i++) if (arr[i].t >= t) { const a = arr[i - 1], b = arr[i]; const va = a[key], vb = b[key]; if (va == null || vb == null) return va ?? vb; return va + (vb - va) * (t - a.t) / (b.t - a.t); }
-  return arr[arr.length - 1][key];
+  if (t <= arr[0].t) return arr[0][key] ?? null;
+  for (let i = 1; i < arr.length; i++) if (arr[i].t >= t) { const a = arr[i - 1], b = arr[i]; const va = a[key], vb = b[key]; if (va == null || vb == null) return va ?? vb ?? null; return va + (vb - va) * (t - a.t) / (b.t - a.t); }
+  return arr[arr.length - 1][key] ?? null;
 };
 const interpDir = (arr, t, key) => {
   if (!arr || !arr.length) return null;
-  for (let i = 1; i < arr.length; i++) if (arr[i].t >= t) { const a = arr[i - 1][key], b = arr[i][key]; if (a == null || b == null) return a ?? b; let d = ((b - a + 540) % 360) - 180; const f = (t - arr[i - 1].t) / (arr[i].t - arr[i - 1].t); return (a + d * Math.max(0, Math.min(1, f)) + 360) % 360; }
-  return arr[arr.length - 1][key];
+  if (t <= arr[0].t) return arr[0][key] ?? null;
+  for (let i = 1; i < arr.length; i++) if (arr[i].t >= t) { const a = arr[i - 1][key], b = arr[i][key]; if (a == null || b == null) return a ?? b ?? null; const d = ((b - a + 540) % 360) - 180; const f = (t - arr[i - 1].t) / (arr[i].t - arr[i - 1].t); return (a + d * Math.max(0, Math.min(1, f)) + 360) % 360; }
+  return arr[arr.length - 1][key] ?? null;
 };
+const km = (la1, lo1, la2, lo2) => { const r = Math.PI / 180, x = (lo2 - lo1) * r * Math.cos((la1 + la2) / 2 * r), y = (la2 - la1) * r; return 6371 * Math.hypot(x, y); };
 
 export async function fetchSea(lat, lon) {
   const la = lat.toFixed(4), lo = lon.toFixed(4);
+  const vars = ['wave_height', 'wave_direction', 'wave_period', 'wave_peak_period', 'wind_wave_height', 'wind_wave_direction', 'wind_wave_period', 'wind_wave_peak_period',
+    'swell_wave_height', 'swell_wave_direction', 'swell_wave_period', 'swell_wave_peak_period', 'secondary_swell_wave_height', 'secondary_swell_wave_direction', 'secondary_swell_wave_period'];
   const [loc, oce, om] = await Promise.all([
     fetch(`${SRC.met}/locationforecast/2.0/compact?lat=${la}&lon=${lo}`).then((r) => r.ok ? r.json() : null).catch(() => null),
     fetch(`${SRC.met}/oceanforecast/2.0/complete?lat=${la}&lon=${lo}`).then((r) => r.ok ? r.json() : null).catch(() => null),
-    fetch(`${SRC.openMeteoMarine}?latitude=${la}&longitude=${lo}&hourly=wave_height,wave_direction,wave_period,wave_peak_period,wind_wave_height,wind_wave_direction,wind_wave_peak_period,swell_wave_height,swell_wave_direction,swell_wave_peak_period&timezone=UTC&forecast_days=3`).then((r) => r.ok ? r.json() : null).catch(() => null),
+    fetch(`${SRC.openMeteoMarine}?latitude=${la}&longitude=${lo}&hourly=${vars.join(',')}&cell_selection=sea&timezone=UTC&forecast_days=3`).then((r) => r.ok ? r.json() : null).catch(() => null),
   ]);
   const wind = loc ? loc.properties.timeseries.map((x) => { const d = x.data.instant.details; return { t: Date.parse(x.time), ws: d.wind_speed, wd: d.wind_from_direction, gust: d.wind_speed_of_gust ?? null, at: d.air_temperature, cloud: d.cloud_area_fraction }; }) : [];
-  const ocean = oce ? oce.properties.timeseries.map((x) => { const d = x.data.instant.details; return { t: Date.parse(x.time), hs: d.sea_surface_wave_height, wd: d.sea_surface_wave_from_direction, sst: d.sea_water_temperature, cs: d.sea_water_speed, cd: d.sea_water_to_direction }; }) : [];
-  const h = om?.hourly;
-  const part = h ? h.time.map((tt, i) => ({ t: Date.parse(tt + 'Z'), hs: h.wave_height?.[i], wd: h.wave_direction?.[i], tp: h.wave_peak_period?.[i] ?? h.wave_period?.[i],
-    whs: h.wind_wave_height?.[i], wwd: h.wind_wave_direction?.[i], wtp: h.wind_wave_peak_period?.[i], shs: h.swell_wave_height?.[i], swd: h.swell_wave_direction?.[i], stp: h.swell_wave_peak_period?.[i] })) : [];
-  const t0 = Date.now(), tEnd = Math.max(wind.length ? wind[wind.length - 1].t : t0, ocean.length ? ocean[ocean.length - 1].t : t0);
-  return { lat, lon, wind, ocean, part, t0, tEnd: Math.min(tEnd, t0 + 60 * 3600e3), ok: { wind: !!wind.length, ocean: !!ocean.length, part: !!part.length } };
+  const ocean = oce ? oce.properties.timeseries.map((x) => { const d = x.data.instant.details; return { t: Date.parse(x.time), hs: d.sea_surface_wave_height ?? null, wd: d.sea_surface_wave_from_direction ?? null,
+    tp: d.sea_surface_wave_period_at_variance_spectral_density_maximum ?? d.sea_surface_wave_peak_period ?? d.sea_surface_wave_period ?? d.sea_surface_wave_mean_period ?? null, sst: d.sea_water_temperature, cs: d.sea_water_speed, cd: d.sea_water_to_direction }; }).filter((x) => x.hs != null) : [];
+  const oceanKeys = oce?.properties?.timeseries?.[0]?.data?.instant?.details ? Object.keys(oce.properties.timeseries[0].data.instant.details) : [];
+  const h = om?.hourly, at = (k, i) => (h && h[k] ? h[k][i] : null);
+  const part = h ? h.time.map((tt, i) => ({ t: Date.parse(tt + 'Z'), hs: at('wave_height', i), wd: at('wave_direction', i), tp: at('wave_peak_period', i) ?? at('wave_period', i),
+    whs: at('wind_wave_height', i), wwd: at('wind_wave_direction', i), wtp: at('wind_wave_peak_period', i) ?? at('wind_wave_period', i),
+    shs: at('swell_wave_height', i), swd: at('swell_wave_direction', i), stp: at('swell_wave_peak_period', i) ?? at('swell_wave_period', i),
+    s2hs: at('secondary_swell_wave_height', i), s2wd: at('secondary_swell_wave_direction', i), s2tp: at('secondary_swell_wave_period', i) })).filter((x) => x.hs != null || x.whs != null || x.shs != null) : [];
+  // Open-Meteo oppgir hvilken rute svaret gjelder: avstanden dit sier hvor «lokalt» det er
+  const omKm = om && om.latitude != null ? km(lat, lon, om.latitude, om.longitude) : null;
+  const t0 = Date.now(), tEnd = Math.max(wind.length ? wind[wind.length - 1].t : t0, ocean.length ? ocean[ocean.length - 1].t : t0, part.length ? part[part.length - 1].t : t0);
+  return { lat, lon, wind, ocean, part, omKm, oceanKeys, t0, tEnd: Math.min(tEnd, t0 + 60 * 3600e3), ok: { wind: !!wind.length, ocean: !!ocean.length, part: !!part.length } };
 }
 
-// JONSWAP-vekst for vindsjø (Hasselmann m.fl. 1973, som i Coastal Engineering Manual), begrenset av fullt utviklet sjø
-export function fetchLimited(U, F) {
-  U = Math.max(0.5, U); F = Math.max(50, F);
-  const Fs = G * F / (U * U);
-  const hs = Math.min(0.243, 1.6e-3 * Math.sqrt(Fs)) * U * U / G;
-  const tp = Math.min(8.13, 0.286 * Math.cbrt(Fs)) * U / G;
-  return { hs, tp };
+// bølgetall k for vinkelfrekvens w og dybde h: ω² = g k tanh(k h) (Newton)
+export function waveNumber(w, h) {
+  let k = w * w / G; h = Math.max(0.5, h);
+  for (let it = 0; it < 30; it++) { const th = Math.tanh(k * h), F = G * k * th - w * w, dF = G * th + G * k * h * (1 - th * th); const k2 = k - F / dF; if (!(k2 > 0)) break; if (Math.abs(k2 - k) < 1e-9) { k = k2; break; } k = k2; }
+  return k;
 }
+export const waveLength = (tp, h) => 2 * Math.PI / waveNumber(2 * Math.PI / tp, h);
 
-/* Sjøtilstand ved tid t. fetchAt(dirFrom) gir strøklengde (m) mot retningen bølgene/vinden kommer fra. */
-export function stateAt(S, t, fetchAt) {
-  const ws = interp(S.wind, t, 'ws') ?? 0, wd = interpDir(S.wind, t, 'wd') ?? 225, gust = interp(S.wind, t, 'gust');
-  const metHs = interp(S.ocean, t, 'hs'), metDir = interpDir(S.ocean, t, 'wd');
-  const p = S.part.length ? { whs: interp(S.part, t, 'whs'), wwd: interpDir(S.part, t, 'wwd'), wtp: interp(S.part, t, 'wtp'), shs: interp(S.part, t, 'shs'), swd: interpDir(S.part, t, 'swd'), stp: interp(S.part, t, 'stp'), tp: interp(S.part, t, 'tp') } : null;
-  // vindsjø: lokal strøklengde mot vinden (snitt over ±20°, «effektiv strøklengde»)
-  let Fw = 0; for (const d of [-20, -10, 0, 10, 20]) Fw += fetchAt((wd + d + 360) % 360); Fw /= 5;
-  const loc = fetchLimited(ws, Fw);
-  const open = Fw > 25000;
-  let windsea, src = [];
-  if (open && p && p.whs != null) { windsea = { h: p.whs, tp: p.wtp || loc.tp, dir: p.wwd ?? wd }; src.push('vindsjø: Open-Meteo'); }
-  else { windsea = { h: loc.hs, tp: loc.tp, dir: wd }; src.push(`vindsjø: anslått fra MET-vind og strøklengde ca. ${Math.round(Fw / 100) / 10} km`); }
-  // dønning: fra modellen, dempet etter hvor åpent det er mot dønningens retning
-  let swell = null;
-  if (p && p.shs != null && p.shs > 0.05) {
-    // Hvor åpent det er mot dønningen: stråler over ±60° vektet med en bred retningsfordeling (dønningen bøyes rundt
-    // øyer og nes), og hver stråle teller fra 0 (land innen 1 km) til 1 (åpent i 15 km eller mer).
-    let sw = 0, se = 0;
-    for (let d = -60; d <= 60; d += 10) {
-      const wgt = Math.pow(Math.cos(d * Math.PI / 180), 4), F = fetchAt(((p.swd ?? wd) + d + 360) % 360);
-      se += wgt * Math.pow(Math.max(0, Math.min(1, (F - 1000) / 14000)), 1.2); sw += wgt;
-    }
-    const expo = se / sw;
-    swell = { h: p.shs * expo, tp: p.stp || 10, dir: p.swd, expo };
-    src.push(expo < 0.98 ? `dønning: Open-Meteo, dempet til ${Math.round(expo * 100)} % for skjerming` : 'dønning: Open-Meteo');
+/* Sjøtilstand ved tid t, rett fra varslene. depth (m) brukes bare til bølgelengden. */
+export function stateAt(S, t, depth = 100) {
+  const ws = interp(S.wind, t, 'ws'), wd = interpDir(S.wind, t, 'wd'), gust = interp(S.wind, t, 'gust'), cloud = interp(S.wind, t, 'cloud');
+  const metHs = S.ocean.length ? interp(S.ocean, t, 'hs') : null, metDir = interpDir(S.ocean, t, 'wd'), metTp = interp(S.ocean, t, 'tp');
+  const p = S.part.length ? Object.fromEntries(['hs', 'tp', 'whs', 'wtp', 'shs', 'stp', 's2hs', 's2tp'].map((k) => [k, interp(S.part, t, k)]).concat(['wd', 'wwd', 'swd', 's2wd'].map((k) => [k, interpDir(S.part, t, k)]))) : null;
+  const src = [], warn = [];
+  // bølgesystemene slik Open-Meteo deler dem
+  let sys = [];
+  if (p) {
+    if (p.whs > 0) sys.push({ kind: 'vindsjø', h: p.whs, tp: p.wtp, dir: p.wwd });
+    if (p.shs > 0) sys.push({ kind: 'dønning', h: p.shs, tp: p.stp, dir: p.swd });
+    if (p.s2hs > 0) sys.push({ kind: 'dønning 2', h: p.s2hs, tp: p.s2tp, dir: p.s2wd });
+    if (!sys.length && p.hs > 0) sys.push({ kind: 'bølger', h: p.hs, tp: p.tp, dir: p.wd });
   }
-  // dønning som modellen har ute, men som knapt når inn hit: vises som «skjermet»
-  const swellOff = swell && swell.h < 0.05 && p.shs > 0.1 ? p.shs : 0;
-  if (swell && swell.h < 0.05) swell = null;
-  const hs = Math.sqrt(windsea.h ** 2 + (swell ? swell.h ** 2 : 0));
-  // tøffeste perioden styrer «følelsen»: kort periode = bratt sjø
-  const tp = swell && swell.h > windsea.h ? swell.tp : windsea.tp;
-  const cloud = interp(S.wind, t, 'cloud');
-  return { t, ws, wd, gust, hs, tp, windsea, swell, swellOff, metHs, metDir, fetch: Fw, src, cloud };
+  const omTot = Math.sqrt(sys.reduce((a, s) => a + s.h * s.h, 0));
+  let hs = null, from = null;
+  if (metHs != null) {
+    hs = metHs; from = 'MET';
+    if (omTot > 0.01) { const k = metHs / omTot; sys = sys.map((s) => ({ ...s, h: s.h * k })); src.push('høyde: MET (nærmeste modellpunkt)', 'periode, retning og fordeling vindsjø/dønning: Open-Meteo'); }
+    else if (metHs > 0.01) { sys = [{ kind: 'bølger', h: metHs, tp: metTp ?? p?.tp ?? null, dir: metDir ?? wd }]; src.push('høyde og retning: MET'); }
+    else { sys = []; src.push('bølger: MET (nærmeste modellpunkt)'); }
+  } else if (sys.length || p) {
+    hs = omTot; from = 'Open-Meteo'; src.push('bølger: Open-Meteo');
+    warn.push('MET har ikke bølgevarsel akkurat her. Tallene er fra Open-Meteo' + (S.omKm != null && S.omKm > 1.5 ? `, fra en havrute ${Math.round(S.omKm)} km unna` : '') + ', og kan være for høye inne i fjorder og bak øyer.');
+  } else warn.push('Fant ikke bølgevarsel for punktet. Viser bare krusninger fra vinden.');
+  sys.forEach((s) => { if (s.dir == null) s.dir = metDir ?? wd ?? 0; });
+  // periode mangler (sjelden): vis med vanlig bratthet (Hs/L ≈ 1/20), og si det
+  sys.forEach((s) => { if (!(s.tp > 0)) { s.tp = Math.sqrt(2 * Math.PI * 20 * Math.max(0.05, s.h) / G); s.tpEst = true; warn.push(`Varselet mangler periode for ${s.kind} – vist med vanlig bratthet.`); } });
+  sys = sys.filter((s) => s.h > 0.005);
+  sys.forEach((s) => { s.L = waveLength(s.tp, depth); });
+  if (ws != null) src.push('vind: MET');
+  return { t, ws: ws ?? 0, wd: wd ?? 0, gust, cloud, hs: hs ?? 0, from, sys, metHs, metDir, src, warn, noWind: ws == null };
 }
 
 /* Bølgekomponenter fra spektrene (JONSWAP for vindsjø, smal JONSWAP for dønning), retningsspredning cos^2s.
@@ -87,29 +95,43 @@ function jonswapCDF(fp, gamma, n) {
   for (let i = 0; i < 400; i++) { const f = fp * (0.55 + i * 0.012); const sig = f <= fp ? 0.07 : 0.09; const r = Math.exp(-((f - fp) ** 2) / (2 * sig * sig * fp * fp));
     S.push(Math.pow(f, -5) * Math.exp(-1.25 * Math.pow(fp / f, 4)) * Math.pow(gamma, r)); fs.push(f); }
   const cum = []; let acc = 0; for (const v of S) { acc += v; cum.push(acc); }
-  const out = []; for (let k = 0; k < n; k++) { const target = (k + 0.5) / n * acc; let i = cum.findIndex((c) => c >= target); out.push(fs[Math.max(0, i)]); }
+  const out = []; for (let k = 0; k < n; k++) { const target = (k + 0.5) / n * acc; const i = cum.findIndex((c) => c >= target); out.push(fs[Math.max(0, i)]); }
   return out;
 }
-export function components(st, depth, n = 48, seed = 7) {
+// sys: [{h, tp, dir (grader i kartets rutenett, der bølgene kommer fra), kind}]
+export function components(sys, depth, n = 48, seed = 7) {
   const r = rng(seed), out = [];
-  const sys = [];
-  if (st.windsea.h > 0.01) sys.push({ ...st.windsea, gamma: 3.3, s: 8 });
-  if (st.swell) sys.push({ ...st.swell, gamma: 6, s: 35 });
   const tot = sys.reduce((a, x) => a + x.h * x.h, 0) || 1;
   for (const S of sys) {
-    const nk = Math.max(6, Math.round(n * Math.max(0.25, (S.h * S.h) / tot)));
-    const fp = 1 / Math.max(1.2, S.tp), freqs = jonswapCDF(fp, S.gamma, nk);
+    const swell = /dønning/.test(S.kind), gamma = swell ? 6 : 3.3, s = swell ? 35 : 8;
+    const nk = Math.max(6, Math.round(n * Math.max(0.2, (S.h * S.h) / tot)));
+    const fp = 1 / Math.max(0.8, S.tp), freqs = jonswapCDF(fp, gamma, nk);
     const a = S.h / 4 * Math.sqrt(2 / nk); // lik energi: m0 = Hs²/16 fordelt på nk komponenter
     for (const f of freqs) {
-      const w = 2 * Math.PI * f;
-      // dybde: løs ω² = g k tanh(k h) (Newton)
-      let k = w * w / G; const h = Math.max(1, depth);
-      for (let it = 0; it < 20; it++) { const th = Math.tanh(k * h); const F = G * k * th - w * w; const dF = G * th + G * k * h * (1 - th * th); k -= F / dF; if (k <= 0) { k = w * w / G; break; } }
-      // retning fra cos^2s-spredning (forkastingsmetode); dirFrom er der bølgene kommer fra
-      let dth = 0; for (let t = 0; t < 40; t++) { const x = (r() - 0.5) * Math.PI * 1.6; if (r() < Math.pow(Math.cos(x / 2), 2 * S.s)) { dth = x; break; } }
+      const w = 2 * Math.PI * f, k = waveNumber(w, Math.max(1, depth));
+      let dth = 0; for (let t = 0; t < 40; t++) { const x = (r() - 0.5) * Math.PI * 1.6; if (r() < Math.pow(Math.cos(x / 2), 2 * s)) { dth = x; break; } }
       const toDir = ((S.dir ?? 0) + 180) * Math.PI / 180 + dth; // gå mot
       out.push({ kx: k * Math.sin(toDir), ky: k * Math.cos(toDir), a, w, ph: r() * Math.PI * 2 });
     }
   }
   return out;
 }
+
+/* Småkrusninger (gravitasjons-kapillærbølger) fra vinden, for lyset på overflaten. Samlet helningsvarians etter
+   Cox & Munk (1954): σ² ≈ 0,003 + 0,00512·U (ren overflate); her med lavere bunn så stille sjø blir blank.
+   Det bølgekomponentene over allerede gir av helning, trekkes fra. Farten følger ω² = g k + (σ/ρ) k³,
+   så krusningene beveger seg like sakte som i virkeligheten (ca. 0,2–2 m/s). */
+export function ripples(ws, windToDir, resolvedVar, n = 24, seed = 3) {
+  const r = rng(seed), out = [];
+  const total = 0.0005 + 0.00512 * Math.max(0, ws), v = Math.max(0.0003, total - resolvedVar);
+  const per = Math.sqrt(2 * v / n); // a·k per komponent
+  const lmin = 0.05, lmax = 3.0;
+  for (let i = 0; i < n; i++) {
+    const lam = lmin * Math.pow(lmax / lmin, (i + r() * 0.8) / n), k = 2 * Math.PI / lam, w = Math.sqrt(G * k + 7.2e-5 * k * k * k);
+    let dth = 0; for (let t = 0; t < 40; t++) { const x = (r() - 0.5) * Math.PI * 1.9; if (r() < Math.cos(x / 2)) { dth = x; break; } }
+    const d = windToDir + dth;
+    out.push({ kx: k * Math.sin(d), ky: k * Math.cos(d), a: per / k, w, ph: r() * Math.PI * 2 });
+  }
+  return { comps: out, total };
+}
+export const slopeVar = (comps) => comps.reduce((a, c) => a + 0.5 * (c.a * Math.hypot(c.kx, c.ky)) ** 2, 0);
