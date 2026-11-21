@@ -199,13 +199,15 @@ const LEVELS = [5, 10, 20, 30, 40, 50, 100, 150, 200, 250, 300, 400, 500];
 const MAJOR = new Set([10, 20, 50, 100, 200, 300, 500]);
 const fmtDepth = (d) => d < 10 ? (Math.round(d * 10) / 10).toString().replace('.', ',') : String(Math.round(d));
 
-async function renderTile(z, x, y, palName) {
+async function renderTile(z, x, y, palName, hd = false) {
+  const k = hd ? 2 : 1, T = SIZE * k; // skarpe fliser på skjermer med høy oppløsning (512 px vist som 256)
   const pal = PAL[palName] || PAL.dag;
   const night = palName === 'natt';
-  const { base, u0, v0, scale, lz, bx, by } = await baseFor(z, x, y);
-  const img = new ImageData(SIZE, SIZE);
+  const { base, u0, v0, scale: sc0, lz, bx, by } = await baseFor(z, x, y);
+  const scale = sc0 / k;
+  const img = new ImageData(T, T);
   if (!base.dep) return createImageBitmap(img);
-  const S = SIZE + 2, D = new Float32Array(S * S), Wt = new Float32Array(S * S), FG = new Uint8Array(S * S);
+  const S = T + 2, D = new Float32Array(S * S), Wt = new Float32Array(S * S), FG = new Uint8Array(S * S);
   for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) {
     const u = u0 + (i - 0.5) * scale, v = v0 + (j - 0.5) * scale;
     D[j * S + i] = bil(base.dep, base.N, base.m, u, v);
@@ -215,8 +217,8 @@ async function renderTile(z, x, y, palName) {
   const pxm = base.res * scale; // meter per piksel i denne flisen
   const ex = 2.2, L = [-0.55, 0.55, 0.63];
   const labelCand = [];
-  for (let j = 0; j < SIZE; j++) for (let i = 0; i < SIZE; i++) {
-    const p = (j + 1) * S + i + 1, o = (j * SIZE + i) * 4;
+  for (let j = 0; j < T; j++) for (let i = 0; i < T; i++) {
+    const p = (j + 1) * S + i + 1, o = (j * T + i) * 4;
     const d = D[p], w = Wt[p];
     if (!(d === d) || w < 0.02) {
       // små holmer og skjær fra sjøkartet (mangler ofte i bakgrunnskartet)
@@ -238,19 +240,19 @@ async function renderTile(z, x, y, palName) {
       if ((d - lv) * (dr - lv) < 0 || (d - lv) * (dd - lv) < 0) {
         const a = lv % 50 === 0 ? 0.45 : 0.28;
         r = r * (1 - a) + 20 * a; g = g * (1 - a) + 34 * a; b = b * (1 - a) + 52 * a;
-        if (z >= 13 && i > 18 && j > 10 && i < SIZE - 18 && j < SIZE - 10 && (z >= 15 || MAJOR.has(lv)) && ((i * 7 + j * 13) % 5 === 0)) labelCand.push([i, j, lv, gx, gy]);
+        if (z >= 13 && i > 18 * k && j > 10 * k && i < T - 18 * k && j < T - 10 * k && (z >= 15 || MAJOR.has(lv)) && ((i * 7 + j * 13) % (5 * k) === 0)) labelCand.push([i / k, j / k, lv, gx, gy]);
         break;
       }
     }
     // anslått dybde (sjøkartet har bare et grovt intervall her): svak skravur
-    if (FG[p] === 1 && ((x * SIZE + i + (y * SIZE + j)) & 7) === 0) { r = r * 0.86 + 255 * 0.14; g = g * 0.86 + 255 * 0.14; b = b * 0.86 + 255 * 0.14; }
+    if (FG[p] === 1 && ((x * T + i + (y * T + j)) % (8 * k)) < k) { r = r * 0.86 + 255 * 0.14; g = g * 0.86 + 255 * 0.14; b = b * 0.86 + 255 * 0.14; }
     img.data[o] = Math.min(255, r); img.data[o + 1] = Math.min(255, g); img.data[o + 2] = Math.min(255, b); img.data[o + 3] = Math.round(255 * Math.min(1, w * 1.6));
   }
   if (z < 13) return createImageBitmap(img);
 
   // Tall på kurvene og loddskudd. Tekst tegnes på et lerret i tråden.
   let cv, ctx;
-  try { cv = new OffscreenCanvas(SIZE, SIZE); ctx = cv.getContext('2d'); ctx.putImageData(img, 0, 0); } catch (e) { return createImageBitmap(img); }
+  try { cv = new OffscreenCanvas(T, T); ctx = cv.getContext('2d'); ctx.putImageData(img, 0, 0); ctx.scale(k, k); } catch (e) { return createImageBitmap(img); }
   const placed = [];
   const free = (u, v, r) => placed.every(([a, b, rr]) => (a - u) ** 2 + (b - v) ** 2 > (r + rr) ** 2);
   const halo = night ? 'rgba(10,20,30,.85)' : 'rgba(255,255,255,.8)', ink = night ? '#cfe3ef' : '#16324a';
@@ -259,7 +261,7 @@ async function renderTile(z, x, y, palName) {
     if (z >= 15 && lz === FZ) {
       const pts = await soundings(bx, by).catch(() => []);
       const sc = 2 ** (z - FZ);
-      const list = pts.map((q) => ({ ...q, u: (q.u - u0) * sc, v: (q.v - v0) * sc }))
+      const list = pts.map((q) => ({ ...q, u: (q.u - u0) * sc, v: (q.v - v0) * sc })) // u0, v0 er i FZ-flisens piksler
         .filter((q) => q.u > 6 && q.v > 6 && q.u < SIZE - 6 && q.v < SIZE - 6)
         .sort((a, b) => (a.kind === 'skjær' ? -1 : 0) - (b.kind === 'skjær' ? -1 : 0) || a.d - b.d); // grunneste først, som i sjøkart
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
@@ -323,10 +325,10 @@ async function depthAt(lon, lat) {
 }
 
 self.onmessage = async (ev) => {
-  const { id, kind, z, x, y, pal, lon, lat } = ev.data;
+  const { id, kind, z, x, y, pal, lon, lat } = ev.data; // hd: skarp flis
   try {
     if (kind === 'depth') { self.postMessage({ id, info: await depthAt(lon, lat) }); return; }
-    const bmp = await renderTile(z, x, y, pal);
+    const bmp = await renderTile(z, x, y, pal, !!ev.data.hd);
     self.postMessage({ id, bmp }, [bmp]);
   } catch (e) {
     self.postMessage({ id, error: String(e.message || e) });

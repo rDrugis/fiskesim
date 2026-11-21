@@ -99,6 +99,12 @@ void main() {
   gl_FragColor = vec4(col, alpha);
 }`;
 
+// reserve når dybdedata mangler: flat bunn på 40 m, ingen land
+function flatGrid(E0, N0) {
+  const W = 81, H = 81, res = 30, n = W * H, z = new Float32Array(n).fill(-40);
+  return { W, H, res, x0: E0 - (W * res) / 2, y1: N0 + (H * res) / 2, z, mask: new Uint8Array(n), lo: new Float32Array(n), hi: new Float32Array(n), hard: new Float32Array(n), sed: new Uint8Array(n), tpi: new Float32Array(n) };
+}
+
 export class SeaView {
   constructor({ lon, lat, onClose }) {
     this.lon = lon; this.lat = lat; this.onClose = onClose;
@@ -128,13 +134,20 @@ export class SeaView {
     const seaP = fetchSea(lat, lon);
     const nearP = prefetchNear(lon, lat);
     const farP = buildTerrainAsync({ cx: E0, cy: N0, size: FAR.size, res: FAR.res, points: false, ngu: false, msl: 0.9 }).catch(() => null);
-    const [S, near] = await Promise.all([seaP, nearP]);
+    let nearErr = null;
+    const [S, near0] = await Promise.all([seaP, nearP.catch((e) => { nearErr = e; return null; })]);
     if (this.dead) return;
+    // uten nært terreng: bruk det grove (50 m) om det kom, ellers bare sjø uten land
+    let near = near0, flat = false;
+    if (!near) { near = await farP; if (this.dead) return; }
+    if (!near) { near = flatGrid(E0, N0); flat = true; }
+    this.terrainNote = flat ? 'Fikk ikke hentet dybdedata – 3D-visningen mangler land og bunn' : !near0 ? 'Bare grovt terreng (50 m) – nærdata kom ikke' : '';
+    if (nearErr) console.warn('3D: nært terreng feilet', nearErr);
     world.setNear(near);
     this.S = S;
     this.initGL();
-    this.addTerrain(near, 2);
-    farP.then((far) => { if (!far || this.dead) return; world.setFar(far); this.addTerrain(far, 1, true); this.update(true); });
+    if (!flat) this.addTerrain(near, near0 ? 2 : 1);
+    if (near0) farP.then((far) => { if (!far || this.dead) return; world.setFar(far); this.addTerrain(far, 1, true); this.update(true); });
     const [bx, by] = findWater(world, 0, 0, 2);
     this.bp = [bx, by];
     this.update(true);
@@ -263,6 +276,7 @@ export class SeaView {
         <dt>Dønning</dt><dd class="num">${sw ? `${n1(sw.h)} m · ${Math.round(sw.tp)} s · fra ${dirName(sw.dir)}` : 'ingen her (skjermet)'}</dd>
         ${st.metHs != null ? `<dt>MET</dt><dd class="num">${n1(st.metHs)} m i nærmeste modellpunkt</dd>` : ''}
       </dl>
+      ${!this.S.ok.wind && !this.S.ok.part ? '<p class="src warn">Fikk ikke hentet vær- og bølgedata nå – tallene over er ikke riktige.</p>' : ''}${this.terrainNote ? `<p class="src warn">${esc(this.terrainNote)}</p>` : ''}
       <p class="src">${esc(st.src.join(' · '))}. Bølgehøyde = signifikant (snitt av den høyeste tredjedelen). Enkeltbølger kan bli nesten dobbelt så høye. Modell, ikke målt.</p>`;
   }
 
