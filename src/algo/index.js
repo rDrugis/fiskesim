@@ -60,7 +60,7 @@ function worker(k) {
   }
   return pool[k % pool.length];
 }
-async function atCompute(tx, ty, m) {
+async function atCompute(tx, ty, m, grid) {
   const { bx } = tileGeom(tx, ty);
   const sw = unmerc(bx[0], bx[1]), ne = unmerc(bx[2], bx[3]), lb = { s: sw[0], w: sw[1], n: ne[0], e: ne[1] };
   const wfs = (svc, typ) => wfsBounds(svc, typ, lb).catch(() => null);
@@ -68,9 +68,11 @@ async function atCompute(tx, ty, m) {
   // bare geometri og egenskapene algoritmen bruker sendes til tråden
   const slim = (fs) => fs && fs.map((f) => ({ geometry: f.geometry, properties: f.properties }));
   const id = ++wid;
-  const res = await new Promise((res, rej) => { wwait.set(id, { res, rej }); worker(tx * 7 + ty * 13).postMessage({ id, tx, ty, m, now: Date.now(), wfs: { akF: slim(akF), akP: slim(akP), pasF: slim(pasF) } }); });
-  return { k: tkey(tx, ty, m), ts: Date.now(), nD: res.nD, nB: res.nB, c: res.c };
+  const res = await new Promise((res, rej) => { wwait.set(id, { res, rej }); worker(tx * 7 + ty * 13).postMessage({ id, tx, ty, m, now: Date.now(), grid, wfs: { akF: slim(akF), akP: slim(akP), pasF: slim(pasF) } }); });
+  return { k: tkey(tx, ty, m), ts: Date.now(), nD: res.nD, nB: res.nB, c: res.c, blocks: res.blocks };
 }
+/* testkrok: poeng per blokk på ca. 175 m for én art i én rute (brukes av live-testen, lagres ikke) */
+export const atGrid = (tx, ty, m, sp) => atCompute(tx, ty, m, sp);
 export async function atGet(tx, ty, m) {
   const k = tkey(tx, ty, m); if (ATC.has(k)) return ATC.get(k); if (ATP.has(k)) return ATP.get(k);
   const pr = (async () => {
