@@ -1,8 +1,7 @@
 // Fiskeplasser fra algoritmen i kartet (av/på), med forklaring per art. Plasser du velger («Behold i kartet»)
 // blir liggende i kartet også når forslagene er slått av, til du fjerner dem.
-import { algoRun, algoWhy, algoLines, ART, R, esc, km } from '../algo/index.js';
+import { algoRun, ART, R, esc, km } from '../algo/index.js';
 
-const plain = (h) => String(h).replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"');
 const starBg = (cols) => cols.length > 1 ? 'conic-gradient(' + cols.map((c, i) => c + ' ' + Math.round(i * 100 / cols.length) + '% ' + Math.round((i + 1) * 100 / cols.length) + '%').join(',') + ')' : cols[0];
 const load = (k, d) => { try { const v = localStorage.getItem('fiskesim.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
 const save = (k, v) => { try { localStorage.setItem('fiskesim.' + k, JSON.stringify(v)); } catch (e) { /* privat modus */ } };
@@ -77,10 +76,11 @@ export class AlgoLayer {
     mk.togglePopup(); this.openPop = pop;
   }
 
+  // kort boble: art, poeng (0–100), dybde og «Behold i kartet» – uten forklaring av algoritmen
   popupHTML(grp) {
     const r = grp[0], on = this.savedAt(r.lat, r.lon);
-    const dep = r.ver ? `<div class="pdep">Kartverket: <b>${String(r.dA).replace('.', ',')}–${String(r.dB).replace('.', ',')} m</b>${r.dB - r.dA > 60 ? ' <span class="pmut">grovt intervall</span>' : ''}</div>` : '';
-    return dep + `<div class="pfoot"><button class="btn sm${on ? '' : ' primary'}" data-a="save">${on ? 'Fjern fra kartet' : '★ Behold i kartet'}</button>${on ? '' : ' <span class="pmut">blir liggende også når forslagene er av</span>'}</div>` + grp.map(algoWhy).join('<hr class="phr">');
+    return `<div class="pal">${grp.map(spLine).join('')}${depthLine(r.fe && r.fe.d0, r.ver ? [r.dA, r.dB] : null)}` +
+      `<div class="pfoot"><button class="btn sm${on ? '' : ' primary'}" data-a="save">${on ? 'Fjern fra kartet' : '★ Behold i kartet'}</button></div></div>`;
   }
   wirePopup(pop, grp) {
     const el = pop.getElement(); if (!el) return;
@@ -102,7 +102,7 @@ export class AlgoLayer {
     save('plasser', this.saved); this.drawSaved(); this.draw(); this.onSaved();
     return n;
   }
-  entry(grp) { const r = grp[0]; return { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), lat: +r.lat.toFixed(5), lon: +r.lon.toFixed(5), t: Date.now(), sp: grp.map((x) => x.sp), why: grp.map((x) => ({ sp: x.sp, l: algoLines(x).map(plain) })) }; }
+  entry(grp) { const r = grp[0]; return { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), lat: +r.lat.toFixed(5), lon: +r.lon.toFixed(5), t: Date.now(), sp: grp.map((x) => x.sp), sc: grp.map((x) => score(x.sc)), fr: grp.map((x) => (x.P && x.P.fredet) || ''), d: r.fe && r.fe.d0 != null ? Math.round(r.fe.d0) : null, iv: r.ver ? [r.dA, r.dB] : null }; }
   remove(id) { this.saved = id === '*' ? [] : this.saved.filter((x) => x.id !== id); save('plasser', this.saved); this.drawSaved(); if (this.on) this.draw(); this.onSaved(); }
   flyTo(id) { const s = this.saved.find((x) => x.id === id); if (s) this.api.map.flyTo({ center: [s.lon, s.lat], zoom: Math.max(this.api.map.getZoom(), 14.5) }); }
   drawSaved() {
@@ -112,9 +112,8 @@ export class AlgoLayer {
       const el = document.createElement('button'); el.className = 'algo-pt saved';
       el.setAttribute('aria-label', 'Lagret fiskeplass: ' + s.sp.map((k) => ART[k]?.no || k).join(', '));
       el.innerHTML = `<span style="background:${starBg(s.sp.map((k) => ART[k]?.col || '#9fb3c2'))}">★</span>`;
-      const html = `<div class="pal"><b>Min plass: ${esc(s.sp.map((k) => ART[k]?.no || k).join(', '))}</b><br><span class="pmut">${new Date(s.t).toLocaleDateString('nb-NO')} · ${s.lat.toFixed(4).replace('.', ',')} N, ${s.lon.toFixed(4).replace('.', ',')} Ø</span>` +
-        s.why.map((w) => `<p style="margin:8px 0 2px"><b>${esc(ART[w.sp]?.no || w.sp)}</b></p><ul class="pul">${w.l.map((x) => `<li${/^Fredet nå/.test(x) ? ' class="fred"' : ''}>${esc(x)}</li>`).join('')}</ul>`).join('') +
-        `<div class="pfoot"><button class="btn sm" data-a="del">Fjern fra kartet</button></div></div>`;
+      const html = `<div class="pal">` + s.sp.map((k, i) => spLine({ sp: k, sc: s.sc ? s.sc[i] / 100 : null, P: { fredet: s.fr ? s.fr[i] : '' } })).join('') + depthLine(s.d, s.iv) +
+        `<div class="pmut">Lagret ${new Date(s.t).toLocaleDateString('nb-NO')}</div><div class="pfoot"><button class="btn sm" data-a="del">Fjern fra kartet</button></div></div>`;
       const pop = new ml.Popup({ maxWidth: '340px', className: 'pop algo', offset: 14 }).setHTML(html);
       pop.on('open', () => pop.getElement()?.querySelector('[data-a="del"]')?.addEventListener('click', () => { pop.remove(); this.remove(s.id); }));
       const mk = new ml.Marker({ element: el }).setLngLat([s.lon, s.lat]).setPopup(pop).addTo(this.api.map);
@@ -122,6 +121,19 @@ export class AlgoLayer {
       this.savedMarkers.push(mk);
     }
   }
+}
+
+const score = (sc) => Math.round(Math.max(0, Math.min(1, sc || 0)) * 100);
+function spLine(r) {
+  const a = ART[r.sp] || {}, fr = r.P && r.P.fredet;
+  return `<div class="psp"><span class="pdot" style="background:${a.col || '#9fb3c2'}"></span><b>${esc(a.no || r.sp)}</b>` +
+    (r.sc != null ? `<span class="pscore" title="Algoritmens poeng">${score(r.sc)}<small>/100</small></span>` : '') + `</div>` +
+    (fr ? `<div class="pfred">${esc(fr)}</div>` : '');
+}
+function depthLine(d, iv) {
+  const ivs = iv ? String(iv[0]).replace('.', ',') + '–' + String(iv[1]).replace('.', ',') + ' m' : '';
+  if (d == null && !iv) return '';
+  return `<div class="pdep">Dybde: <b>${d != null ? 'ca. ' + Math.round(d) + ' m' : ivs}</b>${d != null && iv ? ` <span class="pmut">(sjøkart ${ivs})</span>` : ''}</div>`;
 }
 
 export const SPECIES = () => Object.keys(R.algo).map((k) => ({ k, no: ART[k].no, col: ART[k].col }));
