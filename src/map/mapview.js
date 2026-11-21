@@ -34,12 +34,25 @@ function reliefWorker(k) {
     const n = Math.max(2, Math.min(6, (navigator.hardwareConcurrency || 4) - 1));
     for (let i = 0; i < n; i++) {
       const w = new Worker(new URL('assets/relief.worker.js?v=' + __V__, document.baseURI), { type: 'module' });
-      w.onmessage = (ev) => { const p = waiting.get(ev.data.id); if (!p) return; waiting.delete(ev.data.id); if (ev.data.error) p.rej(new Error(ev.data.error)); else p.res(ev.data.info || ev.data.bmp); };
+      w.onmessage = (ev) => { if (ev.data.ready) { fineReady(); return; } const p = waiting.get(ev.data.id); if (!p) return; waiting.delete(ev.data.id); if (ev.data.error) p.rej(new Error(ev.data.error)); else p.res(ev.data.info || ev.data.bmp); };
       pool.push(w);
     }
   }
   return pool[k % pool.length];
 }
+// Når fine fliser blir ferdige i bakgrunnen, lastes fiskekart-flisene på nytt (samlet, høyst ca. hvert 1,2 s)
+let activeMap = null, refreshT = null, lastRefresh = 0, refreshN = 0;
+function fineReady() {
+  if (refreshT) return;
+  const wait = Math.max(350, 1200 - (Date.now() - lastRefresh));
+  refreshT = setTimeout(() => {
+    refreshT = null; lastRefresh = Date.now();
+    const src = activeMap && activeMap.getSource('relief');
+    if (!src || !src.tiles || !src.setTiles) return;
+    src.setTiles([src.tiles[0].replace(/\/r\d+\//, '/').replace(/^(relief:\/\/\w+)\//, `$1/r${++refreshN}/`)]);
+  }, wait);
+}
+
 // Fra zoom 13 fordeles flisene etter den fine flisa (zoom 13/14) de hører til, så alle trådene jobber samtidig.
 // (Før gikk alt under samme zoom 12-flis til én tråd, og de andre sto stille.) Ferdige fliser deles via IndexedDB.
 function reliefTile(z, x, y, pal) {
@@ -170,7 +183,7 @@ async function loadNames(lat, lon, radius) {
 export async function createMap(container, opts = {}) {
   const maplibregl = await loadMapLibre();
   maplibregl.addProtocol('relief', async (params) => {
-    const m = params.url.match(/^relief:\/\/(\w+)\/(\d+)\/(\d+)\/(\d+)/);
+    const m = params.url.match(/^relief:\/\/(\w+)\/(?:r\d+\/)?(\d+)\/(\d+)\/(\d+)/);
     const data = await reliefTile(+m[2], +m[3], +m[4], m[1]);
     return { data };
   });
@@ -181,6 +194,7 @@ export async function createMap(container, opts = {}) {
     attributionControl: { compact: true }, maxPitch: 0, dragRotate: false, pitchWithRotate: false, hash: false,
     maxBounds: [[REGION.w - 1, REGION.s - 0.5], [REGION.e + 1, REGION.n + 0.5]], minZoom: 5,
   });
+  activeMap = map;
   map.touchZoomRotate.disableRotation();
   map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-left');
   if (!opts.mobile) map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');

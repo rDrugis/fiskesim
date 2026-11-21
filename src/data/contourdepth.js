@@ -26,7 +26,7 @@ function dt1(f, n, d, v, z) {
 
 // Kvadrert avstand (i celler) til nærmeste celle der feat er sann
 export function edt(feat, W, H) {
-  const out = new Float64Array(W * H);
+  const out = new Float32Array(W * H); // kvadrerte avstander i celler er heltall < 2^24: eksakt i 32 bit
   const n = Math.max(W, H);
   const f = new Float64Array(n), d = new Float64Array(n), v = new Int32Array(n), z = new Float64Array(n + 1);
   for (let x = 0; x < W; x++) {
