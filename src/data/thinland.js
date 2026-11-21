@@ -109,7 +109,7 @@ export function openBridges(cls, W, H, res, mask = null, { halfWidth = 11, minLe
  * og skjær ligger sjelden slik.
  * @returns {number} antall celler som ble gjort om til sjø
  */
-export function openPontoons(cls, W, H, res, mark = null) {
+export function openPontoons(cls, W, H, res, mark = null, intervals = null) {
   const N = W * H, a1 = 150 / (res * res), a2 = 3000 / (res * res), maxD = 160 / res;
   const seen = new Uint8Array(N), st = new Int32Array(N), isl = [];
   for (let s = 0; s < N; s++) {
@@ -155,6 +155,23 @@ export function openPontoons(cls, W, H, res, mark = null) {
     for (const o of m) for (const p of o.pix) { cls[p] = -9; if (mark) mark[p] = 1; changed++; }
   }
   if (!changed) return 0;
+  // Brufundament: små, avgrensede felt like ved pongtongrekka som er mye grunnere enn alt rundt (uten kurver imellom),
+  // f.eks. Klauvskallen under Nordhordlandsbrua. De fylles inn ut fra bunnen rundt i stedet for å stå som en brå hylle.
+  if (intervals) {
+    const near = edt(mark, W, H), r2 = (80 / res) ** 2, maxA = 40000 / (res * res), seen2 = new Uint8Array(N), st2 = new Int32Array(N);
+    for (let s0 = 0; s0 < N; s0++) {
+      const c = cls[s0]; if (c < 0 || seen2[s0] || near[s0] > r2) continue;
+      let sp = 0; const pix = []; const nb = new Set(); let edge = false; st2[sp++] = s0; seen2[s0] = 1;
+      while (sp) { const p = st2[--sp]; pix.push(p); const i = p % W, j = (p / W) | 0;
+        if (i === 0 || j === 0 || i === W - 1 || j === H - 1) edge = true;
+        for (const q of [i > 0 ? p - 1 : -1, i < W - 1 ? p + 1 : -1, j > 0 ? p - W : -1, j < H - 1 ? p + W : -1]) { if (q < 0) continue;
+          if (cls[q] === c) { if (!seen2[q]) { seen2[q] = 1; st2[sp++] = q; } } else if (cls[q] !== -9) nb.add(cls[q]); } }
+      if (edge || pix.length > maxA || !nb.size) continue;
+      const hi = intervals[c][2], ok = [...nb].every((k) => k >= 0 && intervals[k][1] >= hi - 1e-6) && [...nb].some((k) => intervals[k][1] >= hi + 100 - 1e-6);
+      if (!ok) continue;
+      for (const p of pix) { cls[p] = -9; changed++; }
+    }
+  }
   // fyll med flertallsklassen fra sjøen rundt, runde for runde
   for (let pass = 0; pass < 40; pass++) {
     const snap = cls.slice(); let left = 0;
