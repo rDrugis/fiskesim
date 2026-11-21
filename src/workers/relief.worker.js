@@ -25,7 +25,7 @@ const coarse = new Map(), fine = new Map();
 
 // Ferdig utregnede fliser lagres i nettleseren (IndexedDB), så kartet kommer fram med en gang neste gang.
 // Endre MODEL_V når dybdemodellen endres, så gamle resultater ikke brukes.
-const MODEL_V = 'm11-' + BLUR_M, IDB_MAX = 700;
+const MODEL_V = 'm12-' + BLUR_M, IDB_MAX = 700;
 let dbP = null;
 function db() {
   if (dbP) return dbP;
@@ -159,7 +159,7 @@ function finishInner(c2, N, res, prior, keep, core) {
   for (let p = 0; p < N * N; p++) if (c2[p] !== -1) water++;
   openBridges(c2, N, N, res);
   // flytebruer: pongtongene er små «holmer» på rekke. Bunnen under regnes som sjø, men pongtongene tegnes fortsatt
-  const pont = new Uint8Array(N * N); openPontoons(c2, N, N, res, pont);
+  const pont = new Uint8Array(N * N); openPontoons(c2, N, N, res, pont, DYB_ALL);
   const dep = water ? contourDepth(c2, N, N, res, DYB_ALL, prior, MARG, Math.max(2, Math.round(22 / res))) : null;
   // glatt flate innenfor intervallene (ca. BLUR_M meter), mot kammer ved taggete kurver i dypet
   if (dep && BLUR_M > 0) diffuseWithin(dep, c2, N, N, DYB_ALL, Math.max(1, Math.min(40, Math.round((BLUR_M / res) ** 2 / 4))), 2);
