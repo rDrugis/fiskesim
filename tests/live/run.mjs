@@ -124,8 +124,9 @@ if (want('raw')) {
 }
 
 // ---------- 2. Skjermbilder ----------
-async function shot(name, url, { mobile = false, wait = 12000, act = null } = {}) {
-  const ctx = await browser.newContext(mobile ? { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true } : { viewport: { width: 1280, height: 800 } });
+async function shot(name, url, { mobile = false, wait = 12000, act = null, style = null, geo = null } = {}) {
+  const ctx = await browser.newContext({ ...(mobile ? { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true } : { viewport: { width: 1280, height: 800 } }), ...(geo ? { geolocation: geo, permissions: ['geolocation'] } : {}) });
+  if (style) await ctx.addInitScript((st) => localStorage.setItem('fiskesim.kart', st), style);
   const pg = await ctx.newPage(); const errs = [];
   pg.on('pageerror', (e) => errs.push(String(e).slice(0, 300)));
   pg.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push('konsoll: ' + m.text().slice(0, 200)); });
@@ -147,10 +148,27 @@ if (want('shots')) {
   await shot('merker-z14', '?sted=60.527,5.24&z=14.2', { wait: 25000, act: async (pg) => pg.evaluate(() => { const s = window.fiskesim.api.map.getSource('sm'); return s ? s._data?.features?.length ?? 'ukjent' : 'ingen kilde'; }) });
   await shot('algo-salhus', '?sted=60.52,5.27&z=13', { wait: 5000, act: async (pg) => { await pg.evaluate(() => window.fiskesim.algo.setOn(true)); await pg.waitForTimeout(120000); return pg.evaluate(() => ({ n: document.querySelectorAll('.algo-pt').length, st: document.querySelector('.status')?.textContent })); } });
   await shot('mobil', '?sted=60.52,5.27&z=13.5', { mobile: true, wait: 20000 });
+  await shot('gps', '?sted=60.5,5.2&z=11', { mobile: true, wait: 8000, geo: { latitude: 60.5185, longitude: 5.2745, accuracy: 8 }, act: async (pg) => { await pg.click('.maplibregl-ctrl-geolocate'); await pg.waitForTimeout(6000); return pg.evaluate(() => ({ info: document.querySelector('.gpsinfo')?.innerText, c: window.fiskesim.api.map.getCenter(), z: window.fiskesim.api.map.getZoom() })); } });
+  for (const st of ['dybdekart', 'sjokart', 'natt']) await shot('stil-' + st, '?sted=60.519,5.265&z=14', { style: st, wait: 15000 });
+  await shot('punkt', '?sted=60.5177,5.2495&z=15', { wait: 15000, act: async (pg) => { await pg.mouse.click(640, 400); await pg.waitForTimeout(4000); return pg.evaluate(() => document.querySelector('.info')?.innerText); } });
   await shot('mobil-lag', '?sted=60.52,5.27&z=13.5', { mobile: true, wait: 8000, act: async (pg) => { await pg.click('[data-a="layers"]'); await pg.waitForTimeout(800); return null; } });
-  await shot('3d-salhus', '?sted=60.5185,5.2745&z=14&vis=3d', { wait: 60000, act: async (pg) => pg.evaluate(() => document.querySelector('.seacard')?.innerText) });
-  await shot('3d-floro', '?sted=61.598,4.94&z=14&vis=3d', { wait: 60000, act: async (pg) => pg.evaluate(() => document.querySelector('.seacard')?.innerText) });
-  await shot('3d-mobil', '?sted=60.5185,5.2745&z=14&vis=3d', { mobile: true, wait: 60000 });
+}
+// 3D: dagslys (skyver tidslinjen fram til ca. kl. 12 norsk tid) og feilsøkingsdata
+const day3d = async (pg) => {
+  await pg.evaluate(() => { const s = document.querySelector('.sea3d input[type=range]'); if (!s) return; const h = new Date().getUTCHours(); s.value = String(Math.min(+s.max, (11 - h + 24) % 24)); s.dispatchEvent(new Event('input')); });
+  await pg.waitForTimeout(3000);
+  return pg.evaluate(() => {
+    const v = window.fiskesim.app.view3d; if (!v) return 'ingen 3D';
+    const w = v.world, g = w.near;
+    const st = (a) => { let mn = Infinity, mx = -Infinity, nan = 0; for (const x of a) { if (x !== x) nan++; else { if (x < mn) mn = x; if (x > mx) mx = x; } } return [mn, mx, nan]; };
+    return { card: document.querySelector('.seacard')?.innerText.slice(0, 260), E0: w.E0, N0: w.N0, near: g && { W: g.W, H: g.H, res: g.res, x0: g.x0, y1: g.y1, z: st(g.z) }, far: !!w.far, bp: v.bp, d00: w.depthAt(0, 0), dbp: v.bp && w.depthAt(v.bp[0], v.bp[1]), fetch: [0, 90, 180, 270].map((d) => Math.round(v.fetchAt(d))), note: v.terrainNote, comps: v.comps?.length };
+  });
+};
+if (want('shots') || want('3d')) {
+  await shot('3d-salhus', '?sted=60.516,5.262&z=14&vis=3d', { wait: 50000, act: day3d });
+  await shot('3d-floro', '?sted=61.58,4.80&z=14&vis=3d', { wait: 50000, act: day3d });
+  await shot('3d-land', '?sted=60.5185,5.2745&z=14&vis=3d', { wait: 50000, act: day3d });
+  await shot('3d-mobil', '?sted=60.516,5.262&z=14&vis=3d', { mobile: true, wait: 50000, act: day3d });
 }
 
 report.finished = new Date().toISOString();
