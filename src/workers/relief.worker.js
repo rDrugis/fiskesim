@@ -25,7 +25,7 @@ const coarse = new Map(), fine = new Map();
 
 // Ferdig utregnede fliser lagres i nettleseren (IndexedDB), så kartet kommer fram med en gang neste gang.
 // Endre MODEL_V når dybdemodellen endres, så gamle resultater ikke brukes.
-const MODEL_V = 'm7-' + BLUR_M, IDB_MAX = 700;
+const MODEL_V = 'm8-' + BLUR_M, IDB_MAX = 700;
 let dbP = null;
 function db() {
   if (dbP) return dbP;
@@ -146,7 +146,7 @@ function isletMask(c2, N) {
 }
 
 // Beregner dybde for en flis. Lagrer bare kjernen pluss en kant (keep) for å spare minne.
-function finish(c2, N, res, prior, keep) {
+function finish(c2, N, res, prior, keep, core = SIZE) {
   let water = 0;
   for (let p = 0; p < N * N; p++) if (c2[p] !== -1) water++;
   openBridges(c2, N, N, res);
@@ -158,7 +158,7 @@ function finish(c2, N, res, prior, keep) {
   // hver kurve, og det ble tegnet som lyse/mørke striper langs kurvene. Dybden og fargene bruker fortsatt dep.
   const sh = dep ? blurNaN(dep, N, 2, 2) : null;
   const isl = water ? isletMask(c2, N) : null;
-  const S = SIZE + 2 * keep, o = MARG - keep;
+  const S = core + 2 * keep, o = MARG - keep;
   const d = new Float32Array(S * S).fill(NaN), hs = sh ? new Float32Array(S * S) : null, wet = new Uint8Array(S * S), flag = new Uint8Array(S * S), cl = new Uint8Array(S * S);
   for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) {
     const q = (j + o) * N + i + o, p = j * S + i;
@@ -213,7 +213,38 @@ function computeCoarse(z, x, y) {
   }), 14);
 }
 
+// Zoom 14 regnes i blokker på 2 × 2 fliser (én zoom 13-rute med zoom 14-oppløsning). Kanten rundt (128 piksler)
+// deles da av fire fliser: ca. 40 % mindre å hente fra Kartverket og å regne ut, og en fjerdedel så mange
+// forespørsler. Resultatet er det samme, fordi kurver lenger unna enn kanten ikke teller uansett.
 function computeFine(z, x, y) {
+  if (z === FZ) return computeBlock(x >> 1, y >> 1);
+  return computeOne(z, x, y);
+}
+function computeBlock(bx, by) {
+  const key = 'b' + FZ + '/' + bx + '/' + by;
+  if (fine.has(key)) return fine.get(key);
+  return lru(fine, key, withLock(key, async () => {
+    const hit = await idbGet(key); if (hit) return hit;
+    const k = FZ - CZ, x = bx << 1, y = by << 1, ppx = x >> k, ppy = y >> k, f = 2 ** k, C = 2 * SIZE;
+    const parentP = computeCoarse(CZ, ppx, ppy).catch(() => null);
+    const [mx0, my0] = tileMerc(FZ, x, y + 1), [, , mx1, my1] = tileMerc(FZ, x + 1, y);
+    const px = (mx1 - mx0) / C, N = C + 2 * MARG;
+    const bb = [mx0 - MARG * px, my0 - MARG * px, mx1 + MARG * px, my1 + MARG * px];
+    const [c2, parent] = await Promise.all([wmsClasses(bb, N), parentP]);
+    const res = px * Math.cos(latOfMercY((my0 + my1) / 2) * Math.PI / 180);
+    let prior = null;
+    if (parent && parent.dep) {
+      prior = new Float32Array(N * N);
+      const sx = (x - (ppx << k)) * SIZE, sy = (y - (ppy << k)) * SIZE;
+      for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) prior[j * N + i] = bil(parent.dep, parent.N, parent.m, (sx + i - MARG + 0.5) / f, (sy + j - MARG + 0.5) / f);
+    }
+    const out = finish(c2, N, res, prior, KEEP_F, C);
+    out.block = 2;
+    await idbPut(key, out);
+    return out;
+  }), 20);
+}
+function computeOne(z, x, y) {
   const key = z + '/' + x + '/' + y;
   if (fine.has(key)) return fine.get(key);
   return lru(fine, key, withLock('f' + key, async () => {
@@ -252,41 +283,31 @@ function bil(a, N, m, u, v) {
   return (A * (1 - tx) + B * tx) * (1 - ty) + (C * (1 - tx) + D * tx) * ty;
 }
 
-// Flisa som brukes for zoom z, og hvor i den vi er.
-// quick (ikke i bruk nå – målt tregere): tegn fra den grove flisa mens den fine regnes i bakgrunnen.
-const fineDone = new Set();
-async function baseFor(z, x, y, quick = false) {
+// Flisa som brukes for zoom z, og hvor i den vi er
+async function baseFor(z, x, y) {
   if (z <= CZ) return { base: await computeCoarse(z, x, y), u0: 0, v0: 0, scale: 1 };
-  const lz = Math.min(z, FZ), k = z - lz, bx = x >> k, by = y >> k, scale = 1 / 2 ** k, fk = lz + '/' + bx + '/' + by;
-  const coarseOf = async () => {
-    const k2 = z - CZ, cx = x >> k2, cy = y >> k2, sc = 1 / 2 ** k2;
-    return { base: await computeCoarse(CZ, cx, cy), u0: (x - (cx << k2)) * SIZE * sc, v0: (y - (cy << k2)) * SIZE * sc, scale: sc, coarse: true };
-  };
-  const fp = computeFine(lz, bx, by).then((b) => { if (!fineDone.has(fk)) { fineDone.add(fk); if (quick) self.postMessage({ ready: fk }); } return b; });
+  const lz = Math.min(z, FZ), k = z - lz, bx = x >> k, by = y >> k, scale = 1 / 2 ** k;
   let base;
-  try {
-    if (quick && !fineDone.has(fk)) {
-      // lagret i nettleseren (IndexedDB) kommer på et øyeblikk; ellers grov flis nå og fin senere
-      const r = await Promise.race([fp, new Promise((res) => setTimeout(() => res(null), 80))]);
-      if (!r) { fp.catch(() => {}); return await coarseOf(); }
-      base = r;
-    } else base = await fp;
-  } catch (e) {
+  try { base = await computeFine(lz, bx, by); }
+  catch (e) {
     console.warn('fiskekart: fin flis feilet', z, x, y, e && e.message);
     // fin flis feilet: bruk den grove (bedre enn hull i kartet)
-    return await coarseOf();
+    const k2 = z - CZ, cx = x >> k2, cy = y >> k2, sc = 1 / 2 ** k2;
+    return { base: await computeCoarse(CZ, cx, cy), u0: (x - (cx << k2)) * SIZE * sc, v0: (y - (cy << k2)) * SIZE * sc, scale: sc };
   }
-  return { base, u0: (x - (bx << k)) * SIZE * scale, v0: (y - (by << k)) * SIZE * scale, scale, lz, bx, by };
+  // blokk (2 × 2 fliser): posisjonen regnes fra blokkens hjørne
+  const ox = base.block ? (bx & 1) * SIZE : 0, oy = base.block ? (by & 1) * SIZE : 0;
+  return { base, u0: ox + (x - (bx << k)) * SIZE * scale, v0: oy + (y - (by << k)) * SIZE * scale, scale, lz, bx, by };
 }
 
 const LEVELS = [5, 10, 20, 30, 40, 50, 100, 150, 200, 250, 300, 400, 500];
 const MAJOR = new Set([10, 20, 50, 100, 200, 300, 500]);
 
-async function renderTile(z, x, y, palName, hd = false, quick = false) {
+async function renderTile(z, x, y, palName, hd = false) {
   const k = hd ? 2 : 1, T = SIZE * k; // skarpe fliser på skjermer med høy oppløsning (512 px vist som 256)
   const pal = PAL[palName] || PAL.dag;
   const night = palName === 'natt';
-  const { base, u0, v0, scale: sc0 } = await baseFor(z, x, y, quick);
+  const { base, u0, v0, scale: sc0 } = await baseFor(z, x, y);
   const scale = sc0 / k;
   const img = new ImageData(T, T);
   if (!base.dep) return createImageBitmap(img);
@@ -382,7 +403,7 @@ async function depthAt(lon, lat, coarseOnly = false) {
   const Z = coarseOnly ? CZ : FZ, n = 2 ** Z, fx = (mercX(lon) + ORIG) / (2 * ORIG) * n, fy = (ORIG - mercY(lat)) / (2 * ORIG) * n;
   const x = Math.floor(fx), y = Math.floor(fy);
   const b = coarseOnly ? await computeCoarse(CZ, x, y) : await computeFine(FZ, x, y);
-  const u = (fx - x) * SIZE, v = (fy - y) * SIZE;
+  const u = (fx - x) * SIZE + (b.block ? (x & 1) * SIZE : 0), v = (fy - y) * SIZE + (b.block ? (y & 1) * SIZE : 0);
   const w = bilU8(b.wet, b.N, b.m, u, v);
   if (!b.dep || w < 0.5) return { land: true };
   const d = bil(b.dep, b.N, b.m, u, v);
@@ -396,7 +417,7 @@ self.onmessage = async (ev) => {
     if (kind === 'depth') { self.postMessage({ id, info: await depthAt(lon, lat) }); return; }
     // mange punkter på én gang (dybdeprofil); grovt nivå for lange streker
     if (kind === 'depths') { const out = await Promise.all(ev.data.pts.map(([lo, la]) => depthAt(lo, la, !!ev.data.coarse).catch(() => null))); self.postMessage({ id, info: out }); return; }
-    const bmp = await renderTile(z, x, y, pal, !!ev.data.hd, !!ev.data.quick);
+    const bmp = await renderTile(z, x, y, pal, !!ev.data.hd);
     self.postMessage({ id, bmp }, [bmp]);
   } catch (e) {
     self.postMessage({ id, error: String(e.message || e) });
