@@ -1,0 +1,1600 @@
+{
+ "started": "2026-11-21T11:16:57.127Z",
+ "algo": [
+  {
+   "area": "salhus",
+   "sel": [],
+   "fgNote": "Algoritmeforslag: 26 steder (2 fredet eller forbudt – vises for læring)",
+   "fsNote": "28 fiskeplasser (2 fredet eller forbudt nå – vises for læring)",
+   "nFg": 26,
+   "nFs": 26,
+   "tilesSame": 886,
+   "tilesDiff": 0,
+   "onlyFg": [],
+   "onlyFs": [],
+   "blakjeft": 2,
+   "diffs": [],
+   "tiles": [
+    {
+     "k": "a12|95|1420|10",
+     "same": 0,
+     "diff": 0,
+     "nD": [
+      0,
+      0
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|95|1419|10",
+     "same": 72,
+     "diff": 0,
+     "nD": [
+      213200,
+      213200
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|99|1418|10",
+     "same": 35,
+     "diff": 0,
+     "nD": [
+      30584,
+      30584
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|95|1418|10",
+     "same": 49,
+     "diff": 0,
+     "nD": [
+      39701,
+      39701
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|99|1420|10",
+     "same": 78,
+     "diff": 0,
+     "nD": [
+      215390,
+      215390
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|99|1419|10",
+     "same": 71,
+     "diff": 0,
+     "nD": [
+      180922,
+      180922
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|96|1420|10",
+     "same": 56,
+     "diff": 0,
+     "nD": [
+      34514,
+      34514
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|96|1418|10",
+     "same": 83,
+     "diff": 0,
+     "nD": [
+      186449,
+      186449
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|98|1420|10",
+     "same": 84,
+     "diff": 0,
+     "nD": [
+      202980,
+      202980
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|96|1419|10",
+     "same": 41,
+     "diff": 0,
+     "nD": [
+      33651,
+      33651
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|98|1418|10",
+     "same": 0,
+     "diff": 0,
+     "nD": [
+      0,
+      0
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|97|1420|10",
+     "same": 97,
+     "diff": 0,
+     "nD": [
+      159117,
+      159117
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|98|1419|10",
+     "same": 65,
+     "diff": 0,
+     "nD": [
+      180475,
+      180475
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|97|1418|10",
+     "same": 76,
+     "diff": 0,
+     "nD": [
+      188003,
+      188003
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|97|1419|10",
+     "same": 79,
+     "diff": 0,
+     "nD": [
+      187708,
+      187708
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    }
+   ],
+   "errs": []
+  },
+  {
+   "area": "tysnes",
+   "sel": [],
+   "fgNote": "Algoritmeforslag: 25 steder (1 fredet eller forbudt – vises for læring) · 1 tatt bort fordi dybden hos Kartverket ikke passet",
+   "fsNote": "26 fiskeplasser (1 fredet eller forbudt nå – vises for læring) · 1 tatt bort fordi dybden hos Kartverket ikke passet",
+   "nFg": 25,
+   "nFs": 25,
+   "tilesSame": 257,
+   "tilesDiff": 0,
+   "onlyFg": [],
+   "onlyFs": [],
+   "blakjeft": 1,
+   "diffs": [],
+   "tiles": [
+    {
+     "k": "a12|104|1400|10",
+     "same": 0,
+     "diff": 0,
+     "nD": [
+      0,
+      0
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|104|1399|10",
+     "same": 0,
+     "diff": 0,
+     "nD": [
+      0,
+      0
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|101|1400|10",
+     "same": 100,
+     "diff": 0,
+     "nD": [
+      155169,
+      155169
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|104|1398|10",
+     "same": 54,
+     "diff": 0,
+     "nD": [
+      59167,
+      59167
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|101|1398|10",
+     "same": 28,
+     "diff": 0,
+     "nD": [
+      38180,
+      38180
+     ],
+     "nB": [
+      38077,
+      38077
+     ]
+    },
+    {
+     "k": "a12|101|1399|10",
+     "same": 75,
+     "diff": 0,
+     "nD": [
+      64163,
+      64163
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|103|1400|10",
+     "same": 0,
+     "diff": 0,
+     "nD": [
+      0,
+      0
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|103|1398|10",
+     "same": 0,
+     "diff": 0,
+     "nD": [
+      0,
+      0
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|102|1400|10",
+     "same": 0,
+     "diff": 0,
+     "nD": [
+      0,
+      0
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|102|1399|10",
+     "same": 0,
+     "diff": 0,
+     "nD": [
+      0,
+      0
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|102|1398|10",
+     "same": 0,
+     "diff": 0,
+     "nD": [
+      0,
+      0
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|103|1399|10",
+     "same": 0,
+     "diff": 0,
+     "nD": [
+      0,
+      0
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    }
+   ],
+   "errs": []
+  },
+  {
+   "area": "floro",
+   "sel": [],
+   "fgNote": "Algoritmeforslag: 26 steder (2 fredet eller forbudt – vises for læring)",
+   "fsNote": "28 fiskeplasser (2 fredet eller forbudt nå – vises for læring)",
+   "nFg": 26,
+   "nFs": 26,
+   "tilesSame": 1412,
+   "tilesDiff": 0,
+   "onlyFg": [],
+   "onlyFs": [],
+   "blakjeft": 2,
+   "diffs": [],
+   "tiles": [
+    {
+     "k": "a12|95|1459|10",
+     "same": 100,
+     "diff": 0,
+     "nD": [
+      217326,
+      217326
+     ],
+     "nB": [
+      213402,
+      213402
+     ]
+    },
+    {
+     "k": "a12|95|1461|10",
+     "same": 95,
+     "diff": 0,
+     "nD": [
+      235038,
+      235038
+     ],
+     "nB": [
+      229193,
+      229193
+     ]
+    },
+    {
+     "k": "a12|91|1461|10",
+     "same": 104,
+     "diff": 0,
+     "nD": [
+      338823,
+      338823
+     ],
+     "nB": [
+      331597,
+      331597
+     ]
+    },
+    {
+     "k": "a12|91|1459|10",
+     "same": 93,
+     "diff": 0,
+     "nD": [
+      308520,
+      308520
+     ],
+     "nB": [
+      303766,
+      303766
+     ]
+    },
+    {
+     "k": "a12|95|1460|10",
+     "same": 89,
+     "diff": 0,
+     "nD": [
+      285872,
+      285872
+     ],
+     "nB": [
+      280592,
+      280592
+     ]
+    },
+    {
+     "k": "a12|91|1460|10",
+     "same": 103,
+     "diff": 0,
+     "nD": [
+      267949,
+      267949
+     ],
+     "nB": [
+      261029,
+      261029
+     ]
+    },
+    {
+     "k": "a12|94|1459|10",
+     "same": 80,
+     "diff": 0,
+     "nD": [
+      76288,
+      76288
+     ],
+     "nB": [
+      74613,
+      74613
+     ]
+    },
+    {
+     "k": "a12|92|1459|10",
+     "same": 89,
+     "diff": 0,
+     "nD": [
+      318014,
+      318014
+     ],
+     "nB": [
+      313649,
+      313649
+     ]
+    },
+    {
+     "k": "a12|94|1461|10",
+     "same": 101,
+     "diff": 0,
+     "nD": [
+      180605,
+      180605
+     ],
+     "nB": [
+      171918,
+      171918
+     ]
+    },
+    {
+     "k": "a12|92|1461|10",
+     "same": 104,
+     "diff": 0,
+     "nD": [
+      297317,
+      297317
+     ],
+     "nB": [
+      289122,
+      289122
+     ]
+    },
+    {
+     "k": "a12|93|1459|10",
+     "same": 91,
+     "diff": 0,
+     "nD": [
+      293080,
+      293080
+     ],
+     "nB": [
+      289574,
+      289574
+     ]
+    },
+    {
+     "k": "a12|94|1460|10",
+     "same": 83,
+     "diff": 0,
+     "nD": [
+      223922,
+      223922
+     ],
+     "nB": [
+      220319,
+      220319
+     ]
+    },
+    {
+     "k": "a12|93|1461|10",
+     "same": 104,
+     "diff": 0,
+     "nD": [
+      274592,
+      274592
+     ],
+     "nB": [
+      266331,
+      266331
+     ]
+    },
+    {
+     "k": "a12|92|1460|10",
+     "same": 92,
+     "diff": 0,
+     "nD": [
+      226384,
+      226384
+     ],
+     "nB": [
+      218586,
+      218586
+     ]
+    },
+    {
+     "k": "a12|93|1460|10",
+     "same": 84,
+     "diff": 0,
+     "nD": [
+      117211,
+      117211
+     ],
+     "nB": [
+      111525,
+      111525
+     ]
+    }
+   ],
+   "errs": []
+  },
+  {
+   "area": "alesund",
+   "sel": [],
+   "fgNote": "Algoritmeforslag: 26 steder (2 fredet eller forbudt – vises for læring)",
+   "fsNote": "28 fiskeplasser (2 fredet eller forbudt nå – vises for læring)",
+   "nFg": 26,
+   "nFs": 26,
+   "tilesSame": 990,
+   "tilesDiff": 0,
+   "onlyFg": [],
+   "onlyFs": [],
+   "blakjeft": 2,
+   "diffs": [],
+   "tiles": [
+    {
+     "k": "a12|111|1496|10",
+     "same": 21,
+     "diff": 0,
+     "nD": [
+      182840,
+      182840
+     ],
+     "nB": [
+      182500,
+      182500
+     ]
+    },
+    {
+     "k": "a12|115|1496|10",
+     "same": 79,
+     "diff": 0,
+     "nD": [
+      179615,
+      179615
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|115|1494|10",
+     "same": 102,
+     "diff": 0,
+     "nD": [
+      211275,
+      211275
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|111|1494|10",
+     "same": 69,
+     "diff": 0,
+     "nD": [
+      349687,
+      349687
+     ],
+     "nB": [
+      143832,
+      143832
+     ]
+    },
+    {
+     "k": "a12|111|1495|10",
+     "same": 31,
+     "diff": 0,
+     "nD": [
+      68532,
+      68532
+     ],
+     "nB": [
+      68053,
+      68053
+     ]
+    },
+    {
+     "k": "a12|114|1496|10",
+     "same": 83,
+     "diff": 0,
+     "nD": [
+      269354,
+      269354
+     ],
+     "nB": [
+      4407,
+      4407
+     ]
+    },
+    {
+     "k": "a12|115|1495|10",
+     "same": 76,
+     "diff": 0,
+     "nD": [
+      174651,
+      174651
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|112|1494|10",
+     "same": 69,
+     "diff": 0,
+     "nD": [
+      348239,
+      348239
+     ],
+     "nB": [
+      66612,
+      66612
+     ]
+    },
+    {
+     "k": "a12|112|1496|10",
+     "same": 59,
+     "diff": 0,
+     "nD": [
+      199138,
+      199138
+     ],
+     "nB": [
+      197965,
+      197965
+     ]
+    },
+    {
+     "k": "a12|113|1496|10",
+     "same": 64,
+     "diff": 0,
+     "nD": [
+      153625,
+      153625
+     ],
+     "nB": [
+      147701,
+      147701
+     ]
+    },
+    {
+     "k": "a12|114|1494|10",
+     "same": 89,
+     "diff": 0,
+     "nD": [
+      257369,
+      257369
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|112|1495|10",
+     "same": 69,
+     "diff": 0,
+     "nD": [
+      312270,
+      312270
+     ],
+     "nB": [
+      219876,
+      219876
+     ]
+    },
+    {
+     "k": "a12|114|1495|10",
+     "same": 53,
+     "diff": 0,
+     "nD": [
+      227014,
+      227014
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|113|1494|10",
+     "same": 54,
+     "diff": 0,
+     "nD": [
+      243650,
+      243650
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|113|1495|10",
+     "same": 72,
+     "diff": 0,
+     "nD": [
+      276368,
+      276368
+     ],
+     "nB": [
+      60248,
+      60248
+     ]
+    }
+   ],
+   "errs": []
+  },
+  {
+   "area": "hvaler",
+   "sel": [],
+   "fgNote": "Algoritmeforslag: 16 steder (2 fredet eller forbudt – vises for læring)",
+   "fsNote": "16 fiskeplasser (2 fredet eller forbudt nå – vises for læring)",
+   "nFg": 16,
+   "nFs": 16,
+   "tilesSame": 600,
+   "tilesDiff": 0,
+   "onlyFg": [],
+   "onlyFs": [],
+   "blakjeft": 0,
+   "diffs": [],
+   "tiles": [
+    {
+     "k": "a12|201|1364|10",
+     "same": 92,
+     "diff": 0,
+     "nD": [
+      336734,
+      336734
+     ],
+     "nB": [
+      270116,
+      270116
+     ]
+    },
+    {
+     "k": "a12|201|1365|10",
+     "same": 48,
+     "diff": 0,
+     "nD": [
+      238023,
+      238023
+     ],
+     "nB": [
+      730,
+      730
+     ]
+    },
+    {
+     "k": "a12|201|1366|10",
+     "same": 20,
+     "diff": 0,
+     "nD": [
+      36237,
+      36237
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|202|1364|10",
+     "same": 70,
+     "diff": 0,
+     "nD": [
+      322548,
+      322548
+     ],
+     "nB": [
+      123308,
+      123308
+     ]
+    },
+    {
+     "k": "a12|205|1364|10",
+     "same": 24,
+     "diff": 0,
+     "nD": [
+      144369,
+      144369
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|205|1366|10",
+     "same": 42,
+     "diff": 0,
+     "nD": [
+      189263,
+      189263
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|205|1365|10",
+     "same": 29,
+     "diff": 0,
+     "nD": [
+      129635,
+      129635
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|202|1366|10",
+     "same": 24,
+     "diff": 0,
+     "nD": [
+      20150,
+      20150
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|204|1364|10",
+     "same": 27,
+     "diff": 0,
+     "nD": [
+      62061,
+      62061
+     ],
+     "nB": [
+      35955,
+      35955
+     ]
+    },
+    {
+     "k": "a12|203|1364|10",
+     "same": 62,
+     "diff": 0,
+     "nD": [
+      261955,
+      261955
+     ],
+     "nB": [
+      248631,
+      248631
+     ]
+    },
+    {
+     "k": "a12|204|1366|10",
+     "same": 24,
+     "diff": 0,
+     "nD": [
+      70583,
+      70583
+     ],
+     "nB": [
+      76,
+      76
+     ]
+    },
+    {
+     "k": "a12|202|1365|10",
+     "same": 21,
+     "diff": 0,
+     "nD": [
+      111405,
+      111405
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|203|1366|10",
+     "same": 54,
+     "diff": 0,
+     "nD": [
+      195648,
+      195648
+     ],
+     "nB": [
+      17468,
+      17468
+     ]
+    },
+    {
+     "k": "a12|204|1365|10",
+     "same": 10,
+     "diff": 0,
+     "nD": [
+      6892,
+      6892
+     ],
+     "nB": [
+      5823,
+      5823
+     ]
+    },
+    {
+     "k": "a12|203|1365|10",
+     "same": 53,
+     "diff": 0,
+     "nD": [
+      149042,
+      149042
+     ],
+     "nB": [
+      138261,
+      138261
+     ]
+    }
+   ],
+   "errs": []
+  },
+  {
+   "area": "salhus",
+   "sel": [
+    "lange",
+    "brosme"
+   ],
+   "fgNote": "Algoritmeforslag: 12 steder",
+   "fsNote": "12 fiskeplasser",
+   "nFg": 12,
+   "nFs": 12,
+   "tilesSame": 886,
+   "tilesDiff": 0,
+   "onlyFg": [],
+   "onlyFs": [],
+   "blakjeft": 0,
+   "diffs": [],
+   "tiles": [
+    {
+     "k": "a12|95|1420|10",
+     "same": 0,
+     "diff": 0,
+     "nD": [
+      0,
+      0
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|95|1418|10",
+     "same": 49,
+     "diff": 0,
+     "nD": [
+      39701,
+      39701
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|95|1419|10",
+     "same": 72,
+     "diff": 0,
+     "nD": [
+      213200,
+      213200
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|99|1420|10",
+     "same": 78,
+     "diff": 0,
+     "nD": [
+      215390,
+      215390
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|99|1419|10",
+     "same": 71,
+     "diff": 0,
+     "nD": [
+      180922,
+      180922
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|99|1418|10",
+     "same": 35,
+     "diff": 0,
+     "nD": [
+      30584,
+      30584
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|96|1420|10",
+     "same": 56,
+     "diff": 0,
+     "nD": [
+      34514,
+      34514
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|98|1420|10",
+     "same": 84,
+     "diff": 0,
+     "nD": [
+      202980,
+      202980
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|96|1419|10",
+     "same": 41,
+     "diff": 0,
+     "nD": [
+      33651,
+      33651
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|96|1418|10",
+     "same": 83,
+     "diff": 0,
+     "nD": [
+      186449,
+      186449
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|97|1420|10",
+     "same": 97,
+     "diff": 0,
+     "nD": [
+      159117,
+      159117
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|98|1418|10",
+     "same": 0,
+     "diff": 0,
+     "nD": [
+      0,
+      0
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|97|1419|10",
+     "same": 79,
+     "diff": 0,
+     "nD": [
+      187708,
+      187708
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|97|1418|10",
+     "same": 76,
+     "diff": 0,
+     "nD": [
+      188003,
+      188003
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "a12|98|1419|10",
+     "same": 65,
+     "diff": 0,
+     "nD": [
+      180475,
+      180475
+     ],
+     "nB": [
+      0,
+      0
+     ]
+    }
+   ],
+   "errs": []
+  }
+ ],
+ "shots": [
+  {
+   "name": "bro-z13",
+   "url": "?sted=60.519,5.272&z=13.3",
+   "errs": [],
+   "extra": null
+  },
+  {
+   "name": "bro-z15",
+   "url": "?sted=60.5185,5.2745&z=15.2",
+   "errs": [],
+   "extra": [
+    {
+     "land": true
+    },
+    {
+     "depth": 482.8984539132109,
+     "lo": 450,
+     "hi": 500,
+     "est": false
+    },
+    {
+     "depth": 45.00827003236655,
+     "lo": 0.5,
+     "hi": 100,
+     "est": true
+    }
+   ]
+  },
+  {
+   "name": "frekhaug-grov",
+   "url": "?sted=60.5177,5.247&z=14.5",
+   "errs": [],
+   "extra": null
+  },
+  {
+   "name": "merker-z14",
+   "url": "?sted=60.527,5.24&z=14.2",
+   "errs": [],
+   "extra": "ukjent"
+  },
+  {
+   "name": "algo-salhus",
+   "url": "?sted=60.52,5.27&z=13",
+   "errs": [],
+   "extra": {
+    "n": 14,
+    "st": "25 fiskeplasser (2 fredet eller forbudt nå – vises for læring)"
+   }
+  },
+  {
+   "name": "mobil",
+   "url": "?sted=60.52,5.27&z=13.5",
+   "errs": [],
+   "extra": null
+  },
+  {
+   "name": "profil",
+   "url": "?sted=60.5175,5.26&z=14.3",
+   "errs": [],
+   "extra": "Dybdeprofil\nA → B · 1,09 km · 102° ØSØ\nNy strek\nFjern\n0 m\n200 m\n400 m\n600 m\n0 m\n250 m\n500 m\n750 m\n1 000 m\nA\nB\n\n276 m fra A: 480 m (sjøkart 450–500 m)\n\nGrunnest 125 m (0 m fra A)\nDypest 496 m (150 m fra A)\nBrattest: 73° (125 m → 459 m på 99 m), 50 m fra A\n\nKurven: anslått dybde mellom sjøkartets dybdekurver, lest i 364 punkter. Lyst bånd: intervallet i sjøkartet. Stiplet: bare grovt intervall i sjøkartet. Kilde: Kartverket."
+  },
+  {
+   "name": "profil-mobil",
+   "url": "?sted=60.5175,5.26&z=14",
+   "errs": [],
+   "extra": "Dybdeprofil\nA → B · 1,09 km · 102° ØSØ\nNy strek\nFjern\n0 m\n200 m\n400 m\n600 m\n0 m\n250 m\n500 m\n750 m\n1 000 m\nA\nB\n\n276 m fra A: 480 m (sjøkart 450–500 m)\n\nGrunnest 126 m (0 m fra A)\nDypest 497 m (153 m fra A)\nBrattest: 73° (126 m → 459 m på 99 m), 50 m fra A\n\nKurven: anslått dybde mellom sjøkartets dybdekurver, lest i 364 punkter. Lyst bånd: intervallet i sjøkartet. Stiplet: bare grovt intervall i sjøkartet. Kilde: Kartverket."
+  },
+  {
+   "name": "mine-plasser",
+   "url": "?sted=60.52,5.27&z=13",
+   "errs": [],
+   "extra": {
+    "n1": {
+     "kept": 14,
+     "pts": 14
+    },
+    "n2": {
+     "saved": 14,
+     "other": 0
+    },
+    "n3": {
+     "saved": 13,
+     "ls": 13
+    }
+   }
+  },
+  {
+   "name": "gps",
+   "url": "?sted=60.5,5.2&z=11",
+   "errs": [],
+   "extra": {
+    "info": "– ± 8 m",
+    "c": {
+     "lng": 5.274499999999989,
+     "lat": 60.51850000007971
+    },
+    "z": 14.5
+   }
+  },
+  {
+   "name": "stil-dybdekart",
+   "url": "?sted=60.519,5.265&z=14",
+   "errs": [],
+   "extra": null
+  },
+  {
+   "name": "stil-sjokart",
+   "url": "?sted=60.519,5.265&z=14",
+   "errs": [],
+   "extra": null
+  },
+  {
+   "name": "stil-natt",
+   "url": "?sted=60.519,5.265&z=14",
+   "errs": [],
+   "extra": null
+  },
+  {
+   "name": "punkt",
+   "url": "?sted=60.5177,5.2495&z=15",
+   "errs": [],
+   "extra": "60°31,062′N 005°14,970′Ø\n✕\nca. 45 m\n\nSjøkartet sier bare 0,5–100 m her – dybden er anslått\n\nBølger i 3D her"
+  },
+  {
+   "name": "mobil-lag",
+   "url": "?sted=60.52,5.27&z=13.5",
+   "errs": [],
+   "extra": null
+  },
+  {
+   "name": "3d-salhus",
+   "url": "?sted=60.516,5.262&z=14&vis=3d",
+   "errs": [],
+   "extra": {
+    "card": "0 cmbølgehøyde (MET)\nVind\n1 m/s fra Ø\nBølger\ningen i varselet\n\nSignifikant bølgehøyde (snitt av den høyeste tredjedelen). Enkeltbølger kan bli nesten dobbelt så høye. Varsel, ikke måling.\n\nhøyde: MET (nærmeste modellpunkt) · periode, retning og fordeling vindsjø/dønning: Open-Meteo · vind: MET. Bølgelengden er regnet ut fra perioden og dybden her.",
+    "sys": [],
+    "metHs": 0,
+    "from": "MET",
+    "oceanKeys": [
+     "sea_surface_wave_from_direction",
+     "sea_surface_wave_height",
+     "sea_water_speed",
+     "sea_water_temperature",
+     "sea_water_to_direction"
+    ],
+    "omKm": 3.283067266153787,
+    "nRip": 24,
+    "nComp": 0,
+    "foamT": 99,
+    "E0": -33347,
+    "N0": 6748475,
+    "near": {
+     "W": 600,
+     "H": 600,
+     "res": 4,
+     "x0": -34547,
+     "y1": 6749675,
+     "z": [
+      -549.58056640625,
+      780.3731689453125,
+      0
+     ]
+    },
+    "far": true,
+    "bp": [
+     0,
+     0
+    ],
+    "d00": 482.924787902832,
+    "dbp": 482.924787902832,
+    "fetch": [
+     1925,
+     900,
+     1225,
+     750
+    ],
+    "note": "",
+    "comps": 0
+   }
+  },
+  {
+   "name": "3d-floro",
+   "url": "?sted=61.58,4.80&z=14&vis=3d",
+   "errs": [],
+   "extra": {
+    "card": "1,6 mbølgehøyde (MET)\nVind\n5 m/s fra NNØ\nVindsjø\n0,5 m · 2,2 s · 7,8 m lange · fra N\nDønning\n1,4 m · 10,2 s · 161 m lange · fra NNV\nDønning 2\n0,6 m · 6,2 s · 60 m lange · fra VNV\n\nSignifikant bølgehøyde (snitt av den høyeste tredjedelen). Enkeltbølger kan bli nesten dobbelt så høye. Varsel, ikke måling.\n\nhøyde: MET (nærmeste modellpunkt) · periode, retning og fordeling vindsjø/dønning: Open-Meteo · vind: MET. Bølgelengden er regnet ut fra perioden og dybden her.",
+    "sys": [
+     {
+      "kind": "vindsjø",
+      "h": 0.5401585811576605,
+      "tp": 2.242108875,
+      "dir": 5.152078888888866,
+      "L": 7.848786840297293
+     },
+     {
+      "kind": "dønning",
+      "h": 1.414204808668096,
+      "tp": 10.15,
+      "dir": 334.5380197222222,
+      "L": 160.85001607436234
+     },
+     {
+      "kind": "dønning 2",
+      "h": 0.6467004043614187,
+      "tp": 6.196198027777778,
+      "dir": 286.5380197222222,
+      "L": 59.943171541369644
+     }
+    ],
+    "metHs": 1.646198027777778,
+    "from": "MET",
+    "oceanKeys": [
+     "sea_surface_wave_from_direction",
+     "sea_surface_wave_height",
+     "sea_water_speed",
+     "sea_water_temperature",
+     "sea_water_to_direction"
+    ],
+    "omKm": 4.285520635497421,
+    "nRip": 24,
+    "nComp": 59,
+    "foamT": 3.2036987085919093,
+    "E0": -40014,
+    "N0": 6869831,
+    "near": {
+     "W": 600,
+     "H": 600,
+     "res": 4,
+     "x0": -41214,
+     "y1": 6871031,
+     "z": [
+      -226.4207763671875,
+      180.41653442382812,
+      0
+     ]
+    },
+    "far": true,
+    "bp": [
+     0,
+     0
+    ],
+    "d00": 202.73312225341797,
+    "dbp": 202.73312225341797,
+    "fetch": [
+     650,
+     6540,
+     1150,
+     40000
+    ],
+    "note": "",
+    "comps": 59
+   }
+  },
+  {
+   "name": "3d-land",
+   "url": "?sted=60.5185,5.2745&z=14&vis=3d",
+   "errs": [],
+   "extra": {
+    "card": "0 cmbølgehøyde (MET)\nVind\n1 m/s fra Ø\nBølger\ningen i varselet\n\nSignifikant bølgehøyde (snitt av den høyeste tredjedelen). Enkeltbølger kan bli nesten dobbelt så høye. Varsel, ikke måling.\n\nhøyde: MET (nærmeste modellpunkt) · periode, retning og fordeling vindsjø/dønning: Open-Meteo · vind: MET. Bølgelengden er regnet ut fra perioden og dybden her.",
+    "sys": [],
+    "metHs": 0,
+    "from": "MET",
+    "oceanKeys": [
+     "sea_surface_wave_from_direction",
+     "sea_surface_wave_height",
+     "sea_water_speed",
+     "sea_water_temperature",
+     "sea_water_to_direction"
+    ],
+    "omKm": 2.7416681871579494,
+    "nRip": 24,
+    "nComp": 0,
+    "foamT": 99,
+    "E0": -32625,
+    "N0": 6748650,
+    "near": {
+     "W": 600,
+     "H": 600,
+     "res": 4,
+     "x0": -33825,
+     "y1": 6749850,
+     "z": [
+      -549.5503540039062,
+      300.6439514160156,
+      0
+     ]
+    },
+    "far": true,
+    "bp": [
+     -48,
+     5.878304635907295e-15
+    ],
+    "d00": -24.10215482711792,
+    "dbp": 7.145343923568726,
+    "fetch": [
+     20,
+     20,
+     875,
+     1450
+    ],
+    "note": "",
+    "comps": 0
+   }
+  },
+  {
+   "name": "3d-mobil",
+   "url": "?sted=60.516,5.262&z=14&vis=3d",
+   "errs": [],
+   "extra": {
+    "card": "0 cmbølgehøyde (MET)\nVind\n1 m/s fra Ø\nBølger\ningen i varselet\n\nSignifikant bølgehøyde (snitt av den høyeste tredjedelen). Enkeltbølger kan bli nesten dobbelt så høye. Varsel, ikke måling.",
+    "sys": [],
+    "metHs": 0,
+    "from": "MET",
+    "oceanKeys": [
+     "sea_surface_wave_from_direction",
+     "sea_surface_wave_height",
+     "sea_water_speed",
+     "sea_water_temperature",
+     "sea_water_to_direction"
+    ],
+    "omKm": 3.283067266153787,
+    "nRip": 12,
+    "nComp": 0,
+    "foamT": 99,
+    "E0": -33347,
+    "N0": 6748475,
+    "near": {
+     "W": 600,
+     "H": 600,
+     "res": 4,
+     "x0": -34547,
+     "y1": 6749675,
+     "z": [
+      -549.58056640625,
+      780.3731689453125,
+      0
+     ]
+    },
+    "far": true,
+    "bp": [
+     0,
+     0
+    ],
+    "d00": 482.924787902832,
+    "dbp": 482.924787902832,
+    "fetch": [
+     1925,
+     900,
+     1225,
+     750
+    ],
+    "note": "",
+    "comps": 0
+   }
+  }
+ ],
+ "errors": [],
+ "finished": "2026-11-21T11:34:47.460Z"
+}

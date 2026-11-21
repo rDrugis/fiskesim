@@ -1,0 +1,37 @@
+11:17:12 salhus Fiskeguide ferdig etter 14 s: Algoritmeforslag: 26 steder (2 fredet eller forbudt – vises for læring) · 26 forslag, 15 ruter lagret
+11:17:38 salhus Fiskesim ferdig etter 25 s. Ruter: like punkter 886 ulike 0 · utvalg: bare FG 0 bare FS 0 · blåkjeft 2 · 28 fiskeplasser (2 fredet eller forbudt nå – vises for læring)
+11:17:51 tysnes Fiskeguide ferdig etter 12 s: Algoritmeforslag: 25 steder (1 fredet eller forbudt – vises for læring) · 1 tatt bort fordi dybden hos Kartverket ikke passet · 25 forslag, 12 ruter lagret
+11:18:06 tysnes Fiskesim ferdig etter 15 s. Ruter: like punkter 257 ulike 0 · utvalg: bare FG 0 bare FS 0 · blåkjeft 1 · 26 fiskeplasser (1 fredet eller forbudt nå – vises for læring) · 1 tatt bort fordi dybden hos Kartverket ikke passet
+11:18:28 floro Fiskeguide ferdig etter 20 s: Algoritmeforslag: 26 steder (2 fredet eller forbudt – vises for læring) · 26 forslag, 15 ruter lagret
+11:19:02 floro Fiskesim ferdig etter 34 s. Ruter: like punkter 1412 ulike 0 · utvalg: bare FG 0 bare FS 0 · blåkjeft 2 · 28 fiskeplasser (2 fredet eller forbudt nå – vises for læring)
+11:19:18 alesund Fiskeguide ferdig etter 14 s: Algoritmeforslag: 26 steder (2 fredet eller forbudt – vises for læring) · 26 forslag, 15 ruter lagret
+11:19:43 alesund Fiskesim ferdig etter 25 s. Ruter: like punkter 990 ulike 0 · utvalg: bare FG 0 bare FS 0 · blåkjeft 2 · 28 fiskeplasser (2 fredet eller forbudt nå – vises for læring)
+11:19:59 hvaler Fiskeguide ferdig etter 14 s: Algoritmeforslag: 16 steder (2 fredet eller forbudt – vises for læring) · 16 forslag, 15 ruter lagret
+11:20:24 hvaler Fiskesim ferdig etter 26 s. Ruter: like punkter 600 ulike 0 · utvalg: bare FG 0 bare FS 0 · blåkjeft 0 · 16 fiskeplasser (2 fredet eller forbudt nå – vises for læring)
+11:20:36 salhus Fiskeguide ferdig etter 10 s: Algoritmeforslag: 12 steder · 12 forslag, 15 ruter lagret
+11:21:01 salhus Fiskesim ferdig etter 25 s. Ruter: like punkter 886 ulike 0 · utvalg: bare FG 0 bare FS 0 · blåkjeft 0 · 12 fiskeplasser
+11:21:07 fliser 12-2107-1177:200 12-2107-1177-sld:200 14-8430-4709:200 14-8430-4709-sld:200 14-8430-4710:200 14-8430-4710-sld:200 14-8430-4711:200 14-8430-4711-sld:200 14-8431-4709:200 14-8431-4709-sld:200 14-8431-4710:200 14-8431-4710-sld:200 14-8431-4711:200 14-8431-4711-sld:200 14-8432-4709:200 14-8432-4709-sld:200 14-8432-4710:200 14-8432-4710-sld:200 14-8432-4711:200 14-8432-4711-sld:200
+11:21:08 rådata raw-salhus 200 284526 byte
+11:21:08 rådata raw-salhus-kurver 400 459 byte
+11:21:10 rådata raw-floro 200 502957 byte
+11:21:10 rådata raw-floro-kurver 400 459 byte
+11:21:36 bilde bro-z13 ok 
+11:22:02 bilde bro-z15 ok [{"land":true},{"depth":482.8984539132109,"lo":450,"hi":500,"est":false},{"depth":45.00827003236655,"lo":0.5,"hi":100,"est":true}]
+11:22:28 bilde frekhaug-grov ok 
+11:22:53 bilde merker-z14 ok "ukjent"
+11:24:59 bilde algo-salhus ok {"n":14,"st":"25 fiskeplasser (2 fredet eller forbudt nå – vises for læring)"}
+11:25:20 bilde mobil ok 
+11:25:58 bilde profil ok "Dybdeprofil\nA → B · 1,09 km · 102° ØSØ\nNy strek\nFjern\n0 m\n200 m\n400 m\n600 m\n0 m\n250 m\n500 m\n750 m\n1 000 m\nA\nB\n\n276 m fra A: 480 m (sjøkart 450–500 m)\n\nGrunnest 125 m (0 m fra A)\nDypest 496 m (150 m fra A)\nBrattest: 73° (125 m → 459 m på 99 m), 50 m fra A\n\nKurven: anslått dybde
+11:26:51 bilde profil-mobil ok "Dybdeprofil\nA → B · 1,09 km · 102° ØSØ\nNy strek\nFjern\n0 m\n200 m\n400 m\n600 m\n0 m\n250 m\n500 m\n750 m\n1 000 m\nA\nB\n\n276 m fra A: 480 m (sjøkart 450–500 m)\n\nGrunnest 126 m (0 m fra A)\nDypest 497 m (153 m fra A)\nBrattest: 73° (126 m → 459 m på 99 m), 50 m fra A\n\nKurven: anslått dybde
+11:28:48 bilde mine-plasser ok {"n1":{"kept":14,"pts":14},"n2":{"saved":14,"other":0},"n3":{"saved":13,"ls":13}}
+11:29:04 bilde gps ok {"info":"– ± 8 m","c":{"lng":5.274499999999989,"lat":60.51850000007971},"z":14.5}
+11:29:20 bilde stil-dybdekart ok 
+11:29:35 bilde stil-sjokart ok 
+11:29:50 bilde stil-natt ok 
+11:30:10 bilde punkt ok "60°31,062′N 005°14,970′Ø\n✕\nca. 45 m\n\nSjøkartet sier bare 0,5–100 m her – dybden er anslått\n\nBølger i 3D her"
+11:30:19 bilde mobil-lag ok 
+11:31:22 bilde 3d-salhus ok {"card":"0 cmbølgehøyde (MET)\nVind\n1 m/s fra Ø\nBølger\ningen i varselet\n\nSignifikant bølgehøyde (snitt av den høyeste tredjedelen). Enkeltbølger kan bli nesten dobbelt så høye. Varsel, ikke måling.\n\nhøyde: MET (nærmeste modellpunkt) · periode, retning og fordeling vindsjø/dønning: Open-Meteo 
+11:32:37 bilde 3d-floro ok {"card":"1,6 mbølgehøyde (MET)\nVind\n5 m/s fra NNØ\nVindsjø\n0,5 m · 2,2 s · 7,8 m lange · fra N\nDønning\n1,4 m · 10,2 s · 161 m lange · fra NNV\nDønning 2\n0,6 m · 6,2 s · 60 m lange · fra VNV\n\nSignifikant bølgehøyde (snitt av den høyeste tredjedelen). Enkeltbølger kan bli nesten dobbelt så høy
+11:33:48 bilde 3d-land ok {"card":"0 cmbølgehøyde (MET)\nVind\n1 m/s fra Ø\nBølger\ningen i varselet\n\nSignifikant bølgehøyde (snitt av den høyeste tredjedelen). Enkeltbølger kan bli nesten dobbelt så høye. Varsel, ikke måling.\n\nhøyde: MET (nærmeste modellpunkt) · periode, retning og fordeling vindsjø/dønning: Open-Meteo 
+11:34:47 bilde 3d-mobil ok {"card":"0 cmbølgehøyde (MET)\nVind\n1 m/s fra Ø\nBølger\ningen i varselet\n\nSignifikant bølgehøyde (snitt av den høyeste tredjedelen). Enkeltbølger kan bli nesten dobbelt så høye. Varsel, ikke måling.","sys":[],"metHs":0,"from":"MET","oceanKeys":["sea_surface_wave_from_direction","sea_surface_wave
+11:34:47 ferdig 
