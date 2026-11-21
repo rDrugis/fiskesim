@@ -55,6 +55,22 @@ export function reliefDepth(lon, lat) {
   return new Promise((res, rej) => { waiting.set(id, { res: (v) => res(v), rej }); reliefWorker(px * 31 + py * 17 + 12).postMessage({ id, kind: 'depth', lon, lat }); });
 }
 
+// dybder for mange punkter (dybdeprofil): hvert punkt til tråden som eier z12-flisen, så flisene gjenbrukes
+export async function reliefDepths(pts, coarse = false) {
+  const n = 4096, R = 6378137, groups = new Map();
+  pts.forEach(([lon, lat], i) => {
+    const px = Math.floor((lon + 180) / 360 * n), my = R * Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)), py = Math.floor((Math.PI * R - my) / (2 * Math.PI * R) * n);
+    const k = px * 31 + py * 17 + 12; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(i);
+  });
+  const out = new Array(pts.length).fill(null);
+  await Promise.all([...groups].map(([k, idx]) => new Promise((res, rej) => {
+    const id = ++reqId;
+    waiting.set(id, { res: (v) => { idx.forEach((i, j) => { out[i] = v[j]; }); res(); }, rej });
+    reliefWorker(k).postMessage({ id, kind: 'depths', pts: idx.map((i) => pts[i]), coarse });
+  })));
+  return out;
+}
+
 function buildStyle(kind) {
   if (kind === 'dybdekart') return dybdekartStyle();
   const night = kind === 'natt';
@@ -198,6 +214,7 @@ export async function createMap(container, opts = {}) {
     onClick(fn) { map.on('click', (e) => fn(e.lngLat, e)); },
     onStyle(fn) { onStyle.push(fn); if (map.isStyleLoaded()) fn(map); },
     depthAt: reliefDepth,
+    depthsAt: reliefDepths,
   };
   return api;
 }

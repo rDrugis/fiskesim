@@ -286,10 +286,10 @@ function bilU8(a, N, m, u, v) {
 }
 
 // Dybde i et punkt (til markøren i kartet): fra zoom 14-flisa
-async function depthAt(lon, lat) {
-  const n = 2 ** FZ, fx = (mercX(lon) + ORIG) / (2 * ORIG) * n, fy = (ORIG - mercY(lat)) / (2 * ORIG) * n;
+async function depthAt(lon, lat, coarseOnly = false) {
+  const Z = coarseOnly ? CZ : FZ, n = 2 ** Z, fx = (mercX(lon) + ORIG) / (2 * ORIG) * n, fy = (ORIG - mercY(lat)) / (2 * ORIG) * n;
   const x = Math.floor(fx), y = Math.floor(fy);
-  const b = await computeFine(FZ, x, y);
+  const b = coarseOnly ? await computeCoarse(CZ, x, y) : await computeFine(FZ, x, y);
   const u = (fx - x) * SIZE, v = (fy - y) * SIZE;
   const w = bilU8(b.wet, b.N, b.m, u, v);
   if (!b.dep || w < 0.5) return { land: true };
@@ -302,6 +302,8 @@ self.onmessage = async (ev) => {
   const { id, kind, z, x, y, pal, lon, lat } = ev.data; // hd: skarp flis
   try {
     if (kind === 'depth') { self.postMessage({ id, info: await depthAt(lon, lat) }); return; }
+    // mange punkter på én gang (dybdeprofil); grovt nivå for lange streker
+    if (kind === 'depths') { const out = await Promise.all(ev.data.pts.map(([lo, la]) => depthAt(lo, la, !!ev.data.coarse).catch(() => null))); self.postMessage({ id, info: out }); return; }
     const bmp = await renderTile(z, x, y, pal, !!ev.data.hd);
     self.postMessage({ id, bmp }, [bmp]);
   } catch (e) {

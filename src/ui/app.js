@@ -4,6 +4,7 @@ import { createMap, MAP_STYLES } from '../map/mapview.js';
 import { SeaMarks } from '../map/seamarks.js';
 import { Soundings } from '../map/soundings.js';
 import { AlgoLayer, SPECIES } from '../map/algolayer.js';
+import { Profile, ICON_PROF } from '../map/profile.js';
 import * as ALGO from '../algo/index.js';
 import { PAL } from '../map/palette.js';
 import { SRC, ATTRIB } from '../data/sources.js';
@@ -34,12 +35,14 @@ export class App {
       </header>
       <div class="rail">
         <button class="iconbtn" data-a="layers" aria-label="Kartlag" aria-expanded="false">${ICON.layers}</button>
+        <button class="iconbtn" data-a="prof" aria-label="Dybdeprofil langs en strek" aria-pressed="false" title="Dybdeprofil: trykk to punkter i kartet">${ICON_PROF}</button>
         <button class="iconbtn" data-a="about" aria-label="Om kartet og kilder">${ICON.info}</button>
       </div>
       <div class="status hidden" aria-live="polite"></div>
       <div class="gpsinfo hidden num" aria-live="polite"></div>
       <section class="sheet-p layers hidden" aria-label="Kartlag"></section>
       <section class="sheet-p info hidden" aria-live="polite"></section>
+      <section class="sheet-p prof hidden" aria-label="Dybdeprofil"></section>
       <div class="legend${style === 'fiskekart' ? '' : ' hidden'}" aria-hidden="true"><div class="bar"></div><div class="ticks num"><span>0</span><span>20</span><span>50</span><span>100</span><span>250 m</span></div></div>`;
     const bar = root.querySelector('.legend .bar');
     const stops = [0, 10, 20, 35, 50, 75, 100, 175, 250];
@@ -59,13 +62,23 @@ export class App {
     map.on('moveend', () => { const c = map.getCenter(); try { localStorage.setItem('fiskesim.map', JSON.stringify({ c: [c.lng, c.lat], z: map.getZoom() })); } catch (e) { /* privat */ } });
     this.marks = new SeaMarks(api);
     this.soundings = new Soundings(api);
-    this.algo = new AlgoLayer(api, { onNote: (t, busy) => this.note(t, busy) });
+    this.algo = new AlgoLayer(api, { onNote: (t, busy) => this.note(t, busy), onSaved: () => this.renderLayers && this.renderLayers() });
+    // dybdeprofil: knappen i høyre kant, panelet nederst
+    const pbtn = this.root.querySelector('[data-a="prof"]'), ppanel = this.root.querySelector('.prof');
+    this.profile = new Profile(api, ppanel, { getPos: () => (this.lastPos && Date.now() - this.lastPos[3] < 30 * 60e3 ? this.lastPos : null), onMode: (on) => pbtn.setAttribute('aria-pressed', String(on)) });
+    pbtn.addEventListener('click', () => {
+      if (this.profile.active) { this.profile.clear(); return; }
+      this.closeInfo(); this.root.querySelector('.layers').classList.add('hidden'); this.profile.start();
+    });
+    // hold plass til profilpanelet: punktinfo legger seg over det, og fargeskalaen skjules
+    new ResizeObserver(() => { const h = ppanel.classList.contains('hidden') ? 0 : ppanel.offsetHeight; this.root.style.setProperty('--profh', h + 'px'); this.root.classList.toggle('hasprof', h > 0); }).observe(ppanel);
+    new MutationObserver(() => { const h = ppanel.classList.contains('hidden') ? 0 : ppanel.offsetHeight; this.root.style.setProperty('--profh', h + 'px'); this.root.classList.toggle('hasprof', h > 0); }).observe(ppanel, { attributes: true, attributeFilter: ['class'] });
     this.initGPS();
     this.initStyles();
     this.initSearch();
     this.initLayers();
     if (!this.mobile) this.initCursorDepth(map);
-    api.onClick((ll, e) => { if (e && this.marks.click(e)) return; this.pick(ll.lng, ll.lat); });
+    api.onClick((ll, e) => { if (this.profile.click(ll.lng, ll.lat)) return; if (e && this.marks.click(e)) return; this.pick(ll.lng, ll.lat); });
     this.root.querySelector('[data-a="about"]').addEventListener('click', () => this.about());
     window.fiskesim = { app: this, api, algo: this.algo, ALGO }; // for feilsøking og tester
     if (p.get('vis') === '3d') this.open3D(center[0], center[1]);
@@ -108,6 +121,8 @@ export class App {
       const c = pos.coords; let kn = c.speed != null && c.speed >= 0 ? c.speed * 1.943844 : null, crs = c.heading;
       if (kn == null && last) { const dt = (pos.timestamp - last.t) / 1000; if (dt > 0.5) { const d = this.api.maplibregl.LngLat.convert([c.longitude, c.latitude]).distanceTo(this.api.maplibregl.LngLat.convert(last.ll)); kn = d / dt * 1.943844; } }
       last = { t: pos.timestamp, ll: [c.longitude, c.latitude] };
+      this.lastPos = [c.longitude, c.latitude, c.accuracy, Date.now()];
+      if (this.profile.data && Date.now() - (this.profPaintT || 0) > 4000) { this.profPaintT = Date.now(); this.profile.paint(); }
       info.innerHTML = `${kn != null ? `<b>${n1(kn)}</b> kn` : '–'}${crs != null && !isNaN(crs) && kn > 0.5 ? ` · <b>${Math.round(crs)}°</b>` : ''} <span>± ${Math.round(c.accuracy)} m</span>`;
       info.classList.remove('hidden');
     });
@@ -128,13 +143,25 @@ export class App {
           <div class="chips" role="group" aria-label="Arter">${sp.map((s) => `<button class="chip${a.sel.includes(s.k) ? ' on' : ''}" data-sp="${s.k}" style="--c:${s.col}" aria-pressed="${a.sel.includes(s.k)}"><i></i>${esc(s.no)}</button>`).join('')}</div>
           <label class="sel"><span>Måned</span><select data-k="mon"><option value="now" ${mon === 'now' ? 'selected' : ''}>Nå (${MONTHS[new Date().getMonth()]})</option>${MONTHS.map((m, i) => `<option value="${i}" ${String(mon) === String(i) ? 'selected' : ''}>${m[0].toUpperCase() + m.slice(1)}</option>`).join('')}</select></label>
           <p class="hint">Ingen art valgt = de to beste for hver art. Med art valgt: inntil seks, nummerert fra best.</p>
+          ${a.res && a.res.length ? '<button class="btn sm" data-a="keepall">★ Behold alle forslagene i utsnittet</button>' : ''}
+        </div>
+        <div class="mine">
+          <h3>Mine plasser <span class="pmut">(${a.saved.length})</span></h3>
+          ${a.saved.length ? `<ul>${a.saved.slice().sort((x, y) => y.t - x.t).map((p) => `<li><button class="go" data-go="${p.id}"><span class="dot" style="background:${p.sp.map((k) => SPECIES().find((x) => x.k === k)?.col || '#9fb3c2')[0]}"></span>${esc(p.sp.map((k) => SPECIES().find((x) => x.k === k)?.no || k).join(', '))}<small>${new Date(p.t).toLocaleDateString('nb-NO')}</small></button><button class="iconbtn sm" data-del="${p.id}" aria-label="Fjern plassen">✕</button></li>`).join('')}</ul>
+            <button class="btn sm" data-a="delall">${this.delAll ? 'Sikker? Fjern alle' : 'Fjern alle'}</button>`
+          : '<p class="hint">Trykk på et forslag og «Behold i kartet». Plassene blir liggende i kartet også når forslagene er slått av, til du fjerner dem.</p>'}
         </div>`;
     };
+    this.renderLayers = () => { if (!panel.classList.contains('hidden')) render(); };
     render();
     const open = (v) => { panel.classList.toggle('hidden', !v); btn.setAttribute('aria-expanded', String(v)); if (v) this.closeInfo(); };
-    btn.addEventListener('click', () => open(panel.classList.contains('hidden')));
+    btn.addEventListener('click', () => { if (panel.classList.contains('hidden')) render(); open(panel.classList.contains('hidden')); });
     panel.addEventListener('click', (e) => {
       if (e.target.closest('[data-a="lclose"]')) { open(false); return; }
+      if (e.target.closest('[data-a="keepall"]')) { const n = this.algo.keepAll(); this.note(n ? `${n} plasser beholdt i kartet` : 'Alle forslagene er allerede beholdt'); render(); return; }
+      const go = e.target.closest('[data-go]'); if (go) { this.algo.flyTo(go.dataset.go); if (this.mobile) open(false); return; }
+      const del = e.target.closest('[data-del]'); if (del) { this.algo.remove(del.dataset.del); render(); return; }
+      if (e.target.closest('[data-a="delall"]')) { if (this.delAll) { this.delAll = false; this.algo.remove('*'); } else { this.delAll = true; setTimeout(() => { this.delAll = false; render(); }, 4000); } render(); return; }
       const chip = e.target.closest('[data-sp]'); if (!chip) return;
       const k = chip.dataset.sp, sel = this.algo.sel.includes(k) ? this.algo.sel.filter((x) => x !== k) : this.algo.sel.concat(k);
       this.algo.setSel(sel); render();
