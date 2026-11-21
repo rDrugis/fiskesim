@@ -22,7 +22,7 @@ export const ART = DATA.art, SRC = DATA.src;
    topp, liten topp og grop måles mot bunnen ca. 400 m unna. */
 export const FCFG = { e0: 15, e1: 75, pk: 30, kn: 10, bs: 30, fo: 8, fl: 40, s0: 5, s1: 10, s2: 35, s3: 25 };
 export const ALV = 'a12', ACELL = 10, ATILE = 6000, AMAXT = 24, AKEEP = 8;
-export const VERSION = ALV + '+fs3'; // Fiskeguide-versjon + Fiskesims tillegg (endres når resultatet kan endre seg)
+export const VERSION = ALV + '+fs4'; // Fiskeguide-versjon + Fiskesims tillegg (endres når resultatet kan endre seg)
 
 export const clamp01 = (v) => v < 0 ? 0 : v > 1 ? 1 : v;
 export const RM = 6378137, D2R = Math.PI / 180;
@@ -54,6 +54,14 @@ export const bunnOf = (r, g, b) => { let best = 0, bd = 1600; R.bunn.forEach((x)
 export const bunnNavn = (k) => (R.bunn.find((x) => x.k === k) || {}).n || '';
 
 /* artens dybdekrav og vekter for måneden m (0–11), med fredning og varsler. now: dagens dato (for datoskiller). */
+/* Høyeste mulige poeng for en art (Fiskesim): alle bunnformer fullt, dybden midt i kjernen, foretrukket bunntype,
+   alle tillegg fullt (f.eks. hylle) og registrert fiskeplass. Brukes til å vise poeng 0–100, der 100 er perfekt. */
+export function maxScore(sp) {
+  const A = R.algo[sp]; if (!A) return 1;
+  let m = A.bunn ? 1.2 : 1; if (A.b) for (const k in A.b) m *= 1 + A.b[k];
+  return m * 1.25;
+}
+
 export function algoParams(sp, m, lat, lon, now = new Date()) {
   const A = R.algo[sp]; if (!A) return null;
   let P = { core: A.core, range: A.range, w: A.w, b: A.b || null, varsel: '', fredet: '' };
@@ -295,10 +303,10 @@ export async function computeTile(tx, ty, m, inp, { pause = null, now = new Date
       /* oppdrett: fiske nærmere enn 100 m er forbudt (akvakulturdriftsforskriften § 18) – hopp over punkter innen ca. 120 m */
       if (ak.some((f) => f.geometry && distToGeom(lat, lon, f.geometry) < 120)) continue;
       const f2 = {}; feat(c, f2); Object.keys(f2).forEach((k) => { f2[k] = rd(f2[k], 2); });
-      picked.push({ i, j, sp: X.sp, sc: rd(Math.min(1, sc), 3), lat: rd(lat, 6), lon: rd(lon, 6), dA: DA[c], dB: DB[c], fe: f2 }); }
+      picked.push({ i, j, sp: X.sp, sc: rd(Math.min(1, sc), 3), raw: rd(sc, 4), lat: rd(lat, 6), lon: rd(lon, 6), dA: DA[c], dB: DB[c], fe: f2 }); }
     /* fiskeplasser registrert av fiskere for samme art og måned gir ekstra poeng */
     picked.forEach((r) => { delete r.i; delete r.j; for (const f of (pasF || [])) { if (!f.geometry) continue; const hit = fdSpecies(f.properties || {}).find((x) => x.key === r.sp && monIn(x.fra, x.til, m));
-      if (hit && distToGeom(r.lat, r.lon, f.geometry) === 0) { r.fp = (f.properties.stedsnavn || '').trim() || 'uten navn'; r.sc = rd(Math.min(1, r.sc * 1.25), 3); break; } } });
+      if (hit && distToGeom(r.lat, r.lon, f.geometry) === 0) { r.fp = (f.properties.stedsnavn || '').trim() || 'uten navn'; r.sc = rd(Math.min(1, r.sc * 1.25), 3); if (r.raw != null) r.raw = rd(r.raw * 1.25, 4); break; } } });
     if (picked.length) out[X.sp] = picked;
   });
   return { nD, nB, c: out };
