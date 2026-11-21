@@ -42,6 +42,10 @@ async function idbGet(key) {
   const d = await db(); if (!d) return null;
   return new Promise((res) => { try { const rq = d.transaction('t').objectStore('t').get(MODEL_V + '|' + key); rq.onsuccess = () => res(rq.result ? rq.result.r : null); rq.onerror = () => res(null); } catch (e) { res(null); } });
 }
+async function idbHas(key) {
+  const d = await db(); if (!d) return false;
+  return new Promise((res) => { try { const rq = d.transaction('t').objectStore('t').getKey(MODEL_V + '|' + key); rq.onsuccess = () => res(rq.result !== undefined); rq.onerror = () => res(false); } catch (e) { res(false); } });
+}
 let puts = 0;
 async function idbPut(key, r) {
   const d = await db(); if (!d) return;
@@ -216,8 +220,13 @@ function computeCoarse(z, x, y) {
 // Zoom 14 regnes i blokker på 2 × 2 fliser (én zoom 13-rute med zoom 14-oppløsning). Kanten rundt (128 piksler)
 // deles da av fire fliser: ca. 40 % mindre å hente fra Kartverket og å regne ut, og en fjerdedel så mange
 // forespørsler. Resultatet er det samme, fordi kurver lenger unna enn kanten ikke teller uansett.
-function computeFine(z, x, y) {
-  if (z === FZ) return computeBlock(x >> 1, y >> 1);
+// Ved zoom 15 og mer trengs få fliser, og da går det raskere å regne hver flis for seg i hver sin tråd – men er blokken
+// allerede regnet ut (i minnet eller i nettleseren), brukes den.
+async function computeFine(z, x, y, single = false) {
+  if (z !== FZ) return computeOne(z, x, y);
+  if (!single) return computeBlock(x >> 1, y >> 1);
+  const bkey = 'b' + FZ + '/' + (x >> 1) + '/' + (y >> 1);
+  if (fine.has(bkey) || await idbHas(bkey)) return computeBlock(x >> 1, y >> 1);
   return computeOne(z, x, y);
 }
 function computeBlock(bx, by) {
@@ -288,7 +297,7 @@ async function baseFor(z, x, y) {
   if (z <= CZ) return { base: await computeCoarse(z, x, y), u0: 0, v0: 0, scale: 1 };
   const lz = Math.min(z, FZ), k = z - lz, bx = x >> k, by = y >> k, scale = 1 / 2 ** k;
   let base;
-  try { base = await computeFine(lz, bx, by); }
+  try { base = await computeFine(lz, bx, by, z > FZ); }
   catch (e) {
     console.warn('fiskekart: fin flis feilet', z, x, y, e && e.message);
     // fin flis feilet: bruk den grove (bedre enn hull i kartet)
