@@ -49,16 +49,53 @@ export function decodeDybdelag(rgba, W, H) {
     if (a < 128) continue;
     const c = classOf(rgba[i * 4], rgba[i * 4 + 1], rgba[i * 4 + 2]);
     if (c === -2) { mask[i] = 2; continue; }
-    mask[i] = 1; cls[i] = c;
+    // halvgjennomsiktige piksler ligger i skjøtene mellom polygonene i WMS-bildet; fargen er da forskjøvet og kan
+    // treffe nabointervallet (±50 m i dypet). De får klasse fra naboene i stedet.
+    mask[i] = 1; cls[i] = a >= 250 ? c : -1;
   }
-  // Kantpiksler (blandingsfarger) uten klasse: arv fra nabo
-  for (let pass = 0; pass < 2; pass++) {
+  // Kantpiksler (blandingsfarger) uten klasse: flertallet av de 8 naboene med klasse
+  const cnt = new Int32Array(64);
+  for (let pass = 0; pass < 4; pass++) {
+    let left = 0; const src = cls.slice();
     for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
-      const p = j * W + i; if (mask[p] !== 1 || cls[p] >= 0) continue;
-      for (const q of [p - 1, p + 1, p - W, p + W]) { if (q >= 0 && q < W * H && cls[q] >= 0) { cls[p] = cls[q]; break; } }
+      const p = j * W + i; if (mask[p] !== 1 || src[p] >= 0) continue;
+      let best = -1, bn = 0;
+      for (let dj = -1; dj <= 1; dj++) { const jj = j + dj; if (jj < 0 || jj >= H) continue;
+        for (let di = -1; di <= 1; di++) { const ii = i + di; if (ii < 0 || ii >= W || (!di && !dj)) continue;
+          const q = src[jj * W + ii]; if (q >= 0 && ++cnt[q] > bn) { bn = cnt[q]; best = q; } } }
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const ii = i + di, jj = j + dj; if (ii >= 0 && ii < W && jj >= 0 && jj < H) { const q = src[jj * W + ii]; if (q >= 0) cnt[q] = 0; } }
+      if (best >= 0) cls[p] = best; else left++;
     }
+    if (!left) break;
   }
+  despeckle(mask, cls, W, H);
   return { mask, cls };
+}
+
+// Bitte små flekker (høyst 3 piksler) av et annet intervall enn naboene er nesten alltid blandingsfarger fra
+// kantutjevningen i WMS-bildet, ikke ekte grunner. De får klassen som flest naboer har. Flekker inntil land beholdes.
+function despeckle(mask, cls, W, H, maxN = 3) {
+  const seen = new Uint8Array(W * H), pix = new Int32Array(maxN + 1), cnt = new Int32Array(64), st = new Int32Array(W * H);
+  for (let s0 = 0; s0 < W * H; s0++) {
+    if (mask[s0] !== 1 || cls[s0] < 0 || seen[s0]) continue;
+    const c = cls[s0]; let sp = 0, n = 0, big = false, land = false; st[sp++] = s0; seen[s0] = 1;
+    while (sp) {
+      const p = st[--sp]; if (n <= maxN) pix[n] = p; n++; if (n > maxN) big = true;
+      const i = p % W, j = (p / W) | 0;
+      for (let k = 0; k < 4; k++) {
+        const ii = i + (k === 0 ? -1 : k === 1 ? 1 : 0), jj = j + (k === 2 ? -1 : k === 3 ? 1 : 0);
+        if (ii < 0 || jj < 0 || ii >= W || jj >= H) { land = true; continue; }
+        const q = jj * W + ii; if (mask[q] !== 1) { land = true; continue; }
+        if (cls[q] === c && !seen[q]) { seen[q] = 1; st[sp++] = q; }
+      }
+    }
+    if (big || land) continue;
+    let best = -1, bn = 0;
+    for (let k = 0; k < n; k++) { const p = pix[k], i = p % W, j = (p / W) | 0;
+      for (const q of [p - 1, p + 1, p - W, p + W]) { const v = cls[q]; if (v >= 0 && v !== c && ++cnt[v] > bn) { bn = cnt[v]; best = v; } } }
+    cnt.fill(0);
+    if (best >= 0) for (let k = 0; k < n; k++) cls[pix[k]] = best;
+  }
 }
 
 // Leser punkter (Dybdepunkt, Grunne, Skjær) fra WFS GML 3.2. Returnerer [x, y, dybde, …] i UTM33.

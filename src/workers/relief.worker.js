@@ -23,6 +23,36 @@ const MARG = 128; // kant rundt flisa som hentes (piksler), så kurver like uten
 const KEEP_C = 96, KEEP_F = 3; // kant som beholdes i minnet (grove fliser trengs som føring for de fine)
 const coarse = new Map(), fine = new Map();
 
+// Ferdig utregnede fliser lagres i nettleseren (IndexedDB), så kartet kommer fram med en gang neste gang.
+// Endre MODEL_V når dybdemodellen endres, så gamle resultater ikke brukes.
+const MODEL_V = 'm5-' + BLUR_M, IDB_MAX = 700;
+let dbP = null;
+function db() {
+  if (dbP) return dbP;
+  dbP = new Promise((res) => {
+    try {
+      const rq = indexedDB.open('fiskekart', 1);
+      rq.onupgradeneeded = () => { const st = rq.result.createObjectStore('t'); st.createIndex('ts', 'ts'); };
+      rq.onsuccess = () => res(rq.result); rq.onerror = () => res(null);
+    } catch (e) { res(null); }
+  });
+  return dbP;
+}
+async function idbGet(key) {
+  const d = await db(); if (!d) return null;
+  return new Promise((res) => { try { const rq = d.transaction('t').objectStore('t').get(MODEL_V + '|' + key); rq.onsuccess = () => res(rq.result ? rq.result.r : null); rq.onerror = () => res(null); } catch (e) { res(null); } });
+}
+let puts = 0;
+async function idbPut(key, r) {
+  const d = await db(); if (!d) return;
+  try {
+    const tx = d.transaction('t', 'readwrite'), st = tx.objectStore('t');
+    st.put({ ts: Date.now(), r }, MODEL_V + '|' + key);
+    // rydd: behold de nyeste flisene
+    if (++puts % 25 === 0) { const cq = st.count(); cq.onsuccess = () => { let n = cq.result - IDB_MAX; if (n <= 0) return; const cur = st.index('ts').openCursor(); cur.onsuccess = () => { const c = cur.result; if (c && n-- > 0) { c.delete(); c.continue(); } }; }; }
+  } catch (e) { /* full lagring er ikke kritisk */ }
+}
+
 function lru(map, key, val, max) { map.set(key, val); val.catch && val.catch(() => map.delete(key)); while (map.size > max) map.delete(map.keys().next().value); return val; }
 
 // WMS-henting med nye forsøk (tjenesten svarer av og til med feil når mange fliser hentes samtidig)
@@ -44,6 +74,9 @@ async function pngPixels(url, N) {
 
 async function wmsClasses(bb, N) {
   const q = `service=WMS&version=1.1.1&request=GetMap&srs=EPSG:3857&format=image/png&transparent=true&width=${N}&height=${N}&bbox=${bb.map((v) => v.toFixed(2)).join(',')}`;
+  // begge bildene hentes samtidig (før: det andre ble hentet etter det første, og ventetiden ble doblet)
+  const sldP = pngPixels(`${SRC.wmsDybde}?${q}&layers=Dybdelag&SLD_BODY=${encodeURIComponent(generalSLD())}`, N);
+  sldP.catch(() => {});
   const { mask, cls } = decodeDybdelag(await pngPixels(`${SRC.wmsDybde}?${q}&layers=Dybdelag,Torrfall&styles=`, N), N, N);
   const c2 = new Int8Array(N * N);
   let shallow = false;
@@ -51,7 +84,7 @@ async function wmsClasses(bb, N) {
   // Det lyseste intervallet kan være et grovt «0,5–100 m»-område. Hent dem med egen stil og gi dem riktig intervall.
   if (shallow) {
     try {
-      const px = await pngPixels(`${SRC.wmsDybde}?${q}&layers=Dybdelag&SLD_BODY=${encodeURIComponent(generalSLD())}`, N);
+      const px = await sldP;
       for (let p = 0; p < N * N; p++) {
         if (c2[p] !== 0) continue;
         const g = generalClassOf(px[p * 4], px[p * 4 + 1], px[p * 4 + 2], px[p * 4 + 3]);
@@ -129,12 +162,15 @@ function computeCoarse(z, x, y) {
   const key = z + '/' + x + '/' + y;
   if (coarse.has(key)) return coarse.get(key);
   return lru(coarse, key, (async () => {
+    const hit = await idbGet('c' + key); if (hit) return hit;
     const [mx0, my0, mx1, my1] = tileMerc(z, x, y);
     const px = (mx1 - mx0) / SIZE, N = SIZE + 2 * MARG;
     const bb = [mx0 - MARG * px, my0 - MARG * px, mx1 + MARG * px, my1 + MARG * px];
     const c2 = await wmsClasses(bb, N);
     const res = px * Math.cos(latOfMercY((my0 + my1) / 2) * Math.PI / 180);
-    return finish(c2, N, res, null, z === CZ ? KEEP_C : KEEP_F);
+    const out = finish(c2, N, res, null, z === CZ ? KEEP_C : KEEP_F);
+    idbPut('c' + key, out);
+    return out;
   })(), 14);
 }
 
@@ -142,6 +178,7 @@ function computeFine(z, x, y) {
   const key = z + '/' + x + '/' + y;
   if (fine.has(key)) return fine.get(key);
   return lru(fine, key, (async () => {
+    const hit = await idbGet('f' + key); if (hit) return hit;
     const k = z - CZ, ppx = x >> k, ppy = y >> k, f = 2 ** k;
     const parentP = computeCoarse(CZ, ppx, ppy).catch(() => null);
     const [mx0, my0, mx1, my1] = tileMerc(z, x, y);
@@ -155,7 +192,9 @@ function computeFine(z, x, y) {
       const sx = (x - (ppx << k)) * SIZE, sy = (y - (ppy << k)) * SIZE;
       for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) prior[j * N + i] = bil(parent.dep, parent.N, parent.m, (sx + i - MARG + 0.5) / f, (sy + j - MARG + 0.5) / f);
     }
-    return finish(c2, N, res, prior, KEEP_F);
+    const out = finish(c2, N, res, prior, KEEP_F);
+    idbPut('f' + key, out);
+    return out;
   })(), 40);
 }
 

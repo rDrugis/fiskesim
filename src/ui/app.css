@@ -241,3 +241,9 @@ a { color: #8fd0ec; }
   .maplibregl-popup-content { font-size: 14px; }
 }
 @media (prefers-reduced-motion: reduce) { .status.busy::before { animation: none; } }
+
+.psp { display: flex; align-items: center; gap: 8px; margin: 2px 0 4px; }
+.pdot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.pscore { margin-left: auto; font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; }
+.pscore small { font-weight: 400; color: var(--text-3); font-size: 11px; margin-left: 1px; }
+.pfred { color: #f0a35e; font-size: 12.5px; margin: 0 0 6px 18px; }

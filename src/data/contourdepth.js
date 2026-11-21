@@ -57,27 +57,37 @@ export function contourDepth(cls, W, H, res, intervals, prior = null, maxDist = 
   const N = W * H, depth = new Float32Array(N).fill(NaN);
   const present = new Set();
   for (let p = 0; p < N; p++) if (cls[p] >= 0) present.add(cls[p]);
-  const feat = new Uint8Array(N);
   // grunnere/dypere avgjøres av intervallene (ikke rekkefølgen), så også grove intervaller som 0,5–100 m virker
   const shallowerThan = (c, lo) => c < 0 || intervals[c][2] <= lo + 1e-6;
   const deeperThan = (c, hi) => c >= 0 && intervals[c][1] >= hi - 1e-6;
+  // utstrekningen til hvert intervall: avstandene regnes bare i et vindu rundt intervallet, utvidet med rekkevidden
+  // (kurver lenger unna enn maxDist teller ikke uansett), så små intervaller koster lite. Gir nøyaktig samme svar.
+  const bx = new Map();
+  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) { const c = cls[j * W + i]; if (c < 0) continue;
+    let b = bx.get(c); if (!b) bx.set(c, b = [i, j, i, j]); else { if (i < b[0]) b[0] = i; if (i > b[2]) b[2] = i; if (j < b[1]) b[1] = j; if (j > b[3]) b[3] = j; } }
+  const ext = maxDist > 0 ? maxDist + 1 : Math.max(W, H);
   for (const k of present) {
-    const lo = intervals[k][1], hi = intervals[k][2];
-    for (let p = 0; p < N; p++) feat[p] = shallowerThan(cls[p], lo) ? 1 : 0;   // land, tørrfall og grunnere områder
-    const dA = edt(feat, W, H);
+    const lo = intervals[k][1], hi = intervals[k][2], b0 = bx.get(k);
+    const x0 = Math.max(0, b0[0] - ext), y0 = Math.max(0, b0[1] - ext), x1 = Math.min(W - 1, b0[2] + ext), y1 = Math.min(H - 1, b0[3] + ext);
+    const Ww = x1 - x0 + 1, Hw = y1 - y0 + 1, feat = new Uint8Array(Ww * Hw);
+    for (let j = 0; j < Hw; j++) for (let i = 0; i < Ww; i++) feat[j * Ww + i] = shallowerThan(cls[(j + y0) * W + i + x0], lo) ? 1 : 0;   // land, tørrfall og grunnere områder
+    const dAw = edt(feat, Ww, Hw);
     let anyDeeper = false;
-    for (let p = 0; p < N; p++) { const b = deeperThan(cls[p], hi) ? 1 : 0; feat[p] = b; if (b) anyDeeper = true; }
-    const dB = anyDeeper ? edt(feat, W, H) : null;
+    for (let j = 0; j < Hw; j++) for (let i = 0; i < Ww; i++) { const v = deeperThan(cls[(j + y0) * W + i + x0], hi) ? 1 : 0; feat[j * Ww + i] = v; if (v) anyDeeper = true; }
+    const dBw = anyDeeper ? edt(feat, Ww, Hw) : null;
+    const wi = (p) => ((p / W | 0) - y0) * Ww + (p % W) - x0;
     // typisk avstand mellom kurvene brukes der en av dem mangler (5 % helning)
     const Ls = Math.max(40, (hi - lo) / 0.05);
     // Når en kurve nærmer seg rekkevidden (maxDist), tones den ut mykt i stedet for å forsvinne brått:
     // da blir det ingen synlige kanter i flaten der den ene kurven går ut av rekkevidde.
     const capM = cap < INF ? Math.sqrt(cap) * res : Infinity, fadeM = capM * 0.45;
     const wOf = (m) => capM === Infinity ? 1 : m >= capM ? 0 : m <= capM - fadeM ? 1 : (() => { const t = (capM - m) / fadeM; return t * t * (3 - 2 * t); })();
-    for (let p = 0; p < N; p++) {
+    for (let jj = b0[1]; jj <= b0[3]; jj++) for (let ii = b0[0]; ii <= b0[2]; ii++) {
+      const p = jj * W + ii;
       if (cls[p] !== k) continue;
-      const a = dA[p] >= INF || dA[p] > cap ? Infinity : Math.sqrt(dA[p]) * res;
-      const b = !dB || dB[p] >= INF || dB[p] > cap ? Infinity : Math.sqrt(dB[p]) * res;
+      const q = wi(p), dA = dAw[q], dB = dBw ? dBw[q] : INF;
+      const a = dA >= INF || dA > cap ? Infinity : Math.sqrt(dA) * res;
+      const b = dB >= INF || dB > cap ? Infinity : Math.sqrt(dB) * res;
       const fa = a < Infinity ? wOf(a) : 0, fb = b < Infinity ? wOf(b) : 0;
       const pr = prior && prior[p] === prior[p] ? Math.min(hi, Math.max(lo, prior[p])) : null;
       // fire tilfeller blandes etter hvor godt kurvene «sees»
