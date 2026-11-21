@@ -107,6 +107,29 @@ if (want('algo') || want('algo2')) {
 }
 
 // ---------- Rådata fra Kartverket (for å se hva som er data og hva som er beregning) ----------
+if (want('raw') || want('tiles')) {
+  // nøyaktig de samme WMS-bildene som kartflis-tråden henter (grov z12 og fine z14 med 128 px kant)
+  const { generalSLD } = await import(join(ROOT, 'src/data/depthmodel.js'));
+  const ORIG = 20037508.342789244, SIZE = 256, MARG = 128, N = SIZE + 2 * MARG;
+  const tileOf = (z, lon, lat) => { const n = 2 ** z, la = lat * Math.PI / 180; return [Math.floor((lon + 180) / 360 * n), Math.floor((1 - Math.log(Math.tan(la) + 1 / Math.cos(la)) / Math.PI) / 2 * n)]; };
+  const want3 = [];
+  for (const [lon, lat] of [[5.2645, 60.519], [5.258, 60.517]]) {
+    const [cx, cy] = tileOf(12, lon, lat); want3.push([12, cx, cy]);
+    const [fx, fy] = tileOf(14, lon, lat); for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) want3.push([14, fx + dx, fy + dy]);
+  }
+  const seen = new Set(), tiles = [];
+  for (const [z, x, y] of want3) {
+    const k = z + '-' + x + '-' + y; if (seen.has(k)) continue; seen.add(k);
+    const size = 2 * ORIG / 2 ** z, mx0 = -ORIG + x * size, my1 = ORIG - y * size, my0 = my1 - size, mx1 = mx0 + size, px = size / SIZE;
+    const bb = [mx0 - MARG * px, my0 - MARG * px, mx1 + MARG * px, my1 + MARG * px];
+    const q = `service=WMS&version=1.1.1&request=GetMap&srs=EPSG:3857&format=image/png&transparent=true&width=${N}&height=${N}&bbox=${bb.map((v) => v.toFixed(2)).join(',')}`;
+    for (const [suf, url] of [['', `https://wms.geonorge.no/skwms1/wms.dybdedata2?${q}&layers=Dybdelag,Torrfall&styles=`], ['-sld', `https://wms.geonorge.no/skwms1/wms.dybdedata2?${q}&layers=Dybdelag&SLD_BODY=${encodeURIComponent(generalSLD())}`]]) {
+      try { const res = await fetch(url); const buf = Buffer.from(await res.arrayBuffer()); await writeFile(join(OUT, 'tile-' + k + suf + '.png'), buf); tiles.push(k + suf + ':' + res.status); }
+      catch (e) { tiles.push(k + suf + ': ' + e.message); }
+    }
+  }
+  log('fliser', tiles.join(' '));
+}
 if (want('raw')) {
   const merc = (lon, lat) => [lon * 20037508.34 / 180, Math.log(Math.tan((90 + lat) * Math.PI / 360)) * 6378137];
   const RAW = [
