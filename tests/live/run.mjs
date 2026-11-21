@@ -1,4 +1,4 @@
-// Live-test (kjøres i GitHub Actions med ekte data): sammenligner fiskeplassalgoritmen i Fiskesim med Fiskeguide,
+// Live-test (kjøres i GitHub Actions med ekte data): sammenligner fiskeplassalgoritmen i Fiskesim med Fiskeguide (unntatt kveite, som har hylle i Fiskesim),
 // og tar skjermbilder av kartet og 3D-visningen. Resultatet legges i tests/live/out/.
 import http from 'node:http';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
@@ -65,7 +65,7 @@ async function algoArea(A, sel) {
   await waitFor(fs, () => !!(window.fiskesim && window.fiskesim.ALGO), 30000);
   const t1 = Date.now();
   const cmp = await fs.evaluate(async ([fgRes, sel]) => {
-    const AL = window.fiskesim.ALGO, m = new Date().getMonth(), out = { tiles: [], diffs: [] };
+    const AL = window.fiskesim.ALGO, m = new Date().getMonth(), out = { tiles: [], diffs: [], kv: { fg: 0, fs: 0, same: 0, shelf: 0, ex: [] } };
     for (const t of fgRes.tiles) {
       const [, tx, ty, mm] = t.k.split('|'); if (+mm !== m) continue;
       const mine = await AL.atGet(+tx, +ty, m);
@@ -74,6 +74,10 @@ async function algoArea(A, sel) {
       for (const sp of sps) {
         const a = t.c[sp] || [], b = mine.c[sp] || [];
         if (sp === 'blakjeft') continue; // ny art i Fiskesim
+        if (sp === 'kveite') { // hylle er lagt til i Fiskesim – forventet ulikt, rapporteres for seg
+          const ka = new Set(a.map((x) => x.lat + ',' + x.lon)); out.kv.fg += a.length; out.kv.fs += b.length;
+          b.forEach((y) => { if (ka.has(y.lat + ',' + y.lon)) out.kv.same++; if (y.fe && y.fe.shelf > 0.5) { out.kv.shelf++; if (out.kv.ex.length < 6) out.kv.ex.push({ sc: y.sc, d: y.fe.d0, shD: y.fe.shD, shelf: y.fe.shelf }); } });
+          continue; }
         if (a.length !== b.length) { diff++; out.diffs.push({ k: t.k, sp, fg: a.length, fs: b.length }); continue; }
         for (let i = 0; i < a.length; i++) {
           const x = a[i], y = b[i];
@@ -84,17 +88,17 @@ async function algoArea(A, sel) {
       out.tiles.push({ k: t.k, same, diff, nD: [t.nD, mine.nD], nB: [t.nB, mine.nB] });
     }
     const run = await AL.algoRun(fgRes.b, m, sel);
-    out.run = run && run.res.filter((r) => r.sp !== 'blakjeft').map((r) => ({ sp: r.sp, lat: r.lat, lon: r.lon, sc: r.sc }));
+    out.run = run && run.res.filter((r) => r.sp !== 'blakjeft' && r.sp !== 'kveite').map((r) => ({ sp: r.sp, lat: r.lat, lon: r.lon, sc: r.sc }));
     out.blakjeft = run && run.res.filter((r) => r.sp === 'blakjeft').length;
     out.note = run && run.note;
     return out;
   }, [fgRes, sel]);
   const key = (r) => r.sp + '@' + r.lat + ',' + r.lon;
-  const fgSet = new Set(fgRes.res.map(key)), fsSet = new Set((cmp.run || []).map(key));
+  const fgSet = new Set(fgRes.res.filter((r) => r.sp !== 'kveite').map(key)), fsSet = new Set((cmp.run || []).map(key));
   const onlyFg = [...fgSet].filter((k) => !fsSet.has(k)), onlyFs = [...fsSet].filter((k) => !fgSet.has(k));
   const tilesSame = cmp.tiles.reduce((a, t) => a + t.same, 0), tilesDiff = cmp.tiles.reduce((a, t) => a + t.diff, 0);
-  log(A.id, 'Fiskesim ferdig etter', Math.round((Date.now() - t1) / 1000), 's. Ruter: like punkter', tilesSame, 'ulike', tilesDiff, '· utvalg: bare FG', onlyFg.length, 'bare FS', onlyFs.length, '· blåkjeft', cmp.blakjeft, '·', cmp.note);
-  report.algo.push({ area: A.id, sel, fgNote: fgRes.note, fsNote: cmp.note, nFg: fgRes.res.length, nFs: (cmp.run || []).length, tilesSame, tilesDiff, onlyFg, onlyFs, blakjeft: cmp.blakjeft, diffs: cmp.diffs.slice(0, 30), tiles: cmp.tiles, errs });
+  log(A.id, 'Fiskesim ferdig etter', Math.round((Date.now() - t1) / 1000), 's. Ruter: like punkter', tilesSame, 'ulike', tilesDiff, '· utvalg: bare FG', onlyFg.length, 'bare FS', onlyFs.length, '· blåkjeft', cmp.blakjeft, '· kveite', JSON.stringify(cmp.kv), '·', cmp.note);
+  report.algo.push({ area: A.id, sel, fgNote: fgRes.note, fsNote: cmp.note, nFg: fgRes.res.length, nFs: (cmp.run || []).length, tilesSame, tilesDiff, onlyFg, onlyFs, blakjeft: cmp.blakjeft, kveite: cmp.kv, diffs: cmp.diffs.slice(0, 30), tiles: cmp.tiles, errs });
   await ctx.close();
   return true;
 }

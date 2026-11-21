@@ -1,4 +1,4 @@
-// Sjømerker fra virkeligheten: lykter, fyr, lyssektorer, staker, varder og bøyer (Kystverkets navigasjonsinstallasjoner),
+// Sjømerker fra virkeligheten: lykter, fyr, staker, varder og bøyer (Kystverkets navigasjonsinstallasjoner),
 // og skjær og grunner fra Kartverkets sjøkartdata. Symbolene tegnes her (ingen bildefiler).
 import { SRC } from '../data/sources.js';
 import { parseWfsPoints } from '../data/depthmodel.js';
@@ -116,16 +116,15 @@ async function loadCell(i, j) {
   const key = i + ':' + j; if (cache.has(key)) return cache.get(key);
   const bb = [i * CELL, j * CELL, (i + 1) * CELL, (j + 1) * CELL];
   const p = (async () => {
-    const [lys, sektor, fast, flyt, sk] = await Promise.all([
+    // lyssektorene (fargede ringer rundt fyrene) er tatt ut av kartet
+    const [lys, fast, flyt, sk] = await Promise.all([
       kvQuery(3, bb, 'navn,klasse,lys_farge,karakter,lys_hoyde,rekkevidde_hvit,rekkevidde_rod,rekkevidde_gronn,beliggenhet,beskrivelse,pillar_kategori,sjomerke_nr').catch(() => []),
-      kvQuery(7, bb, 'lys_farge,sektor_tekst,beskrivelse,fknavinst').catch(() => []),
       kvQuery(9, bb, 'navn,type_id,merke_form,toppmerke_type,toppmerke_retning,refleks_farge,beliggenhet,sted,klasse').catch(() => []),
       kvQuery(10, bb, '*').catch(() => []),
       kvSkjaer(bb).catch(() => []),
     ]);
     const out = [];
     for (const f of lys) { f.properties.kind = 'lys'; f.properties.icon = lightIcon(f.properties); out.push(f); }
-    for (const f of sektor) { f.properties.kind = 'sektor'; f.properties.c = colOf(f.properties.lys_farge); out.push(f); }
     for (const f of fast) { f.properties.kind = 'fast'; f.properties.icon = fixedIcon(f.properties); f.properties.rot = /viser/i.test(f.properties.toppmerke_type || '') && f.properties.toppmerke_retning != null ? +f.properties.toppmerke_retning : 0; out.push(f); }
     for (const f of flyt) { f.properties.kind = 'flyt'; f.properties.icon = floatIcon(f.properties); out.push(f); }
     for (const f of sk) out.push(f);
@@ -152,10 +151,6 @@ export class SeaMarks {
     const sjokart = this.api.style === 'sjokart';
     // sjøkartet fra Kartverket har allerede lys, sektorer og merker: ikke dobbelt opp der
     const vis = this.on && !sjokart ? 'visible' : 'none';
-    if (!map.getLayer('sm-sektor')) map.addLayer({ id: 'sm-sektor', type: 'fill', source: 'sm', minzoom: 12, filter: ['==', ['get', 'kind'], 'sektor'], layout: { visibility: vis },
-      paint: { 'fill-color': ['match', ['get', 'c'], 'r', '#e0262b', 'g', '#1f9d48', '#f4d34a'], 'fill-opacity': ['interpolate', ['linear'], ['zoom'], 12, sjokart ? 0.1 : 0.12, 15, 0.05] } });
-    if (!map.getLayer('sm-sektorl')) map.addLayer({ id: 'sm-sektorl', type: 'line', source: 'sm', minzoom: 12, filter: ['==', ['get', 'kind'], 'sektor'], layout: { visibility: vis },
-      paint: { 'line-color': ['match', ['get', 'c'], 'r', '#e0262b', 'g', '#1f9d48', '#f4d34a'], 'line-opacity': 0.55, 'line-width': 1 } });
     if (!map.getLayer('sm-grunne')) map.addLayer({ id: 'sm-grunne', type: 'symbol', source: 'sm', minzoom: 13, filter: ['==', ['get', 'kind'], 'grunne'], layout: { visibility: vis,
       'text-field': ['number-format', ['get', 'd'], { 'max-fraction-digits': 1, locale: 'nb-NO' }], 'text-font': ['literal', ['Noto Sans Bold']], 'text-size': 11, 'text-allow-overlap': false },
       paint: { 'text-color': '#7a1a10', 'text-halo-color': '#ffffffdd', 'text-halo-width': 1.4 } });
@@ -170,7 +165,7 @@ export class SeaMarks {
   setOn(on) {
     this.on = on; localStorage.setItem('fiskesim.merker', on ? 'på' : 'av');
     const map = this.api.map;
-    for (const l of ['sm-sektor', 'sm-sektorl', 'sm-grunne', 'sm-skjaer', 'sm-sym']) if (map.getLayer(l)) map.setLayoutProperty(l, 'visibility', on && this.api.style !== 'sjokart' ? 'visible' : 'none');
+    for (const l of ['sm-grunne', 'sm-skjaer', 'sm-sym']) if (map.getLayer(l)) map.setLayoutProperty(l, 'visibility', on && this.api.style !== 'sjokart' ? 'visible' : 'none');
     if (on) this.refresh();
   }
   async refresh() {
@@ -181,7 +176,7 @@ export class SeaMarks {
     const cells = []; for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) cells.push(loadCell(i, j));
     const parts = await Promise.all(cells.map((p) => p.catch(() => [])));
     if (my !== this.seq) return;
-    // samme objekt kan ligge i flere ruter (sektorflater): fjern duplikater
+    // samme objekt kan ligge i flere ruter: fjern duplikater
     const seen = new Set(), feats = [];
     for (const part of parts) for (const f of part) { const k = (f.properties.kind) + (f.properties.globalid || f.properties.fknavinst || '') + JSON.stringify(f.geometry.coordinates).slice(0, 60); if (seen.has(k)) continue; seen.add(k); feats.push(f); }
     this.data = { type: 'FeatureCollection', features: feats };
