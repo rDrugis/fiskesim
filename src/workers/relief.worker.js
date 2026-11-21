@@ -25,7 +25,7 @@ const coarse = new Map(), fine = new Map();
 
 // Ferdig utregnede fliser lagres i nettleseren (IndexedDB), så kartet kommer fram med en gang neste gang.
 // Endre MODEL_V når dybdemodellen endres, så gamle resultater ikke brukes.
-const MODEL_V = 'm9-' + BLUR_M, IDB_MAX = 700;
+const MODEL_V = 'm10-' + BLUR_M, IDB_MAX = 700;
 let dbP = null;
 function db() {
   if (dbP) return dbP;
@@ -158,7 +158,8 @@ function finishInner(c2, N, res, prior, keep, core) {
   let water = 0;
   for (let p = 0; p < N * N; p++) if (c2[p] !== -1) water++;
   openBridges(c2, N, N, res);
-  openPontoons(c2, N, N, res); // flytebruer: pongtongene er små «holmer» på rekke
+  // flytebruer: pongtongene er små «holmer» på rekke. Bunnen under regnes som sjø, men pongtongene tegnes fortsatt
+  const pont = new Uint8Array(N * N); openPontoons(c2, N, N, res, pont);
   const dep = water ? contourDepth(c2, N, N, res, DYB_ALL, prior, MARG, Math.max(2, Math.round(22 / res))) : null;
   // glatt flate innenfor intervallene (ca. BLUR_M meter), mot kammer ved taggete kurver i dypet
   if (dep && BLUR_M > 0) diffuseWithin(dep, c2, N, N, DYB_ALL, Math.max(1, Math.min(40, Math.round((BLUR_M / res) ** 2 / 4))), 2);
@@ -171,8 +172,8 @@ function finishInner(c2, N, res, prior, keep, core) {
   for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) {
     const q = (j + o) * N + i + o, p = j * S + i;
     wet[p] = c2[q] === -1 ? 0 : 1;
-    // 1 = anslått (grovt intervall i sjøkartet), 2 = liten holme/skjær
-    flag[p] = c2[q] >= GEN0 ? 1 : isl && isl[q] ? 2 : 0;
+    // 1 = anslått (grovt intervall i sjøkartet), 2 = liten holme/skjær, 3 = pongtong på flytebru
+    flag[p] = pont[q] ? 3 : c2[q] >= GEN0 ? 1 : isl && isl[q] ? 2 : 0;
     cl[p] = c2[q] >= 0 ? c2[q] + 1 : 0;
     if (dep) { d[p] = dep[q]; hs[p] = sh[q]; }
   }
@@ -303,6 +304,8 @@ async function renderTile(z, x, y, palName, hd = false) {
   for (let j = 0; j < T; j++) for (let i = 0; i < T; i++) {
     const p = (j + 1) * S + i + 1, o = (j * T + i) * 4;
     const d = D[p], w = Wt[p];
+    // pongtong på flytebru: tegnes som en liten holme, men bunnen under er sjø (påvirker ikke dybden rundt)
+    if (FG[p] === 3) { const c = night ? [70, 68, 60] : [126, 118, 98]; img.data[o] = c[0]; img.data[o + 1] = c[1]; img.data[o + 2] = c[2]; img.data[o + 3] = 255; continue; }
     if (!(d === d) || w < 0.02) {
       // små holmer og skjær fra sjøkartet (mangler ofte i bakgrunnskartet)
       if (FG[p] === 2) { const c = night ? [70, 68, 60] : [126, 118, 98]; img.data[o] = c[0]; img.data[o + 1] = c[1]; img.data[o + 2] = c[2]; img.data[o + 3] = 255; }

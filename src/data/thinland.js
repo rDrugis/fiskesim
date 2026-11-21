@@ -105,10 +105,11 @@ export function openBridges(cls, W, H, res, mask = null, { halfWidth = 11, minLe
 /**
  * Flytebruer (f.eks. Nordhordlandsbrua): pongtongene er tegnet som en rekke små «holmer» på linje i sjøkartet.
  * Finner rekker av minst 5 like store, små holmer (150–3000 m²) som ligger på en nesten rett (evt. svakt buet) linje med jevn avstand (under 160 m),
- * og gjør dem om til sjø med dybdeintervallet rundt. Vanlige holmer og skjær ligger sjelden slik.
+ * og gjør dem om til sjø med dybdeintervallet rundt (mark: pongtongpikslene merkes, så de kan tegnes). Vanlige holmer
+ * og skjær ligger sjelden slik.
  * @returns {number} antall celler som ble gjort om til sjø
  */
-export function openPontoons(cls, W, H, res) {
+export function openPontoons(cls, W, H, res, mark = null) {
   const N = W * H, a1 = 150 / (res * res), a2 = 3000 / (res * res), maxD = 160 / res;
   const seen = new Uint8Array(N), st = new Int32Array(N), isl = [];
   for (let s = 0; s < N; s++) {
@@ -151,7 +152,7 @@ export function openPontoons(cls, W, H, res) {
     if (rms > Math.max(25, 0.05 * len) || gsd > 0.35 * gm) continue;
     // kjede, ikke klynge: hver holme har høyst to naboer innen avstanden
     if (m.some((a) => m.filter((b) => b !== a && Math.hypot(a.x - b.x, a.y - b.y) <= maxD).length > 2)) continue;
-    for (const o of m) for (const p of o.pix) { cls[p] = -9; changed++; }
+    for (const o of m) for (const p of o.pix) { cls[p] = -9; if (mark) mark[p] = 1; changed++; }
   }
   if (!changed) return 0;
   // fyll med flertallsklassen fra sjøen rundt, runde for runde

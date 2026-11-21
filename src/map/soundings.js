@@ -28,6 +28,17 @@ function loadCell(i, j) {
   return p;
 }
 
+// loddskudd nær en strek (til dybdeprofilen): [lon, lat, dybde]
+export async function soundingsAlong(a, b, bufM = 90) {
+  const dLat = bufM / 111320, dLon = dLat / Math.cos(((a[1] + b[1]) / 2) * Math.PI / 180);
+  const w = Math.min(a[0], b[0]) - dLon, e = Math.max(a[0], b[0]) + dLon, s = Math.min(a[1], b[1]) - dLat, n = Math.max(a[1], b[1]) + dLat;
+  const cells = [];
+  for (let i = Math.floor(w / CELL); i <= Math.floor(e / CELL); i++) for (let j = Math.floor(s / CELL); j <= Math.floor(n / CELL); j++) cells.push([i, j]);
+  if (cells.length > 24) return [];
+  const all = (await Promise.all(cells.map(([i, j]) => loadCell(i, j).catch(() => [])))).flat();
+  return all.map((f) => [f.geometry.coordinates[0], f.geometry.coordinates[1], f.properties.d]);
+}
+
 export class Soundings {
   constructor(api) {
     this.api = api; this.seq = 0; this.data = EMPTY;
