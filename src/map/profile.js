@@ -2,6 +2,9 @@
 // Fiskeguide leser bare sjøkartets intervaller (f.eks. 20–30 m) og tegner en trappetrinnskurve. Her brukes den
 // anslåtte dybden mellom kurvene fra fiskekartet, målt i tette punkter langs hele streken, så kurven blir glatt.
 // Sjøkartets intervall vises som et lyst bånd bak kurven, så du ser hva som er målt og hva som er anslag.
+// Loddskudd (Kartverkets målte dybdepunkter) nær streken brukes til å rette kurven, så formen på bunnen kommer fram
+// også mellom kurvene – ikke bare en jevn bakke fra kurve til kurve.
+import { soundingsAlong } from './soundings.js';
 
 const fmt = (v, d = 0) => Number(v).toLocaleString('nb-NO', { minimumFractionDigits: d, maximumFractionDigits: d });
 const fmtD = (d) => d >= 1000 ? fmt(d / 1000, 2) + ' km' : fmt(d) + ' m';
@@ -89,10 +92,36 @@ export class Profile {
     let res;
     try { res = await this.api.depthsAt(pts, coarse); } catch (e) { if (run === this.run) this.show(this.head() + '<p class="hint warn">Fikk ikke hentet dybdedata fra Kartverket.</p>'); return; }
     if (run !== this.run) return;
-    this.data = pts.map((p, i) => { const r = res[i]; const water = r && !r.land && r.depth === r.depth;
+    const data = pts.map((p, i) => { const r = res[i]; const water = r && !r.land && r.depth === r.depth;
       return { d: i / n * L, p, z: water ? Math.max(0, r.depth) : null, lo: water ? r.lo : null, hi: water ? r.hi : null, est: water && r.est, land: !!(r && r.land), nod: !r }; });
+    let snd = [];
+    if (!coarse) { try { snd = await this.soundingFix(a, b, L, data); } catch (e) { snd = []; } }
+    if (run !== this.run) return;
+    this.data = data; this.snd = snd;
     this.L = L; this.coarse = coarse;
     this.paint();
+  }
+
+  // Retter kurven etter loddskudd innen ca. 90 m fra streken: avviket mellom målt dybde og modellen der loddskuddet
+  // ligger, spres langs streken med vekt etter avstand (ca. 60 m). Langt fra loddskudd er kurven som før.
+  async soundingFix(a, b, L, data) {
+    const k = Math.cos(a[1] * rad), ax = a[0] * k, ay = a[1], vx = b[0] * k - ax, vy = b[1] - ay, L2 = vx * vx + vy * vy, m = rad * R;
+    const near = (await soundingsAlong(a, b, 90)).map(([lon, lat, z]) => {
+      const px = lon * k - ax, py = lat - ay, t = (px * vx + py * vy) / L2;
+      return { lon, lat, z, along: t * L, off: Math.abs(px * vy - py * vx) / Math.sqrt(L2) * m };
+    }).filter((s) => s.off <= 90 && s.along >= -40 && s.along <= L + 40);
+    if (!near.length) return [];
+    const model = await this.api.depthsAt(near.map((s) => [s.lon, s.lat]));
+    const used = near.map((s, i) => ({ ...s, r: model[i] && !model[i].land && model[i].depth === model[i].depth ? s.z - model[i].depth : null })).filter((s) => s.r != null);
+    if (!used.length) return [];
+    const sig2 = 2 * 60 * 60;
+    for (const p of data) {
+      if (p.z == null) continue;
+      let num = 0, den = 0;
+      for (const s of used) { const w = Math.exp(-((p.d - s.along) ** 2 + s.off ** 2) / sig2); num += w * s.r; den += w; }
+      if (den > 1e-3) p.z = Math.max(0, p.z + num / (den + 0.15));
+    }
+    return used.filter((s) => s.off <= 40 && s.along >= 0 && s.along <= L).map((s) => ({ d: s.along, z: s.z }));
   }
 
   paint() {
@@ -132,7 +161,7 @@ export class Profile {
   chart() {
     const S = this.data, ok = S.filter((s) => s.z != null), L = this.L;
     if (!ok.length) return '<p class="hint">Ingen dybdedata langs streken (land eller ikke sjømålt).</p>';
-    const maxZ = Math.max(...ok.map((s) => s.z));
+    const maxZ = Math.max(...ok.map((s) => s.z), ...(this.snd || []).map((q) => q.z));
     const dStep = niceStep(Math.max(2, maxZ), 4), maxD = Math.ceil(maxZ * 1.06 / dStep) * dStep;
     const W = 680, H = 230, l = 46, r = 12, t = 16, bt = 24, pw = W - l - r, ph = H - t - bt;
     const X = (d) => l + d / L * pw, Y = (v) => t + Math.min(v, maxD) / maxD * ph;
@@ -161,6 +190,8 @@ export class Profile {
     // punkter hele veien langs kurven (der dybden er lest)
     const step = Math.max(1, Math.ceil(S.length / 110));
     S.forEach((s, i) => { if (s.z != null && i % step === 0) dots += `<circle class="pdot${s.est ? ' e' : ''}" cx="${X(s.d).toFixed(1)}" cy="${Y(s.z).toFixed(1)}" r="1.9"/>`; });
+    // loddskudd nær streken (målt dybde)
+    for (const q of this.snd || []) dots += `<circle class="psnd" cx="${X(q.d).toFixed(1)}" cy="${Y(q.z).toFixed(1)}" r="3"><title>Loddskudd ${dep(q.z)}</title></circle>`;
     // uten data: land eller ikke sjømålt
     let gaps = '';
     for (let i = 0; i < S.length; i++) { if (S[i].z != null) continue; let j = i; while (j + 1 < S.length && S[j + 1].z == null) j++;
@@ -181,6 +212,6 @@ export class Profile {
       <p class="phovt num"></p>
       <div class="pstat">${meTxt}<span>Grunnest <b>${(shal.est ? 'ca. ' : '') + dep(shal.z)}</b> (${fmtD(shal.d)} fra A)</span><span>Dypest <b>${(deep.est ? 'ca. ' : '') + dep(deep.z)}</b> (${fmtD(deep.d)} fra A)</span>
       ${st && st.sl > 0.05 ? `<span>Brattest: ${angle(st.sl)}° (${dep(st.from.z)} → ${dep(st.to.z)} på ${fmt(st.to.d - st.from.d)} m), ${fmtD(st.at)} fra A</span>` : '<span>Ingen bratte kanter langs streken</span>'}</div>
-      <p class="hint">Kurven: anslått dybde mellom sjøkartets dybdekurver, lest i ${S.length} punkter${this.coarse ? ' (grovere oppløsning på så lang strek)' : ''}. Lyst bånd: intervallet i sjøkartet. Stiplet: bare grovt intervall i sjøkartet. Kilde: Kartverket.</p>`;
+      <p class="hint">Kurven: anslått dybde mellom sjøkartets dybdekurver, lest i ${S.length} punkter${this.coarse ? ' (grovere oppløsning på så lang strek)' : ''}. Lyst bånd: intervallet i sjøkartet. Stiplet: bare grovt intervall i sjøkartet.${this.snd && this.snd.length ? ` Ringer: loddskudd innen 40 m fra streken; loddskudd innen 90 m retter kurven.` : ''} Kilde: Kartverket.</p>`;
   }
 }

@@ -247,3 +247,5 @@ a { color: #8fd0ec; }
 .pscore { margin-left: auto; font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; }
 .pscore small { font-weight: 400; color: var(--text-3); font-size: 11px; margin-left: 1px; }
 .pfred { color: #f0a35e; font-size: 12.5px; margin: 0 0 6px 18px; }
+
+.pchart .psnd { fill: none; stroke: #ffb347; stroke-width: 1.6; }
