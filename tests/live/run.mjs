@@ -15,7 +15,8 @@ const srv = http.createServer(async (req, res) => {
     const d = await readFile(f); res.writeHead(200, { 'content-type': TYPES[extname(f)] || 'application/octet-stream' }); res.end(d); }
   catch (e) { res.writeHead(404); res.end('404'); }
 }).listen(8123);
-const BASE = 'http://127.0.0.1:8123/';
+// «pages» i ONLY: test den publiserte siden i stedet for bygget her
+const BASE = ONLY.split(',').includes('pages') ? 'https://rdrugis.github.io/fiskesim/' : 'http://127.0.0.1:8123/';
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 const report = { started: new Date().toISOString(), algo: [], shots: [], errors: [] };
 

@@ -2,6 +2,7 @@
 // Fiskeguide-algoritmen, GPS og 3D-bølger der du er.
 import { createMap, MAP_STYLES } from '../map/mapview.js';
 import { SeaMarks } from '../map/seamarks.js';
+import { Soundings } from '../map/soundings.js';
 import { AlgoLayer, SPECIES } from '../map/algolayer.js';
 import * as ALGO from '../algo/index.js';
 import { PAL } from '../map/palette.js';
@@ -57,6 +58,7 @@ export class App {
     const api = this.api, map = api.map;
     map.on('moveend', () => { const c = map.getCenter(); try { localStorage.setItem('fiskesim.map', JSON.stringify({ c: [c.lng, c.lat], z: map.getZoom() })); } catch (e) { /* privat */ } });
     this.marks = new SeaMarks(api);
+    this.soundings = new Soundings(api);
     this.algo = new AlgoLayer(api, { onNote: (t, busy) => this.note(t, busy) });
     this.initGPS();
     this.initStyles();
