@@ -149,8 +149,9 @@ export class SeaMarks {
   add(map) {
     icons(map);
     if (!map.getSource('sm')) map.addSource('sm', { type: 'geojson', data: this.data });
-    const vis = this.on ? 'visible' : 'none';
     const sjokart = this.api.style === 'sjokart';
+    // sjøkartet fra Kartverket har allerede lys, sektorer og merker: ikke dobbelt opp der
+    const vis = this.on && !sjokart ? 'visible' : 'none';
     if (!map.getLayer('sm-sektor')) map.addLayer({ id: 'sm-sektor', type: 'fill', source: 'sm', minzoom: 12, filter: ['==', ['get', 'kind'], 'sektor'], layout: { visibility: vis },
       paint: { 'fill-color': ['match', ['get', 'c'], 'r', '#e0262b', 'g', '#1f9d48', '#f4d34a'], 'fill-opacity': ['interpolate', ['linear'], ['zoom'], 12, sjokart ? 0.1 : 0.12, 15, 0.05] } });
     if (!map.getLayer('sm-sektorl')) map.addLayer({ id: 'sm-sektorl', type: 'line', source: 'sm', minzoom: 12, filter: ['==', ['get', 'kind'], 'sektor'], layout: { visibility: vis },
@@ -169,7 +170,7 @@ export class SeaMarks {
   setOn(on) {
     this.on = on; localStorage.setItem('fiskesim.merker', on ? 'på' : 'av');
     const map = this.api.map;
-    for (const l of ['sm-sektor', 'sm-sektorl', 'sm-grunne', 'sm-skjaer', 'sm-sym']) if (map.getLayer(l)) map.setLayoutProperty(l, 'visibility', on ? 'visible' : 'none');
+    for (const l of ['sm-sektor', 'sm-sektorl', 'sm-grunne', 'sm-skjaer', 'sm-sym']) if (map.getLayer(l)) map.setLayoutProperty(l, 'visibility', on && this.api.style !== 'sjokart' ? 'visible' : 'none');
     if (on) this.refresh();
   }
   async refresh() {

@@ -244,8 +244,8 @@ async function renderTile(z, x, y, palName, hd = false) {
         break;
       }
     }
-    // anslått dybde (sjøkartet har bare et grovt intervall her): svak skravur
-    if (FG[p] === 1 && ((x * T + i + (y * T + j)) % (8 * k)) < k) { r = r * 0.86 + 255 * 0.14; g = g * 0.86 + 255 * 0.14; b = b * 0.86 + 255 * 0.14; }
+    // anslått dybde (sjøkartet har bare et grovt intervall her): fint prikkmønster, synlig også i smale belter
+    if (FG[p] === 1 && ((x * T + i) % (5 * k)) < k && ((y * T + j) % (5 * k)) < k) { r = r * 0.78 + 255 * 0.22; g = g * 0.78 + 255 * 0.22; b = b * 0.78 + 255 * 0.22; }
     img.data[o] = Math.min(255, r); img.data[o + 1] = Math.min(255, g); img.data[o + 2] = Math.min(255, b); img.data[o + 3] = Math.round(255 * Math.min(1, w * 1.6));
   }
   if (z < 13) return createImageBitmap(img);

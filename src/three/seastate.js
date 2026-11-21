@@ -58,8 +58,14 @@ export function stateAt(S, t, fetchAt) {
   // dønning: fra modellen, dempet etter hvor åpent det er mot dønningens retning
   let swell = null;
   if (p && p.shs != null && p.shs > 0.05) {
-    let Fs = 0; for (const d of [-15, 0, 15]) Fs += fetchAt(((p.swd ?? wd) + d + 360) % 360); Fs /= 3;
-    const expo = Math.pow(Math.max(0, Math.min(1, (Fs - 2000) / 23000)), 1.5);
+    // Hvor åpent det er mot dønningen: stråler over ±60° vektet med en bred retningsfordeling (dønningen bøyes rundt
+    // øyer og nes), og hver stråle teller fra 0 (land innen 1 km) til 1 (åpent i 15 km eller mer).
+    let sw = 0, se = 0;
+    for (let d = -60; d <= 60; d += 10) {
+      const wgt = Math.pow(Math.cos(d * Math.PI / 180), 4), F = fetchAt(((p.swd ?? wd) + d + 360) % 360);
+      se += wgt * Math.pow(Math.max(0, Math.min(1, (F - 1000) / 14000)), 1.2); sw += wgt;
+    }
+    const expo = se / sw;
     swell = { h: p.shs * expo, tp: p.stp || 10, dir: p.swd, expo };
     src.push(expo < 0.98 ? `dønning: Open-Meteo, dempet til ${Math.round(expo * 100)} % for skjerming` : 'dønning: Open-Meteo');
   }

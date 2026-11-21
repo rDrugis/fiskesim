@@ -145,11 +145,10 @@ export class SeaView {
     if (nearErr) console.warn('3D: nært terreng feilet', nearErr);
     world.setNear(near);
     this.S = S;
+    this.bp = findWater(world, 0, 0, 2); // båten i sjøen nærmest punktet (punktet kan være på land)
     this.initGL();
     if (!flat) this.addTerrain(near, near0 ? 2 : 1);
     if (near0) farP.then((far) => { if (!far || this.dead) return; world.setFar(far); this.addTerrain(far, 1, true); this.update(true); });
-    const [bx, by] = findWater(world, 0, 0, 2);
-    this.bp = [bx, by];
     this.update(true);
     this.loop();
   }
@@ -207,7 +206,7 @@ export class SeaView {
     const [bx, by] = this.bp || [0, 0];
     this.controls = new OrbitControls(this.camera, canvas);
     this.controls.target.set(bx, 0, -by); this.controls.enableDamping = true; this.controls.maxPolarAngle = Math.PI * 0.495; this.controls.minDistance = 6; this.controls.maxDistance = 4000;
-    this.camera.position.set(bx + 30, 9, -by + 34);
+    this.placeCamera();
     const slider = this.el.querySelector('input[type=range]');
     const hours = Math.max(1, Math.floor((this.S.tEnd - Date.now()) / 3600e3));
     slider.max = String(Math.min(48, hours));
@@ -216,6 +215,19 @@ export class SeaView {
     this.onResize = () => { const w = window.innerWidth, h = window.innerHeight; R.setSize(w, h, false); this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); };
     window.addEventListener('resize', this.onResize); this.onResize();
     this.clock = new THREE.Clock();
+  }
+
+  // kamera bak båten, over vann, og med blikket mot det åpneste havet (der bølgene kommer fra)
+  placeCamera() {
+    const [bx, by] = this.bp, w = this.world;
+    let best = 0, bestF = -1;
+    for (let k = 0; k < 16; k++) { const F = this.fetchAt(k * 22.5); if (F > bestF) { bestF = F; best = k * 22.5; } }
+    const a0 = w.trueToGrid(best) * Math.PI / 180;
+    for (const da of [0, 25, -25, 50, -50, 80, -80, 120, -120, 180]) for (const r of [36, 24, 14]) {
+      const a = a0 + da * Math.PI / 180, cx = bx - Math.sin(a) * r, cy = by - Math.cos(a) * r;
+      if (w.depthAt(cx, cy) > 0.5) { this.camera.position.set(cx, 8 + r * 0.05, -cy); return; }
+    }
+    this.camera.position.set(bx + 30, 9, -by + 34);
   }
 
   addTerrain(g, stride, far = false) {
@@ -242,7 +254,8 @@ export class SeaView {
     // brytende bølgetopper øker kraftig med vinden (Monahan & O'Muircheartaigh 1980: dekning ≈ 3,84·10⁻⁶·U^3,41)
     const cover = 3.84e-6 * Math.pow(Math.max(0, st.ws), 3.41);
     U.uFoam.value = Math.min(1, cover * 18 + (st.hs > 1.5 ? 0.15 : 0));
-    U.uRough.value = Math.min(0.9, 0.12 + st.ws * 0.045);
+    // småkrusninger: nesten blankt i stille vær, tydelige fra 3–4 m/s (jf. Cox & Munk 1954)
+    U.uRough.value = Math.max(0.03, Math.min(0.7, 0.03 + 0.055 * st.ws - 0.0012 * st.ws * st.ws));
     // sol og himmel
     const sp = sunPos(t, this.lat, this.lon), el = sp.elev * Math.PI / 180, az = this.world.trueToGrid(sp.az) * Math.PI / 180;
     const sun = new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el));
