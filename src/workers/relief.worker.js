@@ -1,15 +1,14 @@
 // Fiskekart-fliser: dybden mellom sjøkartets dybdekurver (samme metode som i 3D-terrenget), glatt fargelagt
-// med svak skyggelegging, tynne dybdekurver med tall, og loddskudd (dybdepunkter), grunner og skjær ved stor zoom.
+// med svak skyggelegging, tynne dybdekurver med kurvetall. Loddskudd, grunner og skjær tegnes som vektor i kartet.
 //
 // Nivåer: zoom ≤ 12 regnes direkte. Zoom 13 og 14 regnes på nytt med finere oppløsning (ca. 9 og 5 m per piksel)
 // og bruker zoom 12-resultatet som føring langt fra kurvene, så flisene passer sammen. Over 14 skaleres 14 jevnt opp.
 // Broer (også flytebruer) gjøres om til sjø før dybden regnes ut.
-import { decodeDybdelag, DYB_ALL, GEN0, generalSLD, generalClassOf, parseWfsPoints } from '../data/depthmodel.js';
+import { decodeDybdelag, DYB_ALL, GEN0, generalSLD, generalClassOf } from '../data/depthmodel.js';
 import { contourDepth, diffuseWithin } from '../data/contourdepth.js';
 import { openBridges } from '../data/thinland.js';
 import { fetchCached, SRC } from '../data/sources.js';
 import { PAL, rgb } from '../map/palette.js';
-import { UTM33 } from '../geo/proj.js';
 
 const R = 6378137, ORIG = Math.PI * R;
 const tileMerc = (z, x, y) => { const s = (2 * ORIG) / 2 ** z; return [-ORIG + x * s, ORIG - (y + 1) * s, -ORIG + (x + 1) * s, ORIG - y * s]; };
@@ -22,7 +21,7 @@ const CZ = 12, FZ = 14, SIZE = 256;
 const BLUR_M = globalThis.__BLUR_M ?? 40; // utglatting (m) i brede intervaller
 const MARG = 128; // kant rundt flisa som hentes (piksler), så kurver like utenfor teller med
 const KEEP_C = 96, KEEP_F = 3; // kant som beholdes i minnet (grove fliser trengs som føring for de fine)
-const coarse = new Map(), fine = new Map(), sound = new Map();
+const coarse = new Map(), fine = new Map();
 
 function lru(map, key, val, max) { map.set(key, val); val.catch && val.catch(() => map.delete(key)); while (map.size > max) map.delete(map.keys().next().value); return val; }
 
@@ -190,43 +189,14 @@ async function baseFor(z, x, y) {
   return { base, u0: (x - (bx << k)) * SIZE * scale, v0: (y - (by << k)) * SIZE * scale, scale, lz, bx, by };
 }
 
-// Loddskudd, grunner og skjær (Kartverket WFS) for en zoom 14-flis, i flisens pikselkoordinater
-function soundings(bx, by) {
-  const key = bx + '/' + by;
-  if (sound.has(key)) return sound.get(key);
-  return lru(sound, key, (async () => {
-    const [mx0, my0, mx1, my1] = tileMerc(FZ, bx, by);
-    const cs = [[mx0, my0], [mx1, my0], [mx0, my1], [mx1, my1]].map(([a, b]) => UTM33.forward(lonOfMercX(a), latOfMercY(b)));
-    const bb = [Math.min(...cs.map((c) => c[0])) - 20, Math.min(...cs.map((c) => c[1])) - 20, Math.max(...cs.map((c) => c[0])) + 20, Math.max(...cs.map((c) => c[1])) + 20];
-    const get = async (type) => {
-      const url = `${SRC.wfsDybde}?service=WFS&version=2.0.0&request=GetFeature&typeNames=${encodeURIComponent('app:' + type)}&srsName=urn:ogc:def:crs:EPSG::25833&bbox=${bb.map((v) => Math.round(v)).join(',')},urn:ogc:def:crs:EPSG::25833&count=6000`;
-      const txt = await fetchCached(url, { timeout: 40000, as: 'text' });
-      return parseWfsPoints(txt, type === 'Skjær' ? null : 'dybde');
-    };
-    const [dp, gr, sk] = await Promise.all([get('Dybdepunkt').catch(() => []), get('Grunne').catch(() => []), get('Skjær').catch(() => [])]);
-    const pts = [];
-    const add = (arr, kind) => {
-      for (let k = 0; k < arr.length; k += 3) {
-        const [lon, lat] = UTM33.inverse(arr[k], arr[k + 1]);
-        const u = (mercX(lon) - mx0) / (mx1 - mx0) * SIZE, v = (my1 - mercY(lat)) / (my1 - my0) * SIZE;
-        if (u < -40 || v < -40 || u > SIZE + 40 || v > SIZE + 40) continue;
-        pts.push({ u, v, d: arr[k + 2], kind });
-      }
-    };
-    add(sk, 'skjær'); add(gr, 'grunne'); add(dp, 'dybde');
-    return pts;
-  })(), 40);
-}
-
 const LEVELS = [5, 10, 20, 30, 40, 50, 100, 150, 200, 250, 300, 400, 500];
 const MAJOR = new Set([10, 20, 50, 100, 200, 300, 500]);
-const fmtDepth = (d) => d < 10 ? (Math.round(d * 10) / 10).toString().replace('.', ',') : String(Math.round(d));
 
 async function renderTile(z, x, y, palName, hd = false) {
   const k = hd ? 2 : 1, T = SIZE * k; // skarpe fliser på skjermer med høy oppløsning (512 px vist som 256)
   const pal = PAL[palName] || PAL.dag;
   const night = palName === 'natt';
-  const { base, u0, v0, scale: sc0, lz, bx, by } = await baseFor(z, x, y);
+  const { base, u0, v0, scale: sc0 } = await baseFor(z, x, y);
   const scale = sc0 / k;
   const img = new ImageData(T, T);
   if (!base.dep) return createImageBitmap(img);
@@ -283,31 +253,9 @@ async function renderTile(z, x, y, palName, hd = false) {
   const free = (u, v, r) => placed.every(([a, b, rr]) => (a - u) ** 2 + (b - v) ** 2 > (r + rr) ** 2);
   const halo = night ? 'rgba(10,20,30,.85)' : 'rgba(255,255,255,.8)', ink = night ? '#cfe3ef' : '#16324a';
   try {
-    // soundings først (de er målt), så kurvetall
-    if (z >= 15 && lz === FZ) {
-      const pts = await soundings(bx, by).catch(() => []);
-      const sc = 2 ** (z - FZ);
-      const list = pts.map((q) => ({ ...q, u: (q.u - u0) * sc, v: (q.v - v0) * sc })) // u0, v0 er i FZ-flisens piksler
-        .filter((q) => q.u > 6 && q.v > 6 && q.u < SIZE - 6 && q.v < SIZE - 6)
-        .sort((a, b) => (a.kind === 'skjær' ? -1 : 0) - (b.kind === 'skjær' ? -1 : 0) || a.d - b.d); // grunneste først, som i sjøkart
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
-      const minSp = z >= 16 ? 15 : 19;
-      for (const q of list) {
-        if (!free(q.u, q.v, minSp)) continue;
-        placed.push([q.u, q.v, minSp * 0.6]);
-        if (q.kind === 'skjær') {
-          ctx.strokeStyle = halo; ctx.lineWidth = 3.2; ctx.beginPath(); ctx.moveTo(q.u - 4, q.v); ctx.lineTo(q.u + 4, q.v); ctx.moveTo(q.u, q.v - 4); ctx.lineTo(q.u, q.v + 4); ctx.stroke();
-          ctx.strokeStyle = night ? '#e8eef2' : '#1a1a1a'; ctx.lineWidth = 1.4; ctx.stroke();
-          continue;
-        }
-        const t = fmtDepth(Math.max(0, q.d));
-        ctx.font = (q.kind === 'grunne' ? 'bold ' : '') + '10px system-ui, sans-serif';
-        ctx.strokeStyle = halo; ctx.lineWidth = 2.6; ctx.strokeText(t, q.u, q.v);
-        ctx.fillStyle = q.kind === 'grunne' ? (night ? '#ffd0c0' : '#7a1a10') : ink; ctx.fillText(t, q.u, q.v);
-      }
-    }
+    // loddskudd, grunner og skjær tegnes som vektor i kartet (skarpe på alle zoomnivåer); her bare kurvetall
     // kurvetall langs kurvene, rotert etter kurven
-    ctx.font = '600 10px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '600 11px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     let n = 0;
     for (const [i, j, lv, gx, gy] of labelCand) {
       if (n >= 2) break;
