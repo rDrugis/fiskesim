@@ -162,6 +162,7 @@ export function algoLines(r) {
   if (fe.peak > 0.4) out.push('Topp eller grunne: ca. ' + fmt(fe.ringMean - fe.d0, 0) + ' m grunnere enn bunnen rundt (ca. 400 m unna)');
   else if (fe.knoll > 0.5 && ((r.P.w.knoll || 0) > 0 || (r.P.b && r.P.b.knoll))) out.push('Liten topp eller forhøyning: ca. ' + fmt(fe.ringMean - fe.d0, 0) + ' m grunnere enn bunnen rundt');
   if (fe.nose > 0.5 && ((r.P.w.nose || 0) > 0 || (r.P.b && r.P.b.nose))) out.push('Nebb eller odde på en kant: dypere vann på flere sider – her samles ofte strøm og mat');
+  if (fe.shelf > 0.5 && r.P.b && r.P.b.shelf) out.push('Hylle: nesten flatt like rundt, med en kant ned mot ca. ' + fmt(fe.shD, 0) + ' m innen ca. 250 m – kveita ligger ofte på slike hyller nær dypere vann');
   if (fe.basin > 0.4 && (r.P.w.basin || 0) > 0) out.push('Grop eller basseng: ca. ' + fmt(fe.d0 - fe.ringMean, 0) + ' m dypere enn bunnen rundt – her samles ofte mudder');
   if (fe.slake > 0.6 && (r.P.w.slake || 0) > 0) out.push('Slak bakke: bunnen skrår jevnt, ca. ' + fmt(fe.mn, 0) + '–' + fmt(fe.mx, 0) + ' m like rundt');
   else if (fe.flat > 0.7 && (r.P.w.flat || 0) > 0) out.push('Flat bunn');

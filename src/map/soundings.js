@@ -46,7 +46,7 @@ export class Soundings {
       'text-field': ['case', ['<', ['get', 'd'], 10], shallow, deep], 'text-font': ['literal', ['Noto Sans Regular']],
       'text-size': ['interpolate', ['linear'], ['zoom'], MINZ, 10.5, 17, 12.5], 'text-allow-overlap': false, 'text-padding': 3, 'symbol-sort-key': ['get', 'd'] },
       paint: { 'text-color': night ? '#cfe3ef' : '#16324a', 'text-halo-color': night ? 'rgba(10,20,30,.85)' : 'rgba(255,255,255,.75)', 'text-halo-width': 1.3 } },
-      map.getLayer('sm-sektor') ? 'sm-sektor' : undefined);
+      map.getLayer('sm-grunne') ? 'sm-grunne' : undefined);
     this.refresh();
   }
   async refresh() {
