@@ -112,6 +112,24 @@ if (want('algo') || want('algo2')) {
 }
 
 // ---------- Rådata fra Kartverket (for å se hva som er data og hva som er beregning) ----------
+if (want('lys')) {
+  // poeng per blokk (ca. 175 m) for lysing i november i et stort område rundt Salhus/Hjeltefjorden – bare algoritmens eget
+  // resultat lagres; sammenligningen mot fangster gjøres utenfor GitHub
+  try {
+    const ctx = await browser.newContext({ viewport: { width: 1000, height: 700 } }), pg = await ctx.newPage();
+    await pg.goto(BASE + '?sted=60.54,5.3&z=11', { waitUntil: 'load' });
+    await waitFor(pg, () => !!(window.fiskesim && window.fiskesim.ALGO), 30000);
+    const t0 = Date.now();
+    report.lys = await pg.evaluate(async () => {
+      const AL = window.fiskesim.ALGO, tl = AL.viewTiles({ s: 60.49, w: 5.18, n: 60.585, e: 5.41 }), out = [];
+      const one = async ([tx, ty]) => { try { const r = await AL.atGrid(tx, ty, 10, 'lysing'); out.push({ tx, ty, picks: (r.c.lysing || []).map((p) => [p.lat, p.lon, p.sc, p.fe && p.fe.d0]), blocks: r.blocks }); } catch (e) { out.push({ tx, ty, err: String(e.message || e) }); } };
+      for (let i = 0; i < tl.length; i += 4) await Promise.all(tl.slice(i, i + 4).map(one));
+      return out;
+    });
+    log('lysing-rutenett', report.lys.length, 'ruter på', Math.round((Date.now() - t0) / 1000), 's');
+    await ctx.close();
+  } catch (e) { report.errors.push('lys: ' + e.message); }
+}
 if (want('raw') || want('tiles')) {
   // nøyaktig de samme WMS-bildene som kartflis-tråden henter (grov z12 og fine z14 med 128 px kant)
   const { generalSLD } = await import(join(ROOT, 'src/data/depthmodel.js'));

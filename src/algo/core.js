@@ -281,6 +281,9 @@ export async function computeTile(tx, ty, m, inp, { pause = null, now = new Date
       if (Math.hypot(i - ci, j - cj) > rc) continue; const c = j * W + i, f2 = {}; if (!feat(c, f2)) continue; const sc = cellScore(sps[s], f2, f2.d0, DB[c] - DA[c] > 100);
       if (sc > o.sc) { o.sc = sc; o.fe = f2; o.iv = [DA[c], DB[c]]; } } }); }
   const ll = (c) => { const i = c % W, j = (c / W) | 0; return unmerc(bx[0] + (i + 0.5) * ACELL, bx[3] - (j + 0.5) * ACELL); };
+  /* testkrok: beste poeng i hver blokk på ca. 175 m for én art (til kontroll mot fangster utenfor nettleseren) */
+  if (dbg && dbg.grid) { const s = sps.findIndex((X) => X.sp === dbg.grid); dbg.blocks = [];
+    if (s >= 0) for (let b = 0; b < nb * nb; b++) if (bestS[s][b] > 0) { const [la, lo] = ll(bestC[s][b]); dbg.blocks.push([rd(la, 5), rd(lo, 5), rd(bestS[s][b], 3)]); } }
   const ak = (akF || []).concat(akP || []), minSep = Math.round(350 / cellM), out = {};
   sps.forEach((X, s) => {
     const cand = [], thr = dbg && dbg.thr != null ? dbg.thr : 0.45; for (let b = 0; b < nb * nb; b++) if (bestS[s][b] >= thr) cand.push([bestS[s][b], bestC[s][b]]);
