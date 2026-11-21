@@ -25,7 +25,7 @@ const coarse = new Map(), fine = new Map();
 
 // Ferdig utregnede fliser lagres i nettleseren (IndexedDB), så kartet kommer fram med en gang neste gang.
 // Endre MODEL_V når dybdemodellen endres, så gamle resultater ikke brukes.
-const MODEL_V = 'm10-' + BLUR_M, IDB_MAX = 700;
+const MODEL_V = 'm11-' + BLUR_M, IDB_MAX = 700;
 let dbP = null;
 function db() {
   if (dbP) return dbP;
@@ -165,7 +165,7 @@ function finishInner(c2, N, res, prior, keep, core) {
   if (dep && BLUR_M > 0) diffuseWithin(dep, c2, N, N, DYB_ALL, Math.max(1, Math.min(40, Math.round((BLUR_M / res) ** 2 / 4))), 2);
   // skyggen regnes fra en mykere kopi uten intervallgrensene: klemmingen til intervallet gir et lite knekkpunkt ved
   // hver kurve, og det ble tegnet som lyse/mørke striper langs kurvene. Dybden og fargene bruker fortsatt dep.
-  const sh = dep ? blurNaN(dep, N, 2, 2) : null;
+  const sh = dep ? blurNaN(dep, N, 3, 3) : null;
   const isl = water ? isletMask(c2, N) : null;
   const S = core + 2 * keep, o = MARG - keep;
   const d = new Float32Array(S * S).fill(NaN), hs = sh ? new Float32Array(S * S) : null, wet = new Uint8Array(S * S), flag = new Uint8Array(S * S), cl = new Uint8Array(S * S);
@@ -242,6 +242,9 @@ function computeOne(z, x, y) {
       prior = new Float32Array(N * N);
       const sx = (x - (ppx << k)) * SIZE, sy = (y - (ppy << k)) * SIZE;
       for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) prior[j * N + i] = bil(parent.dep, parent.N, parent.m, (sx + i - MARG + 0.5) / f, (sy + j - MARG + 0.5) / f);
+      // den grove flisa har store ruter (ca. 19 m); uten utjevning ble de synlige som striper på små grunner
+      // (f.eks. Klauvskallen under Nordhordlandsbrua)
+      prior = blurNaN(prior, N, Math.max(1, Math.round(f * 1.5)), 2);
     }
     const out = finish(c2, N, res, prior, KEEP_F);
     await idbPut('f' + key, out);
