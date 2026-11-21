@@ -112,6 +112,24 @@ if (want('algo') || want('algo2')) {
 }
 
 // ---------- Rådata fra Kartverket (for å se hva som er data og hva som er beregning) ----------
+if (want('speed')) {
+  // innlastingstid for fiskekartet med ekte Kartverket: publisert side mot denne versjonen, kald nettleser hver gang
+  const t = async (base, sted, z) => {
+    const ctx = await browser.newContext({ viewport: { width: 1300, height: 850 } }), pg = await ctx.newPage(), out = [];
+    await pg.addInitScript(() => localStorage.setItem('fiskesim.kart', 'fiskekart'));
+    for (let k = 0; k < 2; k++) {
+      const t0 = Date.now(); await pg.goto(base + '?sted=' + sted + '&z=' + z, { waitUntil: 'load' });
+      await waitFor(pg, () => !!(window.fiskesim && window.fiskesim.api && window.fiskesim.api.map), 30000, 100);
+      const ok = await waitFor(pg, () => { const m = window.fiskesim.api.map; return m.getSource('relief') && m.isSourceLoaded('relief') && m.areTilesLoaded(); }, 180000, 200);
+      out.push(ok ? Math.round((Date.now() - t0) / 100) / 10 : null);
+    }
+    await ctx.close(); return out;
+  };
+  report.speed = [];
+  for (const [sted, z] of [['60.52,5.27', 14.5], ['61.56,4.83', 13.5], ['60.50,5.26', 16]]) for (const rep of [0, 1]) for (const [nm, base] of (rep ? [['ny', 'http://127.0.0.1:8123/'], ['publisert', 'https://rdrugis.github.io/fiskesim/']] : [['publisert', 'https://rdrugis.github.io/fiskesim/'], ['ny', 'http://127.0.0.1:8123/']])) {
+    try { const r = await t(base, sted, z); report.speed.push({ nm, sted, z, r }); log('fart', nm, sted, 'z' + z, 'første / andre besøk (s):', JSON.stringify(r)); } catch (e) { log('fart feil', nm, e.message); }
+  }
+}
 if (want('lys')) {
   // poeng per blokk (ca. 175 m) for lysing i november i et stort område rundt Salhus/Hjeltefjorden – bare algoritmens eget
   // resultat lagres; sammenligningen mot fangster gjøres utenfor GitHub
