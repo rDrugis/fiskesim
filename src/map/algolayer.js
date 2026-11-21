@@ -1,7 +1,6 @@
 // Fiskeplasser fra algoritmen i kartet (av/på), med forklaring per art. Plasser du velger («Behold i kartet»)
 // blir liggende i kartet også når forslagene er slått av, til du fjerner dem.
 import { algoRun, ART, R, esc, km } from '../algo/index.js';
-import { maxScore } from '../algo/core.js';
 
 const starBg = (cols) => cols.length > 1 ? 'conic-gradient(' + cols.map((c, i) => c + ' ' + Math.round(i * 100 / cols.length) + '% ' + Math.round((i + 1) * 100 / cols.length) + '%').join(',') + ')' : cols[0];
 const load = (k, d) => { try { const v = localStorage.getItem('fiskesim.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
@@ -124,13 +123,13 @@ export class AlgoLayer {
   }
 }
 
-// poeng 0–100 der 100 er perfekt: algoritmens poeng (uten tak) delt på høyeste mulige poeng for arten
+// poeng: algoritmens poeng × 100 uten tak (før ble alt over 100 kuttet til 100, så de beste plassene så like ut)
 const score = (sc) => Math.round(Math.max(0, Math.min(1, sc || 0)) * 100);
-const pct = (r) => r.raw != null ? Math.round(Math.max(0, Math.min(1, r.raw / maxScore(r.sp))) * 100) : score(r.sc);
+const pct = (r) => r.raw != null ? Math.round(Math.max(0, r.raw) * 100) : score(r.sc);
 function spLine(r) {
   const a = ART[r.sp] || {}, fr = r.P && r.P.fredet;
   return `<div class="psp"><span class="pdot" style="background:${a.col || '#9fb3c2'}"></span><b>${esc(a.no || r.sp)}</b>` +
-    (r.pct != null || r.sc != null ? `<span class="pscore" title="Algoritmens poeng – 100 er perfekt">${r.pct != null ? r.pct : pct(r)}<small>/100</small></span>` : '') + `</div>` +
+    (r.pct != null || r.sc != null ? `<span class="pscore" title="Algoritmens poeng (kan gå over 100)">${r.pct != null ? r.pct : pct(r)}<small> poeng</small></span>` : '') + `</div>` +
     (fr ? `<div class="pfred">${esc(fr)}</div>` : '');
 }
 function depthLine(d, iv) {
