@@ -54,14 +54,6 @@ export const bunnOf = (r, g, b) => { let best = 0, bd = 1600; R.bunn.forEach((x)
 export const bunnNavn = (k) => (R.bunn.find((x) => x.k === k) || {}).n || '';
 
 /* artens dybdekrav og vekter for måneden m (0–11), med fredning og varsler. now: dagens dato (for datoskiller). */
-/* Høyeste mulige poeng for en art (Fiskesim): alle bunnformer fullt, dybden midt i kjernen, foretrukket bunntype og
-   registrert fiskeplass. Brukes til å vise poeng 0–100, der 100 er perfekt. Tillegg som hylle for kveite er bare én av
-   flere typer plasser arten kan stå på, ikke et krav – de gir ekstra poeng, men regnes ikke med i det perfekte. */
-export function maxScore(sp) {
-  const A = R.algo[sp]; if (!A) return 1;
-  return (A.bunn ? 1.2 : 1) * 1.25;
-}
-
 export function algoParams(sp, m, lat, lon, now = new Date()) {
   const A = R.algo[sp]; if (!A) return null;
   let P = { core: A.core, range: A.range, w: A.w, b: A.b || null, varsel: '', fredet: '' };
