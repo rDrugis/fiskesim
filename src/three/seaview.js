@@ -292,7 +292,8 @@ export class SeaView {
         ${st.metHs != null ? `<dt>MET</dt><dd class="num">${hm(st.metHs)} i nærmeste modellpunkt</dd>` : ''}
       </dl>
       ${!this.S.ok.wind && !this.S.ok.part ? '<p class="src warn">Fikk ikke hentet vær- og bølgedata nå – tallene over er ikke riktige.</p>' : ''}${this.terrainNote ? `<p class="src warn">${esc(this.terrainNote)}</p>` : ''}
-      <p class="src">${esc(st.src.join(' · '))}. Bølgehøyde = signifikant (snitt av den høyeste tredjedelen). Enkeltbølger kan bli nesten dobbelt så høye. Modell, ikke målt.</p>`;
+      <p class="src note">Signifikant bølgehøyde (snitt av den høyeste tredjedelen). Enkeltbølger kan bli nesten dobbelt så høye. Modell, ikke målt.</p>
+      <p class="src">${esc(st.src.join(' · '))}.</p>`;
   }
 
   // båten følger bølgene (hiv, stamp og rull fra bølgeflaten under skroget)
