@@ -5,6 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       only: { description: 'algo, shots eller tomt for alt', required: false, default: 'algo2,raw,shots' }
+      art: { description: 'art for hvorfor', required: false, default: 'sei' }
   push:
     branches: [livetest]
 permissions:
@@ -22,7 +23,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: node tools/build.mjs
       - name: Kjør testene
-        env: { ONLY: "${{ github.event.inputs.only }}" }
+        env: { ONLY: "${{ github.event.inputs.only }}", WHY_ART: "${{ github.event.inputs.art }}" }
         run: node tests/live/run.mjs . 2>&1 | tee tests/live/out-log.txt
       - name: Legg resultatet i grenen livetest-results
         if: always()

@@ -22,7 +22,7 @@ export const ART = DATA.art, SRC = DATA.src;
    topp, liten topp og grop måles mot bunnen ca. 400 m unna. */
 export const FCFG = { e0: 15, e1: 75, pk: 30, kn: 10, bs: 30, fo: 8, fl: 40, s0: 5, s1: 10, s2: 35, s3: 25 };
 export const ALV = 'a12', ACELL = 10, ATILE = 6000, AMAXT = 24, AKEEP = 8;
-export const VERSION = ALV + '+fs4'; // Fiskeguide-versjon + Fiskesims tillegg (endres når resultatet kan endre seg)
+export const VERSION = ALV + '+fs5'; // Fiskeguide-versjon + Fiskesims tillegg (endres når resultatet kan endre seg)
 
 export const clamp01 = (v) => v < 0 ? 0 : v > 1 ? 1 : v;
 export const RM = 6378137, D2R = Math.PI / 180;
