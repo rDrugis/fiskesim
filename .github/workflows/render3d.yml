@@ -4,7 +4,7 @@ name: render3d
 on:
   workflow_dispatch:
     inputs:
-      places: { description: 'navn:lat:lon:halvbredde_m:asimut:høydevinkel:avstand_m ...', required: true }
+      places: { description: 'navn:lat:lon:halvbredde_m:asimut:høydevinkel:avstand_m[:mål_z] ...', required: true }
       dtm_run: { description: 'kjøring med terrengmodellen (dtm)', required: true, default: '45072881841' }
 permissions: { contents: write, actions: read }
 jobs:
@@ -28,8 +28,8 @@ jobs:
         run: |
           mkdir -p out
           for s in ${{ github.event.inputs.places }}; do
-            IFS=: read -r n lat lon half az el dist <<< "$s"
-            blender -b -P tools/render3d/blender_scene.py -- "steder/$n" "$PWD/out/$n.png" "$az" "$el" "$dist" 2>&1 | grep -E "ferdig|Error|Traceback|line [0-9]+" || true
+            IFS=: read -r n lat lon half az el dist tz <<< "$s"
+            blender -b -P tools/render3d/blender_scene.py -- "steder/$n" "$PWD/out/$n.png" "$az" "$el" "$dist" $tz 2>&1 | grep -E "ferdig|Error|Traceback|line [0-9]+" || true
           done
           ls -la out
       - name: Legg bildene i grenen render3d-results
