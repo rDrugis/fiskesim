@@ -295,6 +295,10 @@ if (want('pre')) {
       return { kartverket: f.reduce((a, s) => a + s.fetch.length, 0), utregnet: f.reduce((a, s) => a + s.comp.length, 0), dybde: r && r[0] && Math.round(r[0].depth * 10) / 10, kB: Math.round(performance.getEntriesByType('resource').filter((e) => e.name.includes('/pre/')).reduce((a, e) => a + (e.transferSize || e.encodedBodySize || 0), 0) / 1024) }; }) });
   }
 }
+if (want('dyp')) {
+  // dype fjorder: kurver under 500 m og lilla under 1000 m (Sognefjorden), med ferdig utregnet kart
+  for (const [nm, q] of [['sogn-oversikt', '?sted=61.12,6.0&z=11.5'], ['sogn-dyp', '?sted=61.13,6.30&z=13'], ['sogn-dyp-z14', '?sted=61.125,6.27&z=14.2']]) await shot('dyp-' + nm, q, { wait: 15000 });
+}
 if (want('pkt')) {
   // fiskekartet før (nettsiden, uten punkter) og etter (denne versjonen, med loddskudd og grunner)
   for (const [nm, q] of [['ortna-z13', '?sted=61.112,6.13&z=13.6'], ['ortna', '?sted=61.1153,6.1401&z=15.6'], ['klokkarneset', '?sted=60.5415,5.3409&z=15'], ['reksta', '?sted=61.559,4.84&z=15']]) {

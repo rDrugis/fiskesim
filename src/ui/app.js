@@ -7,7 +7,7 @@ import { AlgoLayer, SPECIES } from '../map/algolayer.js';
 import { Profile, ICON_PROF } from '../map/profile.js';
 import { Drift, ICON_DRIFT } from '../map/drift.js';
 import * as ALGO from '../algo/index.js';
-import { PAL } from '../map/palette.js';
+import { PAL, rgb } from '../map/palette.js';
 import { SRC, ATTRIB } from '../data/sources.js';
 import { wmsImage } from '../data/kartverket.js';
 import { NGU_CLS } from '../data/terrainbuild.js';
@@ -47,11 +47,11 @@ export class App {
       <section class="sheet-p prof hidden" aria-label="Dybdeprofil"></section>
       <section class="sheet-p drift hidden" aria-label="Drift"></section>
       <div class="xhair hidden" aria-hidden="true"></div>
-      <div class="legend${style === 'fiskekart' ? '' : ' hidden'}" aria-hidden="true"><div class="bar"></div><div class="ticks num"><span>0</span><span>20</span><span>50</span><span>100</span><span>250 m</span></div></div>`;
+      <div class="legend${style === 'fiskekart' ? '' : ' hidden'}" aria-hidden="true"><div class="bar"></div><div class="ticks num"><span>0</span><span>20</span><span>50</span><span>100</span><span>250</span><span>1000 m</span></div></div>`;
     const bar = root.querySelector('.legend .bar');
-    const stops = [0, 10, 20, 35, 50, 75, 100, 175, 250];
-    const pos = (d) => [0, 20, 50, 100, 250].reduce((acc, v, i, a) => (d >= v ? i + (i < a.length - 1 ? Math.min(1, (d - v) / (a[i + 1] - v)) : 0) : acc), 0) / 4;
-    bar.style.background = `linear-gradient(90deg, ${stops.map((d) => { const c = PAL.dag.reduce((p, q) => (q[0] <= d ? q : p))[1]; return `rgb(${c.map(Math.round).join(',')}) ${(pos(d) * 100).toFixed(1)}%`; }).join(',')})`;
+    const stops = [0, 10, 20, 35, 50, 75, 100, 175, 250, 450, 700, 1000];
+    const pos = (d) => [0, 20, 50, 100, 250, 1000].reduce((acc, v, i, a) => (d >= v ? i + (i < a.length - 1 ? Math.min(1, (d - v) / (a[i + 1] - v)) : 0) : acc), 0) / 5;
+    bar.style.background = `linear-gradient(90deg, ${stops.map((d) => { const c = rgb(d, PAL.dag); return `rgb(${c.map(Math.round).join(',')}) ${(pos(d) * 100).toFixed(1)}%`; }).join(',')})`;
     this.status = root.querySelector('.status');
     this.init();
   }
