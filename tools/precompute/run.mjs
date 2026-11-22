@@ -25,10 +25,13 @@ const all = []; for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) al
 const mine = all.filter((_, i) => i % NSH === SHARD);
 log(`shard ${SHARD}/${NSH}: ${mine.length} av ${all.length} z12-fliser`);
 
-const browser = await chromium.launch();
+const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const pg = await (await browser.newContext({ viewport: { width: 800, height: 600 } })).newPage();
 await pg.goto('http://127.0.0.1:8123/?sted=61,5.5&z=6', { waitUntil: 'load' });
-for (let k = 0; k < 60 && !(await pg.evaluate(() => !!(window.fiskesim && window.fiskesim.api && window.fiskesim.api.reliefDump)).catch(() => false)); k++) await pg.waitForTimeout(1000);
+let ready = false;
+for (let k = 0; k < 90 && !(ready = await pg.evaluate(() => !!(window.fiskesim && window.fiskesim.api && window.fiskesim.api.reliefDump)).catch(() => false)); k++) await pg.waitForTimeout(1000);
+if (!ready) { log('siden startet ikke – avbryter'); process.exit(1); }
+log('siden er klar');
 
 async function dump(z, x, y) {
   for (let k = 0; k < 3; k++) {
