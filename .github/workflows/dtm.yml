@@ -1,20 +1,41 @@
-# Vurdering av Kartverkets terrengmodeller for havbunnen (WCS) på noen kjente steder. Endrer ikke nettsiden.
+# Test (endrer ikke nettsiden): fiskekartet med og uten terrengmodellen (topobaty 50 m) som bunnform innenfor
+# sjøkartets intervaller. Bilder og tall legges i grenen dtm-results.
 name: dtm
 on:
   workflow_dispatch:
     inputs:
-      vdata_run: { description: 'kjøring med vdata (loddskudd)', required: true, default: '45057907089' }
-permissions: { contents: read, actions: read }
+      vdata_run: { description: 'kjøring med vdata', required: true, default: '45057907089' }
+      places: { description: 'sted:z14x:z14y,...', required: true, default: 'temba:8396:4621,ortna:8471:4654,salhus:8431:4711,klokkarneset:8435:4708,askrova:8422:4614' }
+permissions: { contents: write, actions: read }
 jobs:
-  probe:
+  test:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
       - run: sudo apt-get -qq update && sudo apt-get -qq install -y gdal-bin python3-gdal python3-numpy >/dev/null
       - uses: actions/download-artifact@v4
         with: { name: vdata, path: vdata, run-id: '${{ github.event.inputs.vdata_run }}', github-token: '${{ secrets.GITHUB_TOKEN }}' }
-      - run: python3 tools/dtm/probe.py vdata dtm-out
-      - uses: actions/upload-artifact@v4
+      - name: Blokkene som trengs
+        id: b
+        env: { PLACES: '${{ github.event.inputs.places }}' }
+        run: |
+          T=$(python3 -c "import os;s=set()
+          for p in os.environ['PLACES'].split(','):
+            _,x,y=p.split(':');x,y=int(x),int(y)
+            for dx in(-1,0,1):
+              for dy in(-1,0,1): s.add(f'{(x+dx)>>2}_{(y+dy)>>2}')
+          print(','.join(sorted(s)))")
+          echo "tiles=$T" >> $GITHUB_OUTPUT; echo "$T"
+      - run: TILES='${{ steps.b.outputs.tiles }}' python3 tools/vector/raster.py vdata ras 0 1
+      - run: python3 tools/dtm/fetch.py dtm 2048 '${{ steps.b.outputs.tiles }}'
+      - run: node tools/dtm/compare.mjs vdata ras dtm out 2048 '${{ github.event.inputs.places }}'
+      - name: Legg resultatet i grenen dtm-results
         if: always()
-        with: { name: dtm-out, path: dtm-out, retention-days: 7 }
+        run: |
+          mkdir -p out && cd out && git init -q && git checkout -q -b dtm-results
+          git config user.name "fiskesim-test" && git config user.email "actions@users.noreply.github.com"
+          echo "Kjøring ${{ github.run_id }}" > README.md && git add -A && git commit -q -m "DTM-test ${{ github.run_id }}"
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" dtm-results
