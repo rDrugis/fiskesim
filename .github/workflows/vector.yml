@@ -3,9 +3,12 @@
 name: vector
 on:
   workflow_dispatch:
+    inputs:
+      vdata_run: { description: 'gjenbruk omgjorte data fra denne kjøringen (tom = gjør om på nytt)', required: false, default: '' }
 permissions: { contents: write, actions: read }
 jobs:
   prep:
+    if: github.event.inputs.vdata_run == ''
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
@@ -21,6 +24,7 @@ jobs:
         with: { name: vdata, path: vdata, retention-days: 7, compression-level: 0 }
   part:
     needs: prep
+    if: always() && (needs.prep.result == 'success' || needs.prep.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 300
     strategy:
@@ -32,20 +36,21 @@ jobs:
         with: { node-version: 20 }
       - run: sudo apt-get -qq update && sudo apt-get -qq install -y gdal-bin python3-gdal python3-numpy >/dev/null
       - uses: actions/download-artifact@v4
-        with: { name: vdata, path: vdata }
+        with: { name: vdata, path: vdata, run-id: '${{ github.event.inputs.vdata_run || github.run_id }}', github-token: '${{ secrets.GITHUB_TOKEN }}' }
       - run: python3 tools/vector/raster.py vdata ras ${{ matrix.shard }} 16
       - run: node tools/vector/depth.mjs vdata ras pre-out
       - uses: actions/upload-artifact@v4
         with: { name: 'vpre-${{ matrix.shard }}', path: pre-out, retention-days: 14, compression-level: 0 }
   pack:
     needs: part
+    if: always() && needs.part.result != 'cancelled'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with: { pattern: 'vpre-*', path: pre, merge-multiple: true }
       - uses: actions/download-artifact@v4
-        with: { name: vdata, path: vdata }
+        with: { name: vdata, path: vdata, run-id: '${{ github.event.inputs.vdata_run || github.run_id }}', github-token: '${{ secrets.GITHUB_TOKEN }}' }
       - name: Pakk og legg i utgivelsen
         env: { GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
         run: |
