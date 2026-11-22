@@ -26,7 +26,7 @@ const coarse = new Map(), fine = new Map();
 
 // Ferdig utregnede fliser lagres i nettleseren (IndexedDB), så kartet kommer fram med en gang neste gang.
 // Endre MODEL_V når dybdemodellen endres, så gamle resultater ikke brukes.
-const MODEL_V = 'm18-' + BLUR_M, IDB_MAX = 700;
+const MODEL_V = 'm13-' + BLUR_M, IDB_MAX = 700;
 let dbP = null;
 function db() {
   if (dbP) return dbP;
@@ -214,7 +214,6 @@ function computeCoarse(z, x, y) {
   if (coarse.has(key)) return coarse.get(key);
   return lru(coarse, key, withLock('c' + key, async () => {
     const hit = await idbGet('c' + key); if (hit) return hit;
-    if (z === CZ) { const pre = await loadPre(z, x, y); if (pre) return pre; }
     const [mx0, my0, mx1, my1] = tileMerc(z, x, y);
     const px = (mx1 - mx0) / SIZE, N = SIZE + 2 * MARG;
     const bb = [mx0 - MARG * px, my0 - MARG * px, mx1 + MARG * px, my1 + MARG * px];
@@ -247,28 +246,6 @@ async function wfsCells(bb, px) {
   return out;
 }
 
-// Ferdig utregnede fliser (Vestland, regnet ut på GitHub): pre/{z}/{x}/{y}.bin.gz ved siden av nettsiden.
-// Dybde i dm (Uint16, 65535 = land), klasse og merker, 256 × 256 uten kant. Finnes ikke flisa (land eller utenfor
-// området), regnes den ut som før.
-const PRE = { w: 4.0, e: 8.3, s: 59.6, n: 62.4 };
-const inPre = (z, x, y) => { if (z < 12 || z > 14) return false; const n = 2 ** z, lon0 = x / n * 360 - 180, lon1 = (x + 1) / n * 360 - 180, lat0 = latOfMercY(ORIG - (y + 1) * 2 * ORIG / n), lat1 = latOfMercY(ORIG - y * 2 * ORIG / n);
-  return lon0 >= PRE.w && lon1 <= PRE.e && lat0 >= PRE.s && lat1 <= PRE.n; };
-const PRE_ON = false; // slås på når Vestland er regnet ut på nytt med rettede kanter
-async function loadPre(z, x, y) {
-  if (!PRE_ON || !inPre(z, x, y)) return null;
-  let r; try { r = await fetch(new URL(`../pre/${z}/${x}/${y}.bin.gz`, self.location.href)); } catch (e) { return null; }
-  if (!r.ok) return null;
-  const buf = new Uint8Array(await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
-  const S = SIZE, M = S * S; if (buf.length < M * 4) return null;
-  const d16 = new Uint16Array(buf.buffer, 0, M), clIn = buf.subarray(M * 2, M * 3), flIn = buf.subarray(M * 3, M * 4);
-  // negative dybder (tørrfall) er lagret som 65536 − |d|
-  const dep = new Float32Array(M), wet = new Uint8Array(M), cl = new Uint8Array(M), flag = new Uint8Array(M);
-  let any = false;
-  for (let p = 0; p < M; p++) { const v = d16[p]; if (v === 65535) dep[p] = NaN; else { dep[p] = (v > 60000 ? v - 65536 : v) / 10; wet[p] = 1; any = true; } cl[p] = clIn[p]; flag[p] = flIn[p]; if (flag[p] === 3) wet[p] = 1; }
-  const [mx0, my0, mx1] = tileMerc(z, x, y), res = (mx1 - mx0) / S * Math.cos(latOfMercY(my0) * Math.PI / 180);
-  return { dep: any ? dep : null, sh: any ? blurNaN(dep, S, 3, 3) : null, wet, flag, cl, N: S, m: 0, res, pre: true };
-}
-
 // Én fin flis per forespørsel. (Blokker på 2 × 2 fliser ble prøvd: mindre å regne, men Kartverket svarte mye
 // tregere på de store bildene i skjærgården – opptil 22 s per bilde ved Reksta – så det ble tregere totalt.)
 function computeFine(z, x, y) { return computeOne(z, x, y); }
@@ -277,7 +254,6 @@ function computeOne(z, x, y) {
   if (fine.has(key)) return fine.get(key);
   return lru(fine, key, withLock('f' + key, async () => {
     const hit = await idbGet('f' + key); if (hit) return hit;
-    const pre = await loadPre(z, x, y); if (pre) return pre;
     const k = z - CZ, ppx = x >> k, ppy = y >> k, f = 2 ** k;
     const parentP = computeCoarse(CZ, ppx, ppy).catch(() => null);
     const [mx0, my0, mx1, my1] = tileMerc(z, x, y);
@@ -450,14 +426,6 @@ self.onmessage = async (ev) => {
   const { id, kind, z, x, y, pal, lon, lat } = ev.data; // hd: skarp flis
   try {
     if (kind === 'stats') { self.postMessage({ id, info: { ...STATS, origin: Math.round(performance.timeOrigin) } }); return; }
-    // forhåndsberegning (GitHub): dybden i kjernen av en flis, dm som Uint16 (65535 = land), klasse og merker
-    if (kind === 'dump') {
-      const { z, x, y } = ev.data, b = z <= CZ ? await computeCoarse(z, x, y) : await computeOne(z, x, y), S = SIZE, m = b.m, N = b.N;
-      const dep = new Uint16Array(S * S), cl = new Uint8Array(S * S), fl = new Uint8Array(S * S); let wet = 0;
-      for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) { const q = (j + m) * N + i + m, p = j * S + i, d = b.dep ? b.dep[q] : NaN;
-        if (b.wet[q] && d === d) { dep[p] = (Math.max(-500, Math.min(6000, Math.round(d * 10))) + 65536) % 65536; wet++; } else dep[p] = 65535; cl[p] = b.cl[q]; fl[p] = b.flag[q]; }
-      self.postMessage({ id, info: { wet, dep, cl, fl } }); return;
-    }
     if (kind === 'depth') { self.postMessage({ id, info: await depthAt(lon, lat) }); return; }
     // mange punkter på én gang (dybdeprofil); grovt nivå for lange streker
     if (kind === 'depths') { const out = await Promise.all(ev.data.pts.map(([lo, la]) => depthAt(lo, la, !!ev.data.coarse).catch(() => null))); self.postMessage({ id, info: out }); return; }
