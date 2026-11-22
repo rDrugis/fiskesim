@@ -84,6 +84,14 @@ for spec in sys.argv[4:]:
     l50 = warp(gdal.Open(DTM50), bb, n, 'cubic')
     if land is None: land = l50
     else: land = np.where(np.isfinite(land), land, l50)
+    # hull i havbunnen der høydemodellen heller ikke har land (flytebrua sine pongtonger, kaier): fyll fra havbunnen rundt
+    hole = ~np.isfinite(sea) & (~np.isfinite(land) | (land < 1.0))
+    for _ in range(80):
+        if not hole.any(): break
+        v = np.where(np.isfinite(sea), sea, 0); c = np.isfinite(sea).astype(np.float32)
+        sv = sum(np.roll(np.roll(v, a, 0), b, 1) for a in (-1, 0, 1) for b in (-1, 0, 1))
+        sc = sum(np.roll(np.roll(c, a, 0), b, 1) for a in (-1, 0, 1) for b in (-1, 0, 1))
+        grow = hole & (sc > 0); sea = np.where(grow, sv / np.maximum(sc, 1), sea); hole &= ~grow
     z = np.where(np.isfinite(sea), -np.maximum(sea, 0), np.where(np.isfinite(land), np.maximum(land, 0.2), 0))
     np.save(os.path.join(d, 'hm.npy'), z.astype(np.float32))
     # OpenStreetMap: bygninger og bruer
