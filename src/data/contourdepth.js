@@ -159,12 +159,53 @@ export function applyPoints(depth, cls, W, H, res, points, intervals, sigma = 30
 }
 
 /**
+ * Målte punkter (loddskudd og grunner) i fiskekartet. Avviket mellom punktet og anslaget spres jevnt ut rundt
+ * punktet (normert Gauss-vekt, så en klynge punkter gir samme avvik mellom seg, ikke «kuler»). Der sjøkartet bare har
+ * et grovt intervall (f.eks. 0,5–100 m) rekker hvert punkt lenger (sigG), ellers sigma. Resultatet holdes innenfor
+ * intervallet. Returnerer punktene som «nåler» (celle, dybde) til diffuseWithin, så flaten går jevnt fra punktene
+ * over til neste kjente dybde (kurve eller land).
+ * points: [kol, rad, dybde, …] i cellekoordinater. coarse(k): true for grove intervall-klasser.
+ */
+export function fitPoints(depth, cls, W, H, res, points, intervals, coarse, sigma = 60, sigG = 160) {
+  const pins = [];
+  if (!points.length) return pins;
+  const sum = new Float32Array(W * H), wsum = new Float32Array(W * H);
+  for (let k = 0; k < points.length; k += 3) {
+    const ci = points[k], cj = points[k + 1], pd = points[k + 2];
+    const i0 = Math.round(ci), j0 = Math.round(cj);
+    if (i0 < 0 || j0 < 0 || i0 >= W || j0 >= H) continue;
+    const p0 = j0 * W + i0, here = depth[p0], c = cls[p0];
+    if (!(here === here) || c < 0) continue;
+    const lo = intervals[c][1], hi = intervals[c][2], v = Math.min(hi, Math.max(lo, pd));
+    pins.push(p0, v);
+    const sg = (coarse(c) ? sigG : sigma) / res, rad = Math.ceil(sg * 2.2), s2 = 2 * sg * sg, r = v - here;
+    for (let dj = -rad; dj <= rad; dj++) {
+      const j = j0 + dj; if (j < 0 || j >= H) continue;
+      for (let di = -rad; di <= rad; di++) {
+        const i = i0 + di; if (i < 0 || i >= W) continue;
+        const d2 = (i - ci) ** 2 + (j - cj) ** 2; if (d2 > rad * rad) continue;
+        const w = Math.exp(-d2 / s2), p = j * W + i;
+        sum[p] += w * r; wsum[p] += w;
+      }
+    }
+  }
+  for (let p = 0; p < W * H; p++) {
+    if (!wsum[p] || !(depth[p] === depth[p]) || cls[p] < 0) continue;
+    const lo = intervals[cls[p]][1], hi = intervals[cls[p]][2];
+    // vekten mot 1 nær punktene og mot 0 langt unna (0,15 ≈ et punkt i ca. 2 sigma avstand)
+    const v = depth[p] + sum[p] / (wsum[p] + 0.15);
+    depth[p] = v < lo ? lo : v > hi ? hi : v;
+  }
+  return pins;
+}
+
+/**
  * Utglatting med føringer: gjentatt lite boksfilter over sjøcellene, og etter hver runde klemmes hver celle inn i
  * sitt eget intervall igjen. Det gir den glatteste flaten som fortsatt holder seg innenfor sjøkartets intervaller
  * (kurvene blir liggende der de ligger), og fjerner «kammer» som oppstår ved taggete kurver i dypt vann.
  * iters runder med radius r: glatter over omtrent r·√(iters·2/3) celler.
  */
-export function diffuseWithin(depth, cls, W, H, intervals, iters, r = 2) {
+export function diffuseWithin(depth, cls, W, H, intervals, iters, r = 2, pins = null) {
   if (iters < 1) return;
   const N = W * H, ok = new Uint8Array(N), lo = new Float32Array(N), hi = new Float32Array(N);
   for (let p = 0; p < N; p++) { const k = cls[p]; if (k >= 0 && depth[p] === depth[p]) { ok[p] = 1; lo[p] = intervals[k][1]; hi[p] = intervals[k][2]; } }
@@ -187,5 +228,51 @@ export function diffuseWithin(depth, cls, W, H, intervals, iters, r = 2) {
     for (let p = 0; p < N; p++) { if (ok[p]) { v[p] = depth[p]; c[p] = 1; } else if (cls[p] === -1 || cls[p] === -2) { v[p] = 0; c[p] = 1; } else { v[p] = 0; c[p] = 0; } }
     pass(v, c, tv, tc, true); pass(tv, tc, v, c, false);
     for (let p = 0; p < N; p++) if (ok[p] && c[p] > 0) { const d = v[p] / c[p]; depth[p] = d < lo[p] ? lo[p] : d > hi[p] ? hi[p] : d; }
+    // målte punkter står fast
+    if (pins) for (let k = 0; k < pins.length; k += 2) depth[pins[k]] = pins[k + 1];
   }
+}
+
+/**
+ * Brå kanter: der flere dybdekurver ligger oppå hverandre (f.eks. 150, 200, 250, 300 og 400 m ved Salhus), hopper
+ * dybden flere intervaller fra én celle til den neste. Her finnes slike sprang (mer enn jump meter mellom naboceller),
+ * og i et belte på ca. band meter rundt dem glattes dybden uten å holdes inne i sjøkartets intervaller. Resultatet er
+ * en bratt bakke i stedet for en loddrett vegg. Utenfor beltet er dybden uendret, og land står fast.
+ * Merk: i beltet kan dybden avvike fra intervallet i sjøkartet (bakken legges litt ut på begge sider av kurvene).
+ */
+export function relaxCliffs(depth, W, H, res, jump = 25, band = 50) {
+  const N = W * H, cliff = new Uint8Array(N);
+  let any = false;
+  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+    const p = j * W + i, d = depth[p]; if (!(d === d)) continue;
+    if (i + 1 < W) { const e = depth[p + 1]; if (e === e && Math.abs(e - d) > jump) { cliff[p] = cliff[p + 1] = 1; any = true; } }
+    if (j + 1 < H) { const e = depth[p + W]; if (e === e && Math.abs(e - d) > jump) { cliff[p] = cliff[p + W] = 1; any = true; } }
+  }
+  if (!any) return 0;
+  // beltet: avstand til et sprang (EDT i celler)
+  const R = Math.max(2, Math.round(band / res)), dist = edt(cliff, W, H), free = new Uint8Array(N);
+  let n = 0;
+  for (let p = 0; p < N; p++) if (depth[p] === depth[p] && dist[p] <= R * R) { free[p] = 1; n++; } // edt gir kvadrert avstand
+  // glatting innenfor beltet; cellene utenfor (og land) står fast og gir randverdiene
+  const v = new Float32Array(N), c = new Float32Array(N), tv = new Float32Array(N), tc = new Float32Array(N), r = 2;
+  const pass = (src, srcC, dst, dstC, horiz) => {
+    const L = horiz ? W : H, M = horiz ? H : W, st = horiz ? 1 : W, ln = horiz ? W : 1;
+    for (let m = 0; m < M; m++) {
+      const o = m * ln; let a = 0, b = 0;
+      for (let q = 0; q <= Math.min(L - 1, r); q++) { a += src[o + q * st]; b += srcC[o + q * st]; }
+      for (let q = 0; q < L; q++) {
+        const p = o + q * st; dst[p] = a; dstC[p] = b;
+        const x = q + r + 1, y = q - r;
+        if (x < L) { a += src[o + x * st]; b += srcC[o + x * st]; }
+        if (y >= 0) { a -= src[o + y * st]; b -= srcC[o + y * st]; }
+      }
+    }
+  };
+  const iters = Math.min(120, Math.max(4, Math.round(R * R / 2)));
+  for (let it = 0; it < iters; it++) {
+    for (let p = 0; p < N; p++) { const d = depth[p]; if (d === d) { v[p] = d; c[p] = 1; } else { v[p] = 0; c[p] = 0; } }
+    pass(v, c, tv, tc, true); pass(tv, tc, v, c, false);
+    for (let p = 0; p < N; p++) if (free[p] && c[p] > 0) depth[p] = v[p] / c[p];
+  }
+  return n;
 }
