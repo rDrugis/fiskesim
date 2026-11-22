@@ -1,0 +1,56 @@
+# Fiskekart for Vestland fra Kartverkets vektordata (Sjøkart – Dybdedata, CC BY 4.0): ekte dybdeintervaller,
+# loddskudd og grunner. 1) gjør om fila, 2) rasteriser og regn dybden i 16 deler, 3) pakk i utgivelsen kartdata-vestland-v2.
+name: vector
+on:
+  workflow_dispatch:
+permissions: { contents: write, actions: read }
+jobs:
+  prep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get -qq update && sudo apt-get -qq install -y gdal-bin python3-gdal python3-numpy >/dev/null && gdalinfo --version
+      - name: Hent og gjør om dybdedata
+        run: |
+          curl -sSfL -o dd.zip "https://nedlasting.geonorge.no/geonorge/Basisdata/Dybdedata/GML/Basisdata_46_Vestland_25833_Dybdedata_GML.zip"
+          unzip -o -q dd.zip -d dd && rm dd.zip
+          python3 tools/vector/prep.py "$(find dd -name '*.gml' | head -1)" vdata
+          ls -la vdata
+      - uses: actions/upload-artifact@v4
+        with: { name: vdata, path: vdata, retention-days: 7, compression-level: 0 }
+  part:
+    needs: prep
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix: { shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: sudo apt-get -qq update && sudo apt-get -qq install -y gdal-bin python3-gdal python3-numpy >/dev/null
+      - uses: actions/download-artifact@v4
+        with: { name: vdata, path: vdata }
+      - run: python3 tools/vector/raster.py vdata ras ${{ matrix.shard }} 16
+      - run: node tools/vector/depth.mjs vdata ras pre-out
+      - uses: actions/upload-artifact@v4
+        with: { name: 'vpre-${{ matrix.shard }}', path: pre-out, retention-days: 14, compression-level: 0 }
+  pack:
+    needs: part
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { pattern: 'vpre-*', path: pre, merge-multiple: true }
+      - uses: actions/download-artifact@v4
+        with: { name: vdata, path: vdata }
+      - name: Pakk og legg i utgivelsen
+        env: { GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
+        run: |
+          cp vdata/iv.json pre/iv.json
+          echo "fliser: $(find pre -name '*.bin.gz' | wc -l)"; du -sh pre
+          tar -cf vestland.tar -C pre .
+          gh release view kartdata-vestland-v2 >/dev/null 2>&1 || gh release create kartdata-vestland-v2 --title "Kartdata Vestland v2 (vektordata)" --notes "Fiskekart for Vestland regnet fra Kartverkets vektordata (ekte dybdeintervaller, loddskudd og grunner). Kilde: Kartverket, Sjøkart – Dybdedata (CC BY 4.0)."
+          gh release upload kartdata-vestland-v2 vestland.tar --clobber
