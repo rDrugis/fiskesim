@@ -337,8 +337,9 @@ async function baseFor(z, x, y) {
   return { base, u0: (x - (bx << k)) * SIZE * scale, v0: (y - (by << k)) * SIZE * scale, scale, lz, bx, by };
 }
 
-const LEVELS = [5, 10, 20, 30, 40, 50, 100, 150, 200, 250, 300, 400, 500];
-const MAJOR = new Set([10, 20, 50, 100, 200, 300, 500]);
+// kurver hele veien ned (sjøkartet har dem i dype fjorder som Sognefjorden), hver 100. m under 500 m
+const LEVELS = [5, 10, 20, 30, 40, 50, 100, 150, 200, 250, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300];
+const MAJOR = new Set([10, 20, 50, 100, 200, 300, 500, 1000]);
 
 async function renderTile(z, x, y, palName, hd = false) {
   const k = hd ? 2 : 1, T = SIZE * k; // skarpe fliser på skjermer med høy oppløsning (512 px vist som 256)

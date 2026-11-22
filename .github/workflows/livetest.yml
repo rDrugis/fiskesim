@@ -23,9 +23,9 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: node tools/build.mjs
       - name: Hent ferdig utregnet kartdata (bare for «pre»)
-        if: contains(github.event.inputs.only, 'pre') || contains(github.event.inputs.only, 'kanter')
+        if: contains(github.event.inputs.only, 'pre') || contains(github.event.inputs.only, 'kanter') || contains(github.event.inputs.only, 'dyp')
         env: { GH_TOKEN: '${{ github.token }}' }
-        run: mkdir -p pre && gh release download kartdata-vestland-v2 -p vestland.tar -D /tmp && tar -xf /tmp/vestland.tar -C pre && find pre -name '*.bin.gz' | wc -l
+        run: mkdir -p pre && gh release download kartdata-vestland-v4 -p vestland.tar -D /tmp && tar -xf /tmp/vestland.tar -C pre && find pre -name '*.bin.gz' | wc -l
       - name: Kjør testene
         env: { ONLY: "${{ github.event.inputs.only }}", WHY_ART: "${{ github.event.inputs.art }}" }
         run: node tests/live/run.mjs . 2>&1 | tee tests/live/out-log.txt
