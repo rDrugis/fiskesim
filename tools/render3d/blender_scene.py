@@ -52,8 +52,9 @@ stop(1, (0.42, 0.40, 0.36)); stop(4, (0.30, 0.34, 0.20)); stop(60, (0.22, 0.30, 
 rock = N.new('ShaderNodeMix'); rock.data_type = 'RGBA'
 steep = N.new('ShaderNodeMapRange'); steep.inputs['From Min'].default_value = 0.85; steep.inputs['From Max'].default_value = 0.6
 L.new(nsep.outputs['Z'], steep.inputs['Value']); L.new(steep.outputs[0], rock.inputs['Factor'])
-L.new(ramp.outputs['Color'], rock.inputs[6]); rock.inputs[7].default_value = (0.30, 0.29, 0.27, 1)
-L.new(rock.outputs[2], bsdf.inputs['Base Color'])
+ci = [i for i in rock.inputs if i.type == 'RGBA']; co_ = [o for o in rock.outputs if o.type == 'RGBA'][0]
+L.new(ramp.outputs['Color'], ci[0]); ci[1].default_value = (0.30, 0.29, 0.27, 1)
+L.new(co_, bsdf.inputs['Base Color'])
 bsdf.inputs['Roughness'].default_value = 0.9
 bump = N.new('ShaderNodeBump'); bump.inputs['Strength'].default_value = 0.25
 n2 = N.new('ShaderNodeTexNoise'); n2.inputs['Scale'].default_value = 0.4; n2.inputs['Detail'].default_value = 10; L.new(tc.outputs['Object'], n2.inputs['Vector'])
@@ -122,8 +123,8 @@ for k, v in (('sun_elevation', math.radians(28)), ('sun_rotation', math.radians(
     try: setattr(sky, k, v)
     except Exception: pass
 w.node_tree.links.new(sky.outputs['Color'], w.node_tree.nodes['Background'].inputs['Color'])
-w.node_tree.nodes['Background'].inputs['Strength'].default_value = 0.35
-sun = bpy.data.lights.new('sol', 'SUN'); sun.energy = 3.2; sun.angle = math.radians(1.5)
+w.node_tree.nodes['Background'].inputs['Strength'].default_value = 0.25
+sun = bpy.data.lights.new('sol', 'SUN'); sun.energy = 2.2; sun.angle = math.radians(1.5)
 so = bpy.data.objects.new('sol', sun); sc.collection.objects.link(so)
 so.rotation_euler = (math.radians(90 - 28), 0, math.radians(AZ + 140 + 90))
 
@@ -142,7 +143,9 @@ try: sc.cycles.use_denoising = True
 except Exception: pass
 sc.render.resolution_x, sc.render.resolution_y = 1920, 1080
 sc.view_settings.view_transform = 'Filmic' if 'Filmic' in [v.identifier for v in type(sc.view_settings).bl_rna.properties['view_transform'].enum_items] else 'AgX'
-sc.view_settings.look = 'None'
+sc.view_settings.look = 'None'; sc.view_settings.exposure = -0.8
+try: sc.view_settings.look = 'AgX - Medium High Contrast'
+except Exception: pass
 sc.render.filepath = OUTP; sc.render.image_settings.file_format = 'PNG'
 bpy.ops.render.render(write_still=True)
 print('ferdig', OUTP, flush=True)
