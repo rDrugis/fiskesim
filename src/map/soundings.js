@@ -46,7 +46,7 @@ export class Soundings {
     api.onStyle((map) => this.add(map));
     api.map.on('moveend', () => this.refresh());
   }
-  get active() { return this.on && ['fiskekart', 'natt'].includes(this.api.style); }
+  get active() { return this.on && ['fiskekart', 'natt', 'bunn'].includes(this.api.style); }
   // av/på for tallene i kartet (dybden i fiskekartet bruker loddskuddene uansett)
   setOn(v) {
     this.on = !!v; try { localStorage.setItem('fiskesim.lodd', v ? '1' : '0'); } catch (e) { /* privat */ }
