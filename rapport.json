@@ -1,0 +1,57 @@
+{
+ "temba": {
+  "tilbakeholdte_loddskudd": 14,
+  "foer_median_m": 29.2,
+  "foer_90pst_m": 49.6,
+  "etter_median_m": 4.7,
+  "etter_90pst_m": 11.2,
+  "bedre_enn_0_5m": 13,
+  "verre_enn_0_5m": 1,
+  "endring_median_m": 4.5,
+  "endring_90pst_m": 19.9
+ },
+ "ortna": {
+  "tilbakeholdte_loddskudd": 14,
+  "foer_median_m": 4.3,
+  "foer_90pst_m": 18.7,
+  "etter_median_m": 4.3,
+  "etter_90pst_m": 12.3,
+  "bedre_enn_0_5m": 1,
+  "verre_enn_0_5m": 1,
+  "endring_median_m": 15.2,
+  "endring_90pst_m": 213.6
+ },
+ "salhus": {
+  "tilbakeholdte_loddskudd": 54,
+  "foer_median_m": 3.3,
+  "foer_90pst_m": 11.6,
+  "etter_median_m": 2.6,
+  "etter_90pst_m": 10.8,
+  "bedre_enn_0_5m": 4,
+  "verre_enn_0_5m": 0,
+  "endring_median_m": 0.2,
+  "endring_90pst_m": 12.4
+ },
+ "klokkarneset": {
+  "tilbakeholdte_loddskudd": 96,
+  "foer_median_m": 3.3,
+  "foer_90pst_m": 13.4,
+  "etter_median_m": 3.1,
+  "etter_90pst_m": 12,
+  "bedre_enn_0_5m": 12,
+  "verre_enn_0_5m": 10,
+  "endring_median_m": 0.3,
+  "endring_90pst_m": 11
+ },
+ "askrova": {
+  "tilbakeholdte_loddskudd": 37,
+  "foer_median_m": 3.5,
+  "foer_90pst_m": 23.3,
+  "etter_median_m": 2.5,
+  "etter_90pst_m": 14.9,
+  "bedre_enn_0_5m": 9,
+  "verre_enn_0_5m": 0,
+  "endring_median_m": 6.9,
+  "endring_90pst_m": 41.2
+ }
+}
