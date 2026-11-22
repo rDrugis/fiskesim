@@ -1,24 +1,37 @@
-# 3D-bilder av havbunnen uten vann (bare for visning, endrer ikke nettsiden). Bildene legges i grenen render3d-results.
+# Fotorealistiske dronebilder av havbunnen uten vann (bare for visning, endrer ikke nettsiden).
+# Terreng i ekte målestokk, bygninger og bruer fra OpenStreetMap. Bildene legges i grenen render3d-results.
 name: render3d
 on:
   workflow_dispatch:
     inputs:
-      places: { description: 'navn:lat:lon:halvbredde_m[:asimut[:høyde]] ...', required: true }
+      places: { description: 'navn:lat:lon:halvbredde_m:asimut:høydevinkel:avstand_m ...', required: true }
       dtm_run: { description: 'kjøring med terrengmodellen (dtm)', required: true, default: '45072881841' }
 permissions: { contents: write, actions: read }
 jobs:
   render:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get -qq update && sudo apt-get -qq install -y gdal-bin python3-gdal python3-numpy python3-matplotlib >/dev/null
+      - run: sudo apt-get -qq update && sudo apt-get -qq install -y gdal-bin python3-gdal python3-numpy blender >/dev/null && blender -b --version | head -1
       - uses: actions/download-artifact@v4
         with: { name: dtm, path: dtm, run-id: '${{ github.event.inputs.dtm_run }}', github-token: '${{ secrets.GITHUB_TOKEN }}' }
       - name: Hent fiskekartet
         env: { GH_TOKEN: '${{ github.token }}' }
-        run: gh release download kartdata-vestland-v4 -p vestland.tar -D /tmp && mkdir -p pre && tar -xf /tmp/vestland.tar -C pre ./14 2>/dev/null || tar -xf /tmp/vestland.tar -C pre
-      - run: python3 tools/render3d/render.py pre dtm/vestland.tif out ${{ github.event.inputs.places }}
+        run: |
+          for k in 1 2 3 4 5; do gh release download kartdata-vestland-v4 -p vestland.tar -D /tmp --clobber && break; sleep 60; done
+          mkdir -p pre && tar -xf /tmp/vestland.tar -C pre
+      - name: Terreng, bygninger og bruer
+        run: |
+          python3 tools/render3d/prep.py pre dtm/vestland.tif steder ${{ github.event.inputs.places }}
+      - name: Tegn bildene (Blender)
+        run: |
+          mkdir -p out
+          for s in ${{ github.event.inputs.places }}; do
+            IFS=: read -r n lat lon half az el dist <<< "$s"
+            blender -b -P tools/render3d/blender_scene.py -- "steder/$n" "$PWD/out/$n.png" "$az" "$el" "$dist" 2>&1 | grep -E "ferdig|Error|Traceback|line [0-9]+" || true
+          done
+          ls -la out
       - name: Legg bildene i grenen render3d-results
         if: always()
         run: |
