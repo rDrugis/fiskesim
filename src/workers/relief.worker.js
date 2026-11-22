@@ -213,6 +213,7 @@ function computeCoarse(z, x, y) {
   const key = z + '/' + x + '/' + y;
   if (coarse.has(key)) return coarse.get(key);
   return lru(coarse, key, withLock('c' + key, async () => {
+    if (z === CZ) { const pre = await loadPre(z, x, y); if (pre) return pre; }
     const hit = await idbGet('c' + key); if (hit) return hit;
     const [mx0, my0, mx1, my1] = tileMerc(z, x, y);
     const px = (mx1 - mx0) / SIZE, N = SIZE + 2 * MARG;
@@ -246,6 +247,30 @@ async function wfsCells(bb, px) {
   return out;
 }
 
+// Ferdig utregnede fliser fra Kartverkets vektordata (Vestland, regnet ut på GitHub): pre/{z}/{x}/{y}.bin.gz og
+// pre/iv.json (de ekte dybdeintervallene). Dybde i dm (Uint16, 65535 = land, negative som 65536 − |d|),
+// intervall-indeks + 1 og merker (1 = grovt intervall), 256 × 256. Finnes ikke flisa, regnes den ut som før.
+const PRE = { w: 4.0, e: 8.3, s: 59.6, n: 62.4 };
+let preIV = null;
+const inPre = (z, x, y) => { if (z < 12 || z > 14) return false; const n = 2 ** z, lon0 = x / n * 360 - 180, lon1 = (x + 1) / n * 360 - 180, lat0 = latOfMercY(ORIG - (y + 1) * 2 * ORIG / n), lat1 = latOfMercY(ORIG - y * 2 * ORIG / n);
+  return lon0 >= PRE.w && lon1 <= PRE.e && lat0 >= PRE.s && lat1 <= PRE.n; };
+async function loadPre(z, x, y) {
+  if (!inPre(z, x, y)) return null;
+  try {
+    if (!preIV) preIV = fetch(new URL('../pre/iv.json', self.location.href)).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    const iv = await preIV; if (!iv) return null;
+    const r = await fetch(new URL(`../pre/${z}/${x}/${y}.bin.gz`, self.location.href)); if (!r.ok) return null;
+    const buf = new Uint8Array(await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
+    const S = SIZE, M = S * S; if (buf.length < M * 4) return null;
+    const d16 = new Uint16Array(buf.buffer, 0, M), clIn = buf.subarray(M * 2, M * 3), flIn = buf.subarray(M * 3, M * 4);
+    const dep = new Float32Array(M), wet = new Uint8Array(M), cl = new Uint8Array(M), flag = new Uint8Array(M);
+    let any = false;
+    for (let p = 0; p < M; p++) { const v = d16[p]; if (v === 65535) dep[p] = NaN; else { dep[p] = (v > 60000 ? v - 65536 : v) / 10; wet[p] = 1; any = true; } cl[p] = clIn[p]; flag[p] = flIn[p]; }
+    const [mx0, my0, mx1] = tileMerc(z, x, y), res = (mx1 - mx0) / S * Math.cos(latOfMercY(my0) * Math.PI / 180);
+    return { dep: any ? dep : null, sh: any ? blurNaN(dep, S, 3, 3) : null, wet, flag, cl, N: S, m: 0, res, iv: iv.map(([lo, hi]) => [0, lo, hi]), pre: true };
+  } catch (e) { return null; }
+}
+
 // Én fin flis per forespørsel. (Blokker på 2 × 2 fliser ble prøvd: mindre å regne, men Kartverket svarte mye
 // tregere på de store bildene i skjærgården – opptil 22 s per bilde ved Reksta – så det ble tregere totalt.)
 function computeFine(z, x, y) { return computeOne(z, x, y); }
@@ -253,6 +278,7 @@ function computeOne(z, x, y) {
   const key = z + '/' + x + '/' + y;
   if (fine.has(key)) return fine.get(key);
   return lru(fine, key, withLock('f' + key, async () => {
+    const pre = await loadPre(z, x, y); if (pre) return pre;
     const hit = await idbGet('f' + key); if (hit) return hit;
     const k = z - CZ, ppx = x >> k, ppy = y >> k, f = 2 ** k;
     const parentP = computeCoarse(CZ, ppx, ppy).catch(() => null);
@@ -418,8 +444,8 @@ async function depthAt(lon, lat, coarseOnly = false) {
   const w = bilU8(b.wet, b.N, b.m, u, v);
   if (!b.dep || w < 0.5) return { land: true };
   const d = bil(b.dep, b.N, b.m, u, v);
-  const c = nearU8(b.cl, b.N, b.m, u, v) - 1, iv = c >= 0 ? DYB_ALL[c] : null;
-  return d === d ? { depth: d, lo: iv ? iv[1] : null, hi: iv ? iv[2] : null, est: c >= GEN0 } : { land: true };
+  const c = nearU8(b.cl, b.N, b.m, u, v) - 1, iv = c >= 0 ? (b.iv || DYB_ALL)[c] : null;
+  return d === d ? { depth: d, lo: iv ? iv[1] : null, hi: iv ? iv[2] : null, est: b.iv ? nearU8(b.flag, b.N, b.m, u, v) === 1 : c >= GEN0 } : { land: true };
 }
 
 self.onmessage = async (ev) => {
