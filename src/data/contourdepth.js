@@ -176,6 +176,9 @@ export function fitPoints(depth, cls, W, H, res, points, intervals, coarse, sigm
     if (i0 < 0 || j0 < 0 || i0 >= W || j0 >= H) continue;
     const p0 = j0 * W + i0, here = depth[p0], c = cls[p0];
     if (!(here === here) || c < 0) continue;
+    // bare der sjøkartet har et grovt intervall (f.eks. 0,5–100 m): ellers gir kurvene dybden, og punktene laget
+    // små groper og topper («hull») på dypt vann
+    if (!coarse(c)) continue;
     const lo = intervals[c][1], hi = intervals[c][2], v = Math.min(hi, Math.max(lo, pd));
     pins.push(p0, v);
     const sg = (coarse(c) ? sigG : sigma) / res, rad = Math.ceil(sg * 2.2), s2 = 2 * sg * sg, r = v - here;
