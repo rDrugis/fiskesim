@@ -260,9 +260,10 @@ async function loadPre(z, x, y) {
   const buf = new Uint8Array(await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
   const S = SIZE, M = S * S; if (buf.length < M * 4) return null;
   const d16 = new Uint16Array(buf.buffer, 0, M), clIn = buf.subarray(M * 2, M * 3), flIn = buf.subarray(M * 3, M * 4);
+  // negative dybder (tørrfall) er lagret som 65536 − |d|
   const dep = new Float32Array(M), wet = new Uint8Array(M), cl = new Uint8Array(M), flag = new Uint8Array(M);
   let any = false;
-  for (let p = 0; p < M; p++) { const v = d16[p]; if (v === 65535) dep[p] = NaN; else { dep[p] = (v > 60000 ? v - 65536 : v) / 10; wet[p] = 1; any = true; } // negative (tørrfall) ble lagret som 65536 − |d| cl[p] = clIn[p]; flag[p] = flIn[p]; if (flag[p] === 3) wet[p] = 1; }
+  for (let p = 0; p < M; p++) { const v = d16[p]; if (v === 65535) dep[p] = NaN; else { dep[p] = (v > 60000 ? v - 65536 : v) / 10; wet[p] = 1; any = true; } cl[p] = clIn[p]; flag[p] = flIn[p]; if (flag[p] === 3) wet[p] = 1; }
   const [mx0, my0, mx1] = tileMerc(z, x, y), res = (mx1 - mx0) / S * Math.cos(latOfMercY(my0) * Math.PI / 180);
   return { dep: any ? dep : null, sh: any ? blurNaN(dep, S, 3, 3) : null, wet, flag, cl, N: S, m: 0, res, pre: true };
 }
