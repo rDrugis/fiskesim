@@ -85,8 +85,8 @@ const ICON_DRIFT = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden=
 export { ICON_DRIFT };
 
 export class Drift {
-  constructor(api, panel, { onMode = () => {}, onOpen = () => {} } = {}) {
-    this.api = api; this.panel = panel; this.onMode = onMode; this.onOpen = onOpen;
+  constructor(api, panel, { onMode = () => {}, onOpen = () => {}, onProfile = null } = {}) {
+    this.api = api; this.panel = panel; this.onMode = onMode; this.onOpen = onOpen; this.onProfile = onProfile;
     this.target = null; this.res = null; this.F = null; this.picking = false; this.run = 0; this.ofs = 0; this.lead = 10; this.mk = null; this.startMk = null;
     try { this.boat = JSON.parse(localStorage.getItem('fiskesim.boat')) || { type: 'open', len: 4.6 }; } catch (e) { this.boat = { type: 'open', len: 4.6 }; }
     api.onStyle((map) => this.addLayers(map));
@@ -96,6 +96,7 @@ export class Drift {
       if (k === 'clear') this.clear();
       else if (k === 'here') { const c = this.api.map.getCenter(); this.click(c.lng, c.lat); }
       else if (k === 'new') this.start();
+      else if (k === 'prof' && this.res && this.onProfile) this.onProfile(this.res.mid);
       else if (k === 'ofs') { this.ofs = +v; this.calc(); }
       else if (k === 'lead') { this.lead = +v; this.calc(); }
       else if (k === 'btype') { this.boat.type = v; this.saveBoat(); this.calc(); }
@@ -218,6 +219,7 @@ export class Drift {
       <div class="drrow"><span class="drl">Båt</span>${chips('btype', [['open', BOATS.open.kort], ['cabin', BOATS.cabin.kort]], b.type)}
         <span class="drlen"><button class="chip" data-d="blen" data-v="-0.5" aria-label="Kortere">−</button><b class="num">${fmt(b.len, 1)} m</b><button class="chip" data-d="blen" data-v="0.5" aria-label="Lengre">+</button></span></div>
     </div>
+    ${this.onProfile ? '<button class="btn sm drprof" data-d="prof">Dybdeprofil langs driften</button>' : ''}
     ${F.cur0 ? '' : '<p class="hint warn">MET har ikke strømvarsel her – bare vinddrift er med.</p>'}
     <details class="drmore"><summary>Slik er det regnet ut</summary><p>Strømmen er fra METs havmodell (nærmeste modellpunkt) og vinden fra METs punktvarsel. Vinddriften er ${fmt(r.rate * 100, 1)} % av vinden for ${M.navn.toLowerCase()}. ${M.tekst} Båndet viser spredningen når båten driver ±${M.ang}° ut fra rett nedvind. Usikkert: i sund, bak nes og nær land kan strømmen avvike mye fra modellen, og tidevannsstrømmen i trange sund er ofte sterkere enn modellen viser.</p>
       <ul>${KILDER.map(([t, u]) => `<li><a href="${u}" target="_blank" rel="noopener">${t}</a></li>`).join('')}</ul></details>`;

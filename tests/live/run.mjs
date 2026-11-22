@@ -141,6 +141,15 @@ if (want('drift')) {
     report.drift = { text: await pg.evaluate(() => document.querySelector('.drift')?.innerText.slice(0, 500)), errs };
     log('drift', JSON.stringify(report.drift));
     await pg.screenshot({ path: 'tests/live/drift.png' });
+    // dybdeprofil langs driften, og tilbake til driften
+    await pg.click('[data-d="prof"]').catch((e) => errs.push('prof-knapp: ' + e.message.slice(0, 80)));
+    await pg.waitForFunction(() => document.querySelector('.prof .pchart') || document.querySelector('.prof .hint.warn'), null, { timeout: 30000 }).catch(() => {});
+    await pg.waitForTimeout(800);
+    report.driftProf = { head: await pg.evaluate(() => document.querySelector('.prof header')?.innerText), chart: await pg.evaluate(() => !!document.querySelector('.prof .pchart')), driftHidden: await pg.evaluate(() => document.querySelector('.drift').classList.contains('hidden')) };
+    await pg.screenshot({ path: 'tests/live/drift-prof.png' });
+    await pg.click('[data-p="back"]').catch(() => {}); await pg.waitForTimeout(500);
+    report.driftProf.back = await pg.evaluate(() => !document.querySelector('.drift').classList.contains('hidden') && document.querySelector('.prof').classList.contains('hidden'));
+    log('driftprof', JSON.stringify(report.driftProf), errs.join(' | '));
     await ctx.close();
   } catch (e) { report.errors.push('drift: ' + e.message); }
 }
