@@ -243,6 +243,19 @@ async function shot(name, url, { mobile = false, wait = 12000, act = null, style
   log('bilde', name, errs.length ? 'feil: ' + errs.join(' | ').slice(0, 300) : 'ok', extra ? JSON.stringify(extra).slice(0, 300) : '');
   await ctx.close();
 }
+if (want('dsb')) {
+  // hvilke kartdata Det Store Blå henter (bare adresser, ikke innhold)
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } }), pg = await ctx.newPage(), urls = new Map();
+  pg.on('request', (r) => { const u = r.url(); if (u.startsWith('data:')) return; const k = u.replace(/[?#].*$/, '').replace(/\/\d+\/\d+\/\d+(\.\w+)?$/, '/{z}/{x}/{y}$1'); urls.set(k, (urls.get(k) || 0) + 1); });
+  try { await pg.goto('https://www.detstorebla.no/', { waitUntil: 'load', timeout: 60000 }); await pg.waitForTimeout(25000);
+    for (const t of ['Start', 'Spill', 'Kart', 'Lukk', 'Jeg kan dette', 'Ny', 'Fortsett']) { const b = pg.getByText(t, { exact: true }).first(); if (await b.count()) { await b.click().catch(() => {}); await pg.waitForTimeout(4000); } }
+    await pg.waitForTimeout(15000); } catch (e) { log('dsb feil', e.message); }
+  const list = [...urls].sort((a, b) => b[1] - a[1]).map(([u, n]) => n + ' ' + u);
+  log('dsb-adresser', list.length); for (const l of list.slice(0, 80)) log('dsb', l.slice(0, 220));
+  const scripts = await pg.evaluate(() => [...document.scripts].map((s) => s.src).filter(Boolean)).catch(() => []);
+  for (const sc of scripts) log('dsb-script', sc);
+  await pg.screenshot({ path: join(OUT, 'dsb.png') }); await ctx.close();
+}
 if (want('bunn')) {
   // bunntype (NGU) på, og loddskudd-tallene av
   const on = (bunn, lodd) => async (pg) => { await pg.evaluate(([b, l]) => { localStorage.setItem('fiskesim.bunn', b); localStorage.setItem('fiskesim.lodd', l); }, [bunn, lodd]); await pg.reload({ waitUntil: 'load' }); await pg.waitForTimeout(20000); return pg.evaluate(() => { const m = window.fiskesim.api.map; return { ngu: m.getLayer('ngu') ? m.getLayoutProperty('ngu', 'visibility') : 'mangler', lodd: m.getLayer('dp-txt') ? m.getLayoutProperty('dp-txt', 'visibility') : 'mangler' }; }); };
