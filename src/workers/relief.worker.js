@@ -4,9 +4,8 @@
 // Nivåer: zoom ≤ 12 regnes direkte. Zoom 13 og 14 regnes på nytt med finere oppløsning (ca. 9 og 5 m per piksel)
 // og bruker zoom 12-resultatet som føring langt fra kurvene, så flisene passer sammen. Over 14 skaleres 14 jevnt opp.
 // Broer (også flytebruer) gjøres om til sjø før dybden regnes ut.
-import { decodeDybdelag, DYB_ALL, GEN0, generalSLD, generalClassOf, parseWfsPoints } from '../data/depthmodel.js';
-import { contourDepth, diffuseWithin, fitPoints } from '../data/contourdepth.js';
-import { UTM33 } from '../geo/proj.js';
+import { decodeDybdelag, DYB_ALL, GEN0, generalSLD, generalClassOf } from '../data/depthmodel.js';
+import { contourDepth, diffuseWithin } from '../data/contourdepth.js';
 import { openBridges, openPontoons } from '../data/thinland.js';
 import { fetchCached, SRC } from '../data/sources.js';
 import { PAL, rgb } from '../map/palette.js';
@@ -26,7 +25,7 @@ const coarse = new Map(), fine = new Map();
 
 // Ferdig utregnede fliser lagres i nettleseren (IndexedDB), så kartet kommer fram med en gang neste gang.
 // Endre MODEL_V når dybdemodellen endres, så gamle resultater ikke brukes.
-const MODEL_V = 'm13-' + BLUR_M, IDB_MAX = 700;
+const MODEL_V = 'm12-' + BLUR_M, IDB_MAX = 700;
 let dbP = null;
 function db() {
   if (dbP) return dbP;
@@ -151,11 +150,11 @@ function isletMask(c2, N) {
 }
 
 // Beregner dybde for en flis. Lagrer bare kjernen pluss en kant (keep) for å spare minne.
-function finish(c2, N, res, prior, keep, core = SIZE, pts = null) {
+function finish(c2, N, res, prior, keep, core = SIZE) {
   const t0 = performance.now();
-  try { return finishInner(c2, N, res, prior, keep, core, pts); } finally { STATS.comp.push([Math.round(t0), Math.round(performance.now() - t0), N]); }
+  try { return finishInner(c2, N, res, prior, keep, core); } finally { STATS.comp.push([Math.round(t0), Math.round(performance.now() - t0), N]); }
 }
-function finishInner(c2, N, res, prior, keep, core, pts) {
+function finishInner(c2, N, res, prior, keep, core) {
   let water = 0;
   for (let p = 0; p < N * N; p++) if (c2[p] !== -1) water++;
   openBridges(c2, N, N, res);
@@ -163,9 +162,7 @@ function finishInner(c2, N, res, prior, keep, core, pts) {
   const pont = new Uint8Array(N * N); openPontoons(c2, N, N, res, pont, DYB_ALL);
   const dep = water ? contourDepth(c2, N, N, res, DYB_ALL, prior, MARG, Math.max(2, Math.round(22 / res))) : null;
   // glatt flate innenfor intervallene (ca. BLUR_M meter), mot kammer ved taggete kurver i dypet
-  // målte punkter (loddskudd og grunner): dybden der de ligger, og jevn overgang derfra til neste kjente dybde
-  const pins = dep && pts && pts.length ? fitPoints(dep, c2, N, N, res, pts, DYB_ALL, (k) => k >= GEN0) : null;
-  if (dep && BLUR_M > 0) diffuseWithin(dep, c2, N, N, DYB_ALL, Math.max(1, Math.min(40, Math.round((BLUR_M / res) ** 2 / 4))), 2, pins);
+  if (dep && BLUR_M > 0) diffuseWithin(dep, c2, N, N, DYB_ALL, Math.max(1, Math.min(40, Math.round((BLUR_M / res) ** 2 / 4))), 2);
   // skyggen regnes fra en mykere kopi uten intervallgrensene: klemmingen til intervallet gir et lite knekkpunkt ved
   // hver kurve, og det ble tegnet som lyse/mørke striper langs kurvene. Dybden og fargene bruker fortsatt dep.
   const sh = dep ? blurNaN(dep, N, 3, 3) : null;
@@ -225,27 +222,6 @@ function computeCoarse(z, x, y) {
   }), 14);
 }
 
-// Loddskudd og grunner fra Kartverkets WFS for et område (EPSG:3857-boks), som [kol, rad, dybde, …] i flisens piksler.
-// Feiler henting, regnes flisa uten punkter (som før).
-async function wfsPoints(type, box) {
-  const url = `${SRC.wfsDybde}?service=WFS&version=2.0.0&request=GetFeature&typeNames=app:${type}&srsName=urn:ogc:def:crs:EPSG::25833&bbox=${box.join(',')},urn:ogc:def:crs:EPSG::25833&count=20000`;
-  const buf = await fetchRetry(url);
-  return parseWfsPoints(new TextDecoder().decode(buf), 'dybde');
-}
-async function wfsCells(bb, px) {
-  const ll = [[bb[0], bb[1]], [bb[2], bb[3]], [bb[0], bb[3]], [bb[2], bb[1]]].map(([x, y]) => UTM33.forward(lonOfMercX(x), latOfMercY(y)));
-  const box = [Math.min(...ll.map((v) => v[0])), Math.min(...ll.map((v) => v[1])), Math.max(...ll.map((v) => v[0])), Math.max(...ll.map((v) => v[1]))].map(Math.round);
-  const [dp, gr] = await Promise.all([wfsPoints('Dybdepunkt', box), wfsPoints('Grunne', box).catch(() => [])]);
-  const out = [];
-  for (const arr of [dp, gr]) for (let k = 0; k < arr.length; k += 3) {
-    if (!(arr[k + 2] === arr[k + 2])) continue;
-    const [lon, lat] = UTM33.inverse(arr[k], arr[k + 1]);
-    const ci = (mercX(lon) - bb[0]) / px - 0.5, cj = (bb[3] - mercY(lat)) / px - 0.5;
-    if (ci >= 0 && cj >= 0 && ci < (bb[2] - bb[0]) / px && cj < (bb[3] - bb[1]) / px) out.push(ci, cj, Math.max(0, arr[k + 2]));
-  }
-  return out;
-}
-
 // Én fin flis per forespørsel. (Blokker på 2 × 2 fliser ble prøvd: mindre å regne, men Kartverket svarte mye
 // tregere på de store bildene i skjærgården – opptil 22 s per bilde ved Reksta – så det ble tregere totalt.)
 function computeFine(z, x, y) { return computeOne(z, x, y); }
@@ -259,7 +235,6 @@ function computeOne(z, x, y) {
     const [mx0, my0, mx1, my1] = tileMerc(z, x, y);
     const px = (mx1 - mx0) / SIZE, N = SIZE + 2 * MARG;
     const bb = [mx0 - MARG * px, my0 - MARG * px, mx1 + MARG * px, my1 + MARG * px];
-    const ptsP = wfsCells(bb, px); ptsP.catch(() => {});
     const [c2, parent] = await Promise.all([wmsClasses(bb, N), parentP]);
     const res = px * Math.cos(latOfMercY((my0 + my1) / 2) * Math.PI / 180);
     let prior = null;
@@ -271,10 +246,8 @@ function computeOne(z, x, y) {
       // (f.eks. Klauvskallen under Nordhordlandsbrua)
       prior = blurNaN(prior, N, Math.max(1, Math.round(f * 1.5)), 2);
     }
-    const pts = await ptsP.catch(() => null);
-    const out = finish(c2, N, res, prior, KEEP_F, SIZE, pts);
-    // uten punkter (henting feilet) lagres flisa bare i minnet, så den regnes på nytt med punkter neste besøk
-    if (pts) await idbPut('f' + key, out);
+    const out = finish(c2, N, res, prior, KEEP_F);
+    await idbPut('f' + key, out);
     return out;
   }), 40);
 }
