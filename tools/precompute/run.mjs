@@ -11,7 +11,7 @@ import { chromium } from 'playwright';
 const ROOT = resolve(process.argv[2] || '.'), SHARD = +(process.argv[3] || 0), NSH = +(process.argv[4] || 1);
 const OUT = join(ROOT, 'pre-out');
 const BB = { w: 4.0, e: 8.3, s: 59.6, n: 62.4 }; // Vestland med litt rundt
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml' };
+const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml' };
 const srv = http.createServer(async (req, res) => {
   try { const p = decodeURIComponent(new URL(req.url, 'http://x').pathname); const f = join(ROOT, p.endsWith('/') ? p + 'index.html' : p);
     const d = await readFile(f); res.writeHead(200, { 'content-type': TYPES[extname(f)] || 'application/octet-stream' }); res.end(d); }
