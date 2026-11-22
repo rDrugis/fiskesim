@@ -1,0 +1,20 @@
+# Vurdering av Kartverkets terrengmodeller for havbunnen (WCS) på noen kjente steder. Endrer ikke nettsiden.
+name: dtm
+on:
+  workflow_dispatch:
+    inputs:
+      vdata_run: { description: 'kjøring med vdata (loddskudd)', required: true, default: '45057907089' }
+permissions: { contents: read, actions: read }
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get -qq update && sudo apt-get -qq install -y gdal-bin python3-gdal python3-numpy >/dev/null
+      - uses: actions/download-artifact@v4
+        with: { name: vdata, path: vdata, run-id: '${{ github.event.inputs.vdata_run }}', github-token: '${{ secrets.GITHUB_TOKEN }}' }
+      - run: python3 tools/dtm/probe.py vdata dtm-out
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: dtm-out, path: dtm-out, retention-days: 7 }
