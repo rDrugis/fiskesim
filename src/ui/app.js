@@ -69,11 +69,13 @@ export class App {
     // bunntype fra NGU (marine bunnsedimenter) som et halvgjennomsiktig lag over fiskekartet
     try { this.bunnOn = localStorage.getItem('fiskesim.bunn') === '1'; } catch (e) { this.bunnOn = false; }
     this.bunnLayer = () => {
-      const m = api.map; if (!m.isStyleLoaded()) return;
+      const m = api.map;
+      try {
       if (!m.getSource('ngu')) m.addSource('ngu', { type: 'raster', tileSize: 256, minzoom: 8, maxzoom: 16, attribution: '© NGU',
         tiles: [`${SRC.ngu}?service=WMS&version=1.1.1&request=GetMap&layers=NiN_DK_Det&styles=&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&bbox={bbox-epsg-3857}`] });
       if (!m.getLayer('ngu')) m.addLayer({ id: 'ngu', type: 'raster', source: 'ngu', paint: { 'raster-opacity': 0.55 } }, m.getLayer('roads') ? 'roads' : undefined);
       m.setLayoutProperty('ngu', 'visibility', this.bunnOn && ['fiskekart', 'natt', 'dybdekart'].includes(api.style) ? 'visible' : 'none');
+      } catch (e) { m.once('idle', () => this.bunnLayer()); }
     };
     api.onStyle(() => this.bunnLayer());
     this.algo = new AlgoLayer(api, { onNote: (t, busy) => this.note(t, busy), onSaved: () => this.renderLayers && this.renderLayers() });
