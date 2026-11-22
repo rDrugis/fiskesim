@@ -2,7 +2,11 @@
 # og legger den på blokkens rutenett i EPSG:3857 (samme utstrekning som z12-rutenettet i raster.py, med kant).
 # Utdata: <ut>/<x>_<y>.f32 = dybde i meter (positiv nedover) som Float32, N × N, NaN på land / uten data.
 # Bruk: python3 fetch.py <ut> <N> x_y,x_y,...
-import math, os, sys, time, urllib.request
+import math, os, socket, sys, time, urllib.request
+# GitHub-maskinene har ikke IPv6: «Network is unreachable» kommer av at IPv6-adressen prøves. Bruk bare IPv4.
+_gai = socket.getaddrinfo
+def _ipv4(host, port, family=0, type=0, proto=0, flags=0): return _gai(host, port, socket.AF_INET, type, proto, flags)
+socket.getaddrinfo = _ipv4
 import numpy as np
 from osgeo import gdal, osr
 gdal.UseExceptions()
@@ -25,7 +29,7 @@ def get(url):
             req = urllib.request.Request(url, headers={'User-Agent': 'fiskesim-test (github.com/rDrugis/fiskesim)'})
             with urllib.request.urlopen(req, timeout=180) as r: return r.read()
         except Exception as e:
-            print('  prøver igjen:', str(e)[:100], flush=True); time.sleep(5 * (k + 1))
+            print('  prøver igjen:', str(e)[:100], flush=True); time.sleep(10 * (k + 1))
     raise RuntimeError('fikk ikke hentet ' + url[:120])
 
 # Ett felles 50 m-rutenett for hele området (låst til hele 50 m i UTM33), hentet i biter på 10 km og satt sammen.
@@ -37,7 +41,7 @@ for t in TILES:
     bb = (mx0 - 128 * p12, my0 - 128 * p12, mx1 + 128 * p12, my1 + 128 * p12); bbs[t] = bb
     for (a, b) in [(bb[0], bb[1]), (bb[0], bb[3]), (bb[2], bb[1]), (bb[2], bb[3])]:
         u, v, _ = tr.TransformPoint(a, b); U0, V0, U1, V1 = min(U0, u), min(V0, v), max(U1, u), max(V1, v)
-STEP, CH = 50, 10000
+STEP, CH = 50, 40000   # 40 km-biter (800 × 800 ruter): færre forespørsler
 U0, V0 = math.floor((U0 - 500) / CH) * CH, math.floor((V0 - 500) / CH) * CH
 U1, V1 = math.ceil((U1 + 500) / CH) * CH, math.ceil((V1 + 500) / CH) * CH
 parts = []
