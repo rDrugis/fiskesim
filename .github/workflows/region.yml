@@ -1,0 +1,22 @@
+# Henter Kartverkets åpne dybdedata (Sjøkart – Dybdedata, CC BY 4.0) for ett fylke og viser hva fila inneholder.
+# Bare faste adresser hos Geonorge brukes. Første steg mot ferdig utregnet fiskekart per fylke.
+name: region
+on:
+  workflow_dispatch:
+    inputs:
+      fylke: { description: 'Fylke (bare 46_Vestland støttes nå)', required: true, default: '46_Vestland' }
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Hent dybdedata fra Geonorge
+        run: |
+          case "${{ github.event.inputs.fylke }}" in 46_Vestland) ;; *) echo "ukjent fylke"; exit 1;; esac
+          curl -sSfL -o dd.zip "https://nedlasting.geonorge.no/geonorge/Basisdata/Dybdedata/GML/Basisdata_${{ github.event.inputs.fylke }}_25833_Dybdedata_GML.zip"
+          ls -la dd.zip && unzip -o -q dd.zip -d dd && find dd -type f -exec ls -la {} \;
+      - name: Hva fila inneholder
+        run: |
+          sudo apt-get -qq update && sudo apt-get -qq install -y gdal-bin >/dev/null
+          for f in $(find dd -name '*.gml'); do echo "== $f"; ogrinfo -ro -so -al "$f" | grep -E "Layer name|Geometry|Feature Count|Extent|^[a-zA-Z_]+: " | head -80; done
