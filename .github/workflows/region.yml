@@ -20,3 +20,8 @@ jobs:
         run: |
           sudo apt-get -qq update && sudo apt-get -qq install -y gdal-bin >/dev/null
           for f in $(find dd -name '*.gml'); do echo "== $f"; ogrinfo -ro -so -al "$f" | grep -E "Layer name|Geometry:|Feature Count|dybde|Dybde|verdi|hoyde"; done
+      - name: Dybdeintervaller i fila (min–maks, antall flater)
+        run: |
+          f=$(find dd -name '*.gml' | head -1)
+          ogrinfo -ro -q -dialect SQLite -sql "SELECT minimumsdybde, maksimumsdybde, COUNT(*) AS n FROM Dybdeareal GROUP BY minimumsdybde, maksimumsdybde ORDER BY minimumsdybde, maksimumsdybde" "$f" | grep -E "minimumsdybde|maksimumsdybde|n \(" | paste - - - | sed 's/  */ /g'
+
