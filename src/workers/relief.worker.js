@@ -26,7 +26,7 @@ const coarse = new Map(), fine = new Map();
 
 // Ferdig utregnede fliser lagres i nettleseren (IndexedDB), så kartet kommer fram med en gang neste gang.
 // Endre MODEL_V når dybdemodellen endres, så gamle resultater ikke brukes.
-const MODEL_V = 'm13-' + BLUR_M, IDB_MAX = 700;
+const MODEL_V = 'm14-' + BLUR_M, IDB_MAX = 700;
 let dbP = null;
 function db() {
   if (dbP) return dbP;
@@ -253,6 +253,7 @@ async function wfsCells(bb, px) {
 const PRE = { w: 4.0, e: 8.3, s: 59.6, n: 62.4 };
 const inPre = (z, x, y) => { if (z < 12 || z > 14) return false; const n = 2 ** z, lon0 = x / n * 360 - 180, lon1 = (x + 1) / n * 360 - 180, lat0 = latOfMercY(ORIG - (y + 1) * 2 * ORIG / n), lat1 = latOfMercY(ORIG - y * 2 * ORIG / n);
   return lon0 >= PRE.w && lon1 <= PRE.e && lat0 >= PRE.s && lat1 <= PRE.n; };
+const POINTS_ON = false;
 const PRE_ON = false; // skrudd av: de ferdige flisene ga trappete kurver og kanter (22.11.2026)
 async function loadPre(z, x, y) {
   if (!PRE_ON || !inPre(z, x, y)) return null;
@@ -283,7 +284,8 @@ function computeOne(z, x, y) {
     const [mx0, my0, mx1, my1] = tileMerc(z, x, y);
     const px = (mx1 - mx0) / SIZE, N = SIZE + 2 * MARG;
     const bb = [mx0 - MARG * px, my0 - MARG * px, mx1 + MARG * px, my1 + MARG * px];
-    const ptsP = wfsCells(bb, px); ptsP.catch(() => {});
+    // loddskudd i dybden er skrudd av (ga hull og kanter, 22.11.2026) – samme kart som før
+    const ptsP = POINTS_ON ? wfsCells(bb, px) : Promise.resolve([]); ptsP.catch(() => {});
     const [c2, parent] = await Promise.all([wmsClasses(bb, N), parentP]);
     const res = px * Math.cos(latOfMercY((my0 + my1) / 2) * Math.PI / 180);
     let prior = null;
