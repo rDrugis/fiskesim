@@ -10,6 +10,7 @@ import { UTM33 } from '../geo/proj.js';
 import { openBridges, openPontoons } from '../data/thinland.js';
 import { fetchCached, SRC } from '../data/sources.js';
 import { PAL, rgb } from '../map/palette.js';
+import { NGU_CLS } from '../data/terrainbuild.js';
 
 const R = 6378137, ORIG = Math.PI * R;
 const tileMerc = (z, x, y) => { const s = (2 * ORIG) / 2 ** z; return [-ORIG + x * s, ORIG - (y + 1) * s, -ORIG + (x + 1) * s, ORIG - y * s]; };
@@ -355,7 +356,17 @@ async function renderTile(z, x, y, palName, hd = false) {
     if (base.flag) FG[j * S + i] = nearU8(base.flag, base.N, base.m, u, v);
   }
   const pxm = base.res * scale; // meter per piksel i denne flisen
-  const ex = 2.2, L = [-0.55, 0.55, 0.63];
+  // bunntypekartet: NGUs bunntype som farge, tydelig relieff så formen på bunnen synes
+  const bunn = palName === 'bunn';
+  let NG = null;
+  if (bunn && z >= 9) {
+    try {
+      const [bx0, by0, bx1, by1] = tileMerc(z, x, y);
+      NG = await pngPixels(`${SRC.ngu}?service=WMS&version=1.1.1&request=GetMap&layers=NiN_DK_Det&styles=&format=image/png&transparent=true&srs=EPSG:3857&width=${T}&height=${T}&bbox=${[bx0, by0, bx1, by1].map((v) => v.toFixed(2)).join(',')}`, T);
+    } catch (e) { NG = null; }
+  }
+  const nguColor = (o) => { if (!NG || NG[o + 3] < 100) return null; let best = null, bd = 6000; for (const c of NGU_CLS) { const dd = (NG[o] - c.c[0]) ** 2 + (NG[o + 1] - c.c[1]) ** 2 + (NG[o + 2] - c.c[2]) ** 2; if (dd < bd) { bd = dd; best = c.c; } } return best; };
+  const ex = bunn ? 4 : 2.2, L = [-0.55, 0.55, 0.63];
   const labelCand = [];
   for (let j = 0; j < T; j++) for (let i = 0; i < T; i++) {
     const p = (j + 1) * S + i + 1, o = (j * T + i) * 4;
@@ -370,6 +381,7 @@ async function renderTile(z, x, y, palName, hd = false) {
     }
     let c;
     if (d < 0) c = [148, 152, 112]; // tørrfall
+    else if (bunn) { const nc = nguColor(o); c = nc || (() => { const t = Math.min(1, Math.max(0, d) / 300); return [176 - 60 * t, 182 - 56 * t, 190 - 40 * t]; })(); } // ikke kartlagt: grå, mørkere med dybden
     else c = rgb(d, pal);
     const dr = D[p + 1], dd = D[p + S], ds = DS[p] === DS[p] ? DS[p] : d;
     const sl = DS[p - 1], sr = DS[p + 1], su = DS[p - S], sd = DS[p + S];
@@ -378,7 +390,7 @@ async function renderTile(z, x, y, palName, hd = false) {
     const exd = ex / (1 + Math.max(0, d) / 150);
     const nx = gx * exd, ny = -gy * exd, nl = Math.hypot(nx, ny, 1);
     const lam = (nx * L[0] + ny * L[1] + L[2]) / nl;
-    const shade = Math.max(0.8, Math.min(1.22, 1 + 0.28 * (lam - 0.63) / 0.37)); // dempet skygge: ingen svarte prikker i bratte skråninger
+    const shade = bunn ? Math.max(0.55, Math.min(1.35, 1 + 0.5 * (lam - 0.63) / 0.37)) : Math.max(0.8, Math.min(1.22, 1 + 0.28 * (lam - 0.63) / 0.37)); // dempet skygge i fiskekartet; sterkere i bunnkartet
     let r = c[0] * shade, g = c[1] * shade, b = c[2] * shade;
     // tynne dybdekurver der flaten krysser en kurvedybde
     for (const lv of LEVELS) {

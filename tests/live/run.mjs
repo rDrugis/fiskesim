@@ -261,6 +261,9 @@ if (want('bunn')) {
   const on = (bunn, lodd) => async (pg) => { await pg.evaluate(([b, l]) => { localStorage.setItem('fiskesim.bunn', b); localStorage.setItem('fiskesim.lodd', l); }, [bunn, lodd]); await pg.reload({ waitUntil: 'load' }); await pg.waitForTimeout(20000); return pg.evaluate(() => { const m = window.fiskesim.api.map; return { ngu: m.getLayer('ngu') ? m.getLayoutProperty('ngu', 'visibility') : 'mangler', lodd: m.getLayer('dp-txt') ? m.getLayoutProperty('dp-txt', 'visibility') : 'mangler' }; }); };
   await shot('bunn-salhus', '?sted=60.52,5.27&z=13', { wait: 5000, act: on('1', '1') });
   await shot('bunn-temba', '?sted=61.47,4.5&z=12.5', { wait: 5000, act: on('1', '1') });
+  await shot('bunnkart-temba', '?sted=61.47,4.5&z=13', { wait: 35000, style: 'bunn' });
+  await shot('bunnkart-askrova', '?sted=61.55,5.05&z=12.5', { wait: 35000, style: 'bunn' });
+  await shot('bunnkart-salhus', '?sted=60.513,5.262&z=14', { wait: 35000, style: 'bunn' });
   await shot('lodd-av-salhus', '?sted=60.5047,5.2575&z=15.3', { wait: 5000, act: on('0', '0') });
 }
 if (want('kanter')) {
