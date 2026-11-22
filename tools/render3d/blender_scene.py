@@ -114,8 +114,13 @@ sol = obr.modifiers.new('tykkelse', 'SOLIDIFY'); sol.thickness = 2.5
 
 # --- lys og himmel ---
 w = bpy.data.worlds.new('himmel'); sc.world = w; w.use_nodes = True
-sky = w.node_tree.nodes.new('ShaderNodeTexSky'); sky.sky_type = 'NISHITA'; sky.sun_elevation = math.radians(28); sky.sun_rotation = math.radians(AZ + 140)
-sky.air_density = 1.2; sky.dust_density = 2.5
+sky = w.node_tree.nodes.new('ShaderNodeTexSky')
+for t in ('NISHITA', 'MULTIPLE_SCATTERING', 'SINGLE_SCATTERING', 'HOSEK_WILKIE'):
+    try: sky.sky_type = t; break
+    except Exception: pass
+for k, v in (('sun_elevation', math.radians(28)), ('sun_rotation', math.radians(AZ + 140)), ('air_density', 1.2), ('dust_density', 2.5)):
+    try: setattr(sky, k, v)
+    except Exception: pass
 w.node_tree.links.new(sky.outputs['Color'], w.node_tree.nodes['Background'].inputs['Color'])
 w.node_tree.nodes['Background'].inputs['Strength'].default_value = 0.35
 sun = bpy.data.lights.new('sol', 'SUN'); sun.energy = 3.2; sun.angle = math.radians(1.5)
