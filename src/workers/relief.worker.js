@@ -27,7 +27,7 @@ const coarse = new Map(), fine = new Map();
 
 // Ferdig utregnede fliser lagres i nettleseren (IndexedDB), så kartet kommer fram med en gang neste gang.
 // Endre MODEL_V når dybdemodellen endres, så gamle resultater ikke brukes.
-const MODEL_V = 'm14-' + BLUR_M, IDB_MAX = 700;
+const MODEL_V = 'm15-' + BLUR_M, IDB_MAX = 700;
 let dbP = null;
 function db() {
   if (dbP) return dbP;
@@ -166,7 +166,7 @@ function finishInner(c2, N, res, prior, keep, core, pts) {
   // glatt flate innenfor intervallene (ca. BLUR_M meter), mot kammer ved taggete kurver i dypet
   // målte punkter (loddskudd og grunner): dybden der de ligger, og jevn overgang derfra til neste kjente dybde
   const pins = dep && pts && pts.length ? fitPoints(dep, c2, N, N, res, pts, DYB_ALL, (k) => k >= GEN0) : null;
-  if (dep && BLUR_M > 0) diffuseWithin(dep, c2, N, N, DYB_ALL, Math.max(1, Math.min(40, Math.round((BLUR_M / res) ** 2 / 4))), 2, pins, Math.max(1, Math.round(15 / res)));
+  if (dep && BLUR_M > 0) diffuseWithin(dep, c2, N, N, DYB_ALL, Math.max(1, Math.min(40, Math.round((BLUR_M / res) ** 2 / 4))), 2, pins);
   // skyggen regnes fra en mykere kopi uten intervallgrensene: klemmingen til intervallet gir et lite knekkpunkt ved
   // hver kurve, og det ble tegnet som lyse/mørke striper langs kurvene. Dybden og fargene bruker fortsatt dep.
   const sh = dep ? blurNaN(dep, N, 3, 3) : null;
