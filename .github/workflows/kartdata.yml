@@ -1,0 +1,23 @@
+# Samler resultatet fra en forhåndsberegning (artefaktene pre-0 … pre-7) i én fil og legger den i utgivelsen
+# «kartdata-vestland», så den ikke slettes etter 30 dager og kan publiseres sammen med nettsiden.
+name: kartdata
+on:
+  workflow_dispatch:
+    inputs:
+      run_id: { description: 'kjøring (precompute) å hente fra', required: true }
+permissions: { contents: write, actions: read }
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { run-id: '${{ github.event.inputs.run_id }}', github-token: '${{ secrets.GITHUB_TOKEN }}', path: pre, pattern: 'pre-*', merge-multiple: true }
+      - name: Pakk og legg i utgivelsen
+        env: { GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
+        run: |
+          echo "fliser: $(find pre -name '*.bin.gz' | wc -l)"; du -sh pre
+          tar -cf vestland.tar -C pre .
+          ls -la vestland.tar
+          gh release view kartdata-vestland >/dev/null 2>&1 || gh release create kartdata-vestland --title "Kartdata Vestland" --notes "Ferdig utregnet fiskekart for Vestland (dybde per flis). Kilde: Kartverket (CC BY 4.0)." 
+          gh release upload kartdata-vestland vestland.tar --clobber
