@@ -253,8 +253,9 @@ async function wfsCells(bb, px) {
 const PRE = { w: 4.0, e: 8.3, s: 59.6, n: 62.4 };
 const inPre = (z, x, y) => { if (z < 12 || z > 14) return false; const n = 2 ** z, lon0 = x / n * 360 - 180, lon1 = (x + 1) / n * 360 - 180, lat0 = latOfMercY(ORIG - (y + 1) * 2 * ORIG / n), lat1 = latOfMercY(ORIG - y * 2 * ORIG / n);
   return lon0 >= PRE.w && lon1 <= PRE.e && lat0 >= PRE.s && lat1 <= PRE.n; };
+const PRE_ON = false; // skrudd av: de ferdige flisene ga trappete kurver og kanter (22.11.2026)
 async function loadPre(z, x, y) {
-  if (!inPre(z, x, y)) return null;
+  if (!PRE_ON || !inPre(z, x, y)) return null;
   let r; try { r = await fetch(new URL(`../pre/${z}/${x}/${y}.bin.gz`, self.location.href)); } catch (e) { return null; }
   if (!r.ok) return null;
   const buf = new Uint8Array(await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
