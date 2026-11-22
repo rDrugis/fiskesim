@@ -8,10 +8,11 @@ on:
     inputs:
       vdata_run: { description: 'gjenbruk omgjorte data fra denne kjøringen (tom = gjør om på nytt)', required: false, default: '' }
       tag: { description: 'utgivelse', required: false, default: 'kartdata-vestland-v4' }
+      vsrc_run: { description: 'gjenbruk omgjorte kilder (prep) fra denne kjøringen', required: false, default: '' }
 permissions: { contents: write, actions: read }
 jobs:
   prep:
-    if: github.event.inputs.vdata_run == ''
+    if: github.event.inputs.vdata_run == '' && github.event.inputs.vsrc_run == ''
     runs-on: ubuntu-latest
     timeout-minutes: 180
     strategy:
@@ -30,12 +31,13 @@ jobs:
         with: { name: 'vsrc-${{ matrix.src }}', path: v, retention-days: 3, compression-level: 0 }
   merge:
     needs: prep
+    if: always() && github.event.inputs.vdata_run == '' && (needs.prep.result == 'success' || needs.prep.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get -qq update && sudo apt-get -qq install -y python3-numpy >/dev/null
+      - run: sudo apt-get -qq update && sudo apt-get -qq install -y gdal-bin python3-gdal python3-numpy >/dev/null
       - uses: actions/download-artifact@v4
-        with: { pattern: 'vsrc-*', path: v, merge-multiple: true }
+        with: { pattern: 'vsrc-*', path: v, merge-multiple: true, run-id: '${{ github.event.inputs.vsrc_run || github.run_id }}', github-token: '${{ secrets.GITHUB_TOKEN }}' }
       # lavest til høyest prioritet: havområdene først, Vestland sist
       - run: python3 tools/vector/merge.py vdata 4.0,59.6,8.3,62.4 v/63_Norskehavet v/62_Nordsjoen v/11_Rogaland v/15_More_og_Romsdal v/46_Vestland && ls -la vdata vdata/*
       - uses: actions/upload-artifact@v4
