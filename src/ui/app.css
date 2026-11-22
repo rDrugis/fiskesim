@@ -293,3 +293,8 @@ a { color: #8fd0ec; }
 .hasdrift .info { bottom: calc(var(--drh) + 24px + var(--safe-b)); }
 .hasdrift .legend { display: none; }
 @media (max-width: 760px) { .drift { left: 8px; right: 8px; } .drbig b { font-size: 26px; } }
+
+.bleg { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12.5px; color: var(--text-2); margin: 2px 0 8px 26px; }
+.bleg span { display: inline-flex; align-items: center; gap: 5px; }
+.bleg i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.bleg small { flex-basis: 100%; color: var(--text-3); }
