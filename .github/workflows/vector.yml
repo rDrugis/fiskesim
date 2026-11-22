@@ -1,5 +1,5 @@
-# Fiskekart for Vestland fra Kartverkets vektordata (Sjøkart – Dybdedata, CC BY 4.0: Vestland, nabofylkene og havområdene
-# Nordsjøen og Norskehavet der fylkene ikke har data): ekte dybdeintervaller,
+# Fiskekart for Vestland fra Kartverkets vektordata (Sjøkart – Dybdedata, CC BY 4.0: Vestland, og havområdene
+# Nordsjøen og Norskehavet der Vestland ikke har data): ekte dybdeintervaller,
 # loddskudd og grunner, med terrengmodellen (topobaty 50 m, CC BY 4.0) som bunnform innenfor intervallene.
 # 1) gjør om fila og hent terrengmodellen, 2) rasteriser og regn dybden i 16 deler, 3) pakk i utgivelsen.
 name: vector
@@ -17,7 +17,7 @@ jobs:
     timeout-minutes: 180
     strategy:
       fail-fast: true
-      matrix: { src: [46_Vestland, 11_Rogaland, 15_More_og_Romsdal, 62_Nordsjoen, 63_Norskehavet] }
+      matrix: { src: [46_Vestland, 62_Nordsjoen, 63_Norskehavet] }
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get -qq update && sudo apt-get -qq install -y gdal-bin python3-gdal python3-numpy >/dev/null && gdalinfo --version
@@ -39,7 +39,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with: { pattern: 'vsrc-*', path: v, merge-multiple: true, run-id: '${{ github.event.inputs.vsrc_run || github.run_id }}', github-token: '${{ secrets.GITHUB_TOKEN }}' }
       # lavest til høyest prioritet: havområdene først, Vestland sist
-      - run: python3 tools/vector/merge.py vdata 4.0,59.6,8.3,62.4 v/63_Norskehavet v/62_Nordsjoen v/11_Rogaland v/15_More_og_Romsdal v/46_Vestland && ls -la vdata vdata/*
+      - run: python3 tools/vector/merge.py vdata 4.0,59.6,8.3,62.4 v/63_Norskehavet v/62_Nordsjoen v/46_Vestland && ls -la vdata vdata/*
       - uses: actions/upload-artifact@v4
         with: { name: vdata, path: vdata, retention-days: 7, compression-level: 0 }
   dtm:
