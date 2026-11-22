@@ -5,6 +5,7 @@ import { SeaMarks } from '../map/seamarks.js';
 import { Soundings } from '../map/soundings.js';
 import { AlgoLayer, SPECIES } from '../map/algolayer.js';
 import { Profile, ICON_PROF } from '../map/profile.js';
+import { Drift, ICON_DRIFT } from '../map/drift.js';
 import * as ALGO from '../algo/index.js';
 import { PAL } from '../map/palette.js';
 import { SRC, ATTRIB } from '../data/sources.js';
@@ -36,6 +37,7 @@ export class App {
       <div class="rail">
         <button class="iconbtn" data-a="layers" aria-label="Kartlag" aria-expanded="false">${ICON.layers}</button>
         <button class="iconbtn" data-a="prof" aria-label="Dybdeprofil langs en strek" aria-pressed="false" title="Dybdeprofil: trykk to punkter i kartet">${ICON_PROF}</button>
+        <button class="iconbtn" data-a="drift" aria-label="Drift med strøm og vind" aria-pressed="false" title="Drift: trykk der du vil fiske">${ICON_DRIFT}</button>
         <button class="iconbtn" data-a="about" aria-label="Om kartet og kilder">${ICON.info}</button>
       </div>
       <div class="status hidden" aria-live="polite"></div>
@@ -43,6 +45,7 @@ export class App {
       <section class="sheet-p layers hidden" aria-label="Kartlag"></section>
       <section class="sheet-p info hidden" aria-live="polite"></section>
       <section class="sheet-p prof hidden" aria-label="Dybdeprofil"></section>
+      <section class="sheet-p drift hidden" aria-label="Drift"></section>
       <div class="xhair hidden" aria-hidden="true"></div>
       <div class="legend${style === 'fiskekart' ? '' : ' hidden'}" aria-hidden="true"><div class="bar"></div><div class="ticks num"><span>0</span><span>20</span><span>50</span><span>100</span><span>250 m</span></div></div>`;
     const bar = root.querySelector('.legend .bar');
@@ -69,8 +72,17 @@ export class App {
     this.profile = new Profile(api, ppanel, { getPos: () => (this.lastPos && Date.now() - this.lastPos[3] < 30 * 60e3 ? this.lastPos : null), onMode: (on) => { pbtn.setAttribute('aria-pressed', String(on)); this.root.querySelector('.xhair').classList.toggle('hidden', !on); } });
     pbtn.addEventListener('click', () => {
       if (this.profile.active) { this.profile.clear(); return; }
-      this.closeInfo(); this.root.querySelector('.layers').classList.add('hidden'); this.profile.start();
+      this.drift.clear(); this.closeInfo(); this.root.querySelector('.layers').classList.add('hidden'); this.profile.start();
     });
+    // drift: trykk der du vil fiske, panelet viser hvor du stopper motoren
+    const dbtn = this.root.querySelector('[data-a="drift"]'), dpanel = this.root.querySelector('.drift');
+    this.drift = new Drift(api, dpanel, { onMode: (on) => { this.root.querySelector('.xhair').classList.toggle('hidden', !on); } });
+    dbtn.addEventListener('click', () => {
+      if (this.drift.shown) { this.drift.clear(); return; }
+      this.profile.clear(); this.closeInfo(); this.root.querySelector('.layers').classList.add('hidden'); this.drift.start();
+    });
+    const drObs = () => { const on = !dpanel.classList.contains('hidden'), h = on ? dpanel.offsetHeight : 0; dbtn.setAttribute('aria-pressed', String(on)); this.root.style.setProperty('--drh', h + 'px'); this.root.classList.toggle('hasdrift', h > 0); };
+    new ResizeObserver(drObs).observe(dpanel); new MutationObserver(drObs).observe(dpanel, { attributes: true, attributeFilter: ['class'] });
     // hold plass til profilpanelet: punktinfo legger seg over det, og fargeskalaen skjules
     new ResizeObserver(() => { const h = ppanel.classList.contains('hidden') ? 0 : ppanel.offsetHeight; this.root.style.setProperty('--profh', h + 'px'); this.root.classList.toggle('hasprof', h > 0); }).observe(ppanel);
     new MutationObserver(() => { const h = ppanel.classList.contains('hidden') ? 0 : ppanel.offsetHeight; this.root.style.setProperty('--profh', h + 'px'); this.root.classList.toggle('hasprof', h > 0); }).observe(ppanel, { attributes: true, attributeFilter: ['class'] });
@@ -79,7 +91,7 @@ export class App {
     this.initSearch();
     this.initLayers();
     if (!this.mobile) this.initCursorDepth(map);
-    api.onClick((ll, e) => { if (this.profile.click(ll.lng, ll.lat)) return; if (e && this.marks.click(e)) return; this.pick(ll.lng, ll.lat); });
+    api.onClick((ll, e) => { if (this.profile.click(ll.lng, ll.lat)) return; if (this.drift.click(ll.lng, ll.lat)) return; if (e && this.marks.click(e)) return; this.pick(ll.lng, ll.lat); });
     this.root.querySelector('[data-a="about"]').addEventListener('click', () => this.about());
     window.fiskesim = { app: this, api, algo: this.algo, ALGO }; // for feilsøking og tester
     if (p.get('vis') === '3d') this.open3D(center[0], center[1]);
