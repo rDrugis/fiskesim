@@ -1,10 +1,12 @@
 # Fiskekart for Vestland fra Kartverkets vektordata (Sjøkart – Dybdedata, CC BY 4.0): ekte dybdeintervaller,
-# loddskudd og grunner. 1) gjør om fila, 2) rasteriser og regn dybden i 16 deler, 3) pakk i utgivelsen kartdata-vestland-v2.
+# loddskudd og grunner, med terrengmodellen (topobaty 50 m, CC BY 4.0) som bunnform innenfor intervallene.
+# 1) gjør om fila og hent terrengmodellen, 2) rasteriser og regn dybden i 16 deler, 3) pakk i utgivelsen.
 name: vector
 on:
   workflow_dispatch:
     inputs:
       vdata_run: { description: 'gjenbruk omgjorte data fra denne kjøringen (tom = gjør om på nytt)', required: false, default: '' }
+      tag: { description: 'utgivelse', required: false, default: 'kartdata-vestland-v3' }
 permissions: { contents: write, actions: read }
 jobs:
   prep:
@@ -22,9 +24,18 @@ jobs:
           ls -la vdata
       - uses: actions/upload-artifact@v4
         with: { name: vdata, path: vdata, retention-days: 7, compression-level: 0 }
+  dtm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get -qq update && sudo apt-get -qq install -y gdal-bin python3-gdal python3-numpy >/dev/null
+      - run: python3 tools/dtm/fetch.py mosaikk dtm/vestland.tif 4.0,59.6,8.3,62.4 && ls -la dtm
+      - uses: actions/upload-artifact@v4
+        with: { name: dtm, path: dtm/vestland.tif, retention-days: 7, compression-level: 0 }
   part:
-    needs: prep
-    if: always() && (needs.prep.result == 'success' || needs.prep.result == 'skipped')
+    needs: [prep, dtm]
+    if: always() && (needs.prep.result == 'success' || needs.prep.result == 'skipped') && needs.dtm.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 300
     strategy:
@@ -37,8 +48,11 @@ jobs:
       - run: sudo apt-get -qq update && sudo apt-get -qq install -y gdal-bin python3-gdal python3-numpy >/dev/null
       - uses: actions/download-artifact@v4
         with: { name: vdata, path: vdata, run-id: '${{ github.event.inputs.vdata_run || github.run_id }}', github-token: '${{ secrets.GITHUB_TOKEN }}' }
+      - uses: actions/download-artifact@v4
+        with: { name: dtm, path: dtm }
       - run: python3 tools/vector/raster.py vdata ras ${{ matrix.shard }} 16
-      - run: node tools/vector/depth.mjs vdata ras pre-out
+      - run: python3 tools/dtm/fetch.py blokker dtm/vestland.tif dtmb 1024 ras
+      - run: node tools/vector/depth.mjs vdata ras pre-out dtmb
       - uses: actions/upload-artifact@v4
         with: { name: 'vpre-${{ matrix.shard }}', path: pre-out, retention-days: 14, compression-level: 0 }
   pack:
@@ -57,5 +71,6 @@ jobs:
           cp vdata/iv.json pre/iv.json
           echo "fliser: $(find pre -name '*.bin.gz' | wc -l)"; du -sh pre
           tar -cf vestland.tar -C pre .
-          gh release view kartdata-vestland-v2 >/dev/null 2>&1 || gh release create kartdata-vestland-v2 --title "Kartdata Vestland v2 (vektordata)" --notes "Fiskekart for Vestland regnet fra Kartverkets vektordata (ekte dybdeintervaller, loddskudd og grunner). Kilde: Kartverket, Sjøkart – Dybdedata (CC BY 4.0)."
-          gh release upload kartdata-vestland-v2 vestland.tar --clobber
+          T='${{ github.event.inputs.tag || 'kartdata-vestland-v3' }}'
+          gh release view "$T" >/dev/null 2>&1 || gh release create "$T" --title "Kartdata Vestland ($T)" --notes "Fiskekart for Vestland regnet fra Kartverkets vektordata (ekte dybdeintervaller, loddskudd og grunner) med terrengmodellen som bunnform innenfor intervallene. Kilder: Kartverket, Sjøkart – Dybdedata og nasjonal terrengmodell (topobaty) (CC BY 4.0)."
+          gh release upload "$T" vestland.tar --clobber

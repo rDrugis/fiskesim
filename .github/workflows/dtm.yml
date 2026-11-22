@@ -30,7 +30,8 @@ jobs:
           print(','.join(sorted(s)))")
           echo "tiles=$T" >> $GITHUB_OUTPUT; echo "$T"
       - run: TILES='${{ steps.b.outputs.tiles }}' python3 tools/vector/raster.py vdata ras 0 1
-      - run: python3 tools/dtm/fetch.py dtm 2048 '${{ steps.b.outputs.tiles }}'
+      - run: python3 tools/dtm/fetch.py mosaikk dtm/vestland.tif 4.0,59.6,8.3,62.4
+      - run: python3 tools/dtm/fetch.py blokker dtm/vestland.tif dtm 2048 '${{ steps.b.outputs.tiles }}'
       - run: node tools/dtm/compare.mjs vdata ras dtm out 2048 '${{ github.event.inputs.places }}'
       - name: Legg resultatet i grenen dtm-results
         if: always()
