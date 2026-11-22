@@ -159,12 +159,53 @@ export function applyPoints(depth, cls, W, H, res, points, intervals, sigma = 30
 }
 
 /**
+ * Målte punkter (loddskudd og grunner) i fiskekartet. Avviket mellom punktet og anslaget spres jevnt ut rundt
+ * punktet (normert Gauss-vekt, så en klynge punkter gir samme avvik mellom seg, ikke «kuler»). Der sjøkartet bare har
+ * et grovt intervall (f.eks. 0,5–100 m) rekker hvert punkt lenger (sigG), ellers sigma. Resultatet holdes innenfor
+ * intervallet. Returnerer punktene som «nåler» (celle, dybde) til diffuseWithin, så flaten går jevnt fra punktene
+ * over til neste kjente dybde (kurve eller land).
+ * points: [kol, rad, dybde, …] i cellekoordinater. coarse(k): true for grove intervall-klasser.
+ */
+export function fitPoints(depth, cls, W, H, res, points, intervals, coarse, sigma = 60, sigG = 160) {
+  const pins = [];
+  if (!points.length) return pins;
+  const sum = new Float32Array(W * H), wsum = new Float32Array(W * H);
+  for (let k = 0; k < points.length; k += 3) {
+    const ci = points[k], cj = points[k + 1], pd = points[k + 2];
+    const i0 = Math.round(ci), j0 = Math.round(cj);
+    if (i0 < 0 || j0 < 0 || i0 >= W || j0 >= H) continue;
+    const p0 = j0 * W + i0, here = depth[p0], c = cls[p0];
+    if (!(here === here) || c < 0) continue;
+    const lo = intervals[c][1], hi = intervals[c][2], v = Math.min(hi, Math.max(lo, pd));
+    pins.push(p0, v);
+    const sg = (coarse(c) ? sigG : sigma) / res, rad = Math.ceil(sg * 2.2), s2 = 2 * sg * sg, r = v - here;
+    for (let dj = -rad; dj <= rad; dj++) {
+      const j = j0 + dj; if (j < 0 || j >= H) continue;
+      for (let di = -rad; di <= rad; di++) {
+        const i = i0 + di; if (i < 0 || i >= W) continue;
+        const d2 = (i - ci) ** 2 + (j - cj) ** 2; if (d2 > rad * rad) continue;
+        const w = Math.exp(-d2 / s2), p = j * W + i;
+        sum[p] += w * r; wsum[p] += w;
+      }
+    }
+  }
+  for (let p = 0; p < W * H; p++) {
+    if (!wsum[p] || !(depth[p] === depth[p]) || cls[p] < 0) continue;
+    const lo = intervals[cls[p]][1], hi = intervals[cls[p]][2];
+    // vekten mot 1 nær punktene og mot 0 langt unna (0,15 ≈ et punkt i ca. 2 sigma avstand)
+    const v = depth[p] + sum[p] / (wsum[p] + 0.15);
+    depth[p] = v < lo ? lo : v > hi ? hi : v;
+  }
+  return pins;
+}
+
+/**
  * Utglatting med føringer: gjentatt lite boksfilter over sjøcellene, og etter hver runde klemmes hver celle inn i
  * sitt eget intervall igjen. Det gir den glatteste flaten som fortsatt holder seg innenfor sjøkartets intervaller
  * (kurvene blir liggende der de ligger), og fjerner «kammer» som oppstår ved taggete kurver i dypt vann.
  * iters runder med radius r: glatter over omtrent r·√(iters·2/3) celler.
  */
-export function diffuseWithin(depth, cls, W, H, intervals, iters, r = 2) {
+export function diffuseWithin(depth, cls, W, H, intervals, iters, r = 2, pins = null) {
   if (iters < 1) return;
   const N = W * H, ok = new Uint8Array(N), lo = new Float32Array(N), hi = new Float32Array(N);
   for (let p = 0; p < N; p++) { const k = cls[p]; if (k >= 0 && depth[p] === depth[p]) { ok[p] = 1; lo[p] = intervals[k][1]; hi[p] = intervals[k][2]; } }
@@ -187,5 +228,7 @@ export function diffuseWithin(depth, cls, W, H, intervals, iters, r = 2) {
     for (let p = 0; p < N; p++) { if (ok[p]) { v[p] = depth[p]; c[p] = 1; } else if (cls[p] === -1 || cls[p] === -2) { v[p] = 0; c[p] = 1; } else { v[p] = 0; c[p] = 0; } }
     pass(v, c, tv, tc, true); pass(tv, tc, v, c, false);
     for (let p = 0; p < N; p++) if (ok[p] && c[p] > 0) { const d = v[p] / c[p]; depth[p] = d < lo[p] ? lo[p] : d > hi[p] ? hi[p] : d; }
+    // målte punkter står fast
+    if (pins) for (let k = 0; k < pins.length; k += 2) depth[pins[k]] = pins[k + 1];
   }
 }
