@@ -16,6 +16,7 @@ jobs:
         env: { GH_TOKEN: '${{ github.token }}' }
         run: |
           mkdir -p _site/pre && cp -r index.html assets LICENSE LICENSES _site/
+          if gh release download kartdata-vestland-v2 -p vestland.tar -D /tmp; then tar -xf /tmp/vestland.tar -C _site/pre; fi
           echo "fliser: $(find _site/pre -name '*.bin.gz' | wc -l)"; du -sh _site
       - uses: actions/upload-pages-artifact@v3
         with: { path: _site }
