@@ -245,7 +245,7 @@ async function shot(name, url, { mobile = false, wait = 12000, act = null, style
 }
 if (want('pkt')) {
   // fiskekartet før (nettsiden, uten punkter) og etter (denne versjonen, med loddskudd og grunner)
-  for (const [nm, q] of [['ortna', '?sted=61.1153,6.1401&z=15.6'], ['klokkarneset', '?sted=60.5415,5.3409&z=15'], ['reksta', '?sted=61.559,4.84&z=15']]) {
+  for (const [nm, q] of [['ortna-z13', '?sted=61.112,6.13&z=13.6'], ['ortna', '?sted=61.1153,6.1401&z=15.6'], ['klokkarneset', '?sted=60.5415,5.3409&z=15'], ['reksta', '?sted=61.559,4.84&z=15']]) {
     await shot('pkt-' + nm + '-for', 'https://rdrugis.github.io/fiskesim/' + q, { wait: 30000 });
     await shot('pkt-' + nm + '-etter', q, { wait: 40000, act: async (pg) => pg.evaluate(async () => { const api = window.fiskesim.api; const c = api.map.getCenter(); const r = await api.depthsAt([[c.lng, c.lat]]); return r && r[0] && Math.round(r[0].depth * 10) / 10; }) });
   }
