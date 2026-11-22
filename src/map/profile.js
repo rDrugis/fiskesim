@@ -17,6 +17,17 @@ const bearing = (a, b) => { const y = Math.sin((b[0] - a[0]) * rad) * Math.cos(b
 const ICON_PROF = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M2 5h20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M2 9l4 2.5 3-1 4 5.5 3-2 3 1.5 3-1V21H2z" fill="currentColor"/></svg>';
 export { ICON_PROF };
 
+// lengden av en linje (m) og punktet en gitt avstand langs den
+function pathLen(c) { let s = 0; for (let i = 1; i < c.length; i++) s += dist(c[i - 1], c[i]); return s; }
+function alongPath(c, d) {
+  for (let i = 1; i < c.length; i++) {
+    const l = dist(c[i - 1], c[i]);
+    if (d <= l || i === c.length - 1) { const t = l > 0 ? Math.min(1, Math.max(0, d / l)) : 0; return [c[i - 1][0] + (c[i][0] - c[i - 1][0]) * t, c[i - 1][1] + (c[i][1] - c[i - 1][1]) * t]; }
+    d -= l;
+  }
+  return c[c.length - 1];
+}
+
 export class Profile {
   constructor(api, panel, { getPos = () => null, onMode = () => {} } = {}) {
     this.api = api; this.panel = panel; this.getPos = getPos; this.onMode = onMode;
@@ -24,7 +35,7 @@ export class Profile {
     api.onStyle((map) => this.addLayers(map));
     panel.addEventListener('click', (e) => {
       const b = e.target.closest('[data-p]'); if (!b) return;
-      if (b.dataset.p === 'clear') this.clear(); else if (b.dataset.p === 'new') this.start();
+      if (b.dataset.p === 'clear' || b.dataset.p === 'back') { const f = this.back; this.clear(); if (f) f(); } else if (b.dataset.p === 'new') this.start();
       else if (b.dataset.p === 'here') { const c = this.api.map.getCenter(); this.click(c.lng, c.lat); }
     });
   }
@@ -38,7 +49,7 @@ export class Profile {
   }
   geo(hover) {
     const f = [];
-    if (this.a) f.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: [this.a, this.b || this.a] }, properties: {} });
+    if (this.a) f.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: this.path || [this.a, this.b || this.a] }, properties: {} });
     if (hover) f.push({ type: 'Feature', geometry: { type: 'Point', coordinates: hover }, properties: {} });
     return { type: 'FeatureCollection', features: f };
   }
@@ -49,6 +60,12 @@ export class Profile {
     this.picking = true; this.onMode(true);
     this.api.map.getCanvas().style.cursor = 'crosshair';
     this.show(this.head('Trykk startpunktet (A) i kartet, eller flytt kartet og bruk krysset', true, 'A'));
+  }
+  // profil langs en ferdig linje (f.eks. driften); back: knapp tilbake til der linjen kom fra
+  fromPath(coords, back) {
+    this.clear(true);
+    this.path = coords; this.a = coords[0]; this.b = coords[coords.length - 1]; this.back = back || null;
+    this.sync(); this.calc();
   }
   // kalles fra kartet når profilmodus er på; returnerer true når klikket er brukt
   click(lng, lat) {
@@ -67,7 +84,7 @@ export class Profile {
     this.markers[k] = m;
   }
   clear(keepPanel) {
-    this.run++; this.a = this.b = null; this.data = null;
+    this.run++; this.a = this.b = null; this.data = null; this.path = null; this.back = null;
     if (this.picking) { this.picking = false; this.onMode(false); }
     this.api.map.getCanvas().style.cursor = '';
     Object.values(this.markers).forEach((m) => m.remove()); this.markers = {};
@@ -77,25 +94,26 @@ export class Profile {
   show(html) { this.panel.innerHTML = html; this.panel.classList.remove('hidden'); }
   head(note, picking, next) {
     let meta = '';
-    if (this.a && this.b) { const L = dist(this.a, this.b), br = bearing(this.a, this.b); meta = `A → B · ${fmtD(L)} · ${fmt(br)}° ${DIRS[Math.round(br / 22.5) % 16]}`; }
+    if (this.path) meta = `Langs driften · ${fmtD(pathLen(this.path))}`;
+    else if (this.a && this.b) { const L = dist(this.a, this.b), br = bearing(this.a, this.b); meta = `A → B · ${fmtD(L)} · ${fmt(br)}° ${DIRS[Math.round(br / 22.5) % 16]}`; }
     return `<header><h2>Dybdeprofil</h2><span class="pmut">${note || meta}</span><span class="psp"></span>
-      ${picking ? `<button class="btn sm primary" data-p="here">Sett ${next} ved krysset</button>` : '<button class="btn sm" data-p="new">Ny strek</button>'}<button class="btn sm" data-p="clear">${picking ? 'Avbryt' : 'Fjern'}</button></header>`;
+      ${this.back ? '<button class="btn sm primary" data-p="back">Tilbake til driften</button>' : picking ? `<button class="btn sm primary" data-p="here">Sett ${next} ved krysset</button>` : '<button class="btn sm" data-p="new">Ny strek</button>'}<button class="btn sm" data-p="clear">${picking ? 'Avbryt' : 'Fjern'}</button></header>`;
   }
 
   async calc() {
-    const run = ++this.run, a = this.a, b = this.b, L = dist(a, b);
+    const run = ++this.run, a = this.a, b = this.b, path = this.path, L = path ? pathLen(path) : dist(a, b);
     if (L < 20) { this.show(this.head() + '<p class="hint">Streken er for kort – dra B lenger unna.</p>'); return; }
     this.show(this.head() + '<p class="hint">Henter dybder …</p>');
     // tette punkter: ca. hver 3. meter (minst 80, høyst 700 punkter); lange streker bruker det grove nivået
     const n = Math.max(80, Math.min(700, Math.round(L / 3))), coarse = L > 7000, pts = [];
-    for (let i = 0; i <= n; i++) { const t = i / n; pts.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]); }
+    for (let i = 0; i <= n; i++) { const t = i / n; pts.push(path ? alongPath(path, t * L) : [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]); }
     let res;
     try { res = await this.api.depthsAt(pts, coarse); } catch (e) { if (run === this.run) this.show(this.head() + '<p class="hint warn">Fikk ikke hentet dybdedata fra Kartverket.</p>'); return; }
     if (run !== this.run) return;
     const data = pts.map((p, i) => { const r = res[i]; const water = r && !r.land && r.depth === r.depth;
       return { d: i / n * L, p, z: water ? Math.max(0, r.depth) : null, lo: water ? r.lo : null, hi: water ? r.hi : null, est: water && r.est, land: !!(r && r.land), nod: !r }; });
     let snd = [];
-    if (!coarse) { try { snd = await this.soundingFix(a, b, L, data); } catch (e) { snd = []; } }
+    if (!coarse && !path) { try { snd = await this.soundingFix(a, b, L, data); } catch (e) { snd = []; } }
     if (run !== this.run) return;
     this.data = data; this.snd = snd;
     this.L = L; this.coarse = coarse;
@@ -149,7 +167,7 @@ export class Profile {
 
   // posisjonen din på streken (GPS), bare når du er nær streken
   posOn() {
-    const me = this.getPos(); if (!me || !this.a || !this.b) return null;
+    const me = this.getPos(); if (!me || !this.a || !this.b || this.path) return null;
     const k = Math.cos(this.a[1] * rad), ax = this.a[0] * k, ay = this.a[1], bx = this.b[0] * k, by = this.b[1], px = me[0] * k, py = me[1];
     const vx = bx - ax, vy = by - ay, L2 = vx * vx + vy * vy; if (!L2) return null;
     const along = ((px - ax) * vx + (py - ay) * vy) / L2 * this.L, off = Math.abs((px - ax) * vy - (py - ay) * vx) / Math.sqrt(L2) * rad * R;
