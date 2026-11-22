@@ -1,7 +1,8 @@
 // Test (endrer ikke nettsiden): gir terrengmodellen (topobaty 50 m) et bedre fiskekart?
 // Én tydelig rekkefølge, så det ikke blir «for mange kokker»:
 //   1) sjøkartets dybdeintervaller er absolutte grenser (som før)
-//   2) terrengmodellen gir bare FORMEN på bunnen innenfor intervallet, og får lav vekt nær land (50 m-ruter er for grove der)
+//   2) terrengmodellen gir bare FORMEN på bunnen innenfor intervallet. Den viker for sjøkartet der det vet mer:
+//      nær land, der dybdekurvene ligger tettere enn modellens 50 m-ruter, og den tones mykt ut mot kanten av området den dekker
 //   3) loddskuddene er fasit og retter alt rundt seg (som før)
 //   4) samme utglatting innenfor intervallene som før
 // Måler med tilbakeholdte loddskudd: hvert femte loddskudd tas ut av utregningen, og avviket der sammenlignes før/etter.
@@ -13,7 +14,9 @@ import { contourDepth, diffuseWithin, fitPoints, edt } from '../../src/data/cont
 
 const [DATA, RAS, DTM, OUT, NDT, PLACES] = process.argv.slice(2);
 const NDTM = Number(NDT), R = 6378137, ORIG = Math.PI * R, SIZE = 256, MARG = 128, BLUR_M = 40;
-const WMAX = 0.8, NEAR0 = 60, NEAR1 = 150;   // vekt på terrengmodellen, og avstand fra land (m) der den tones inn
+const WMAX = 0.8;                       // største vekt på terrengmodellen
+const LAND = [75, 200], KURVE = [25, 100], KANT = [100, 400];   // avstander (m) der den tones inn: fra land, fra nærmeste dybdekurve, fra kanten av modellen
+const ramp = (m, [a, b]) => { const s = Math.min(1, Math.max(0, (m - a) / (b - a))); return s * s * (3 - 2 * s); };
 await mkdir(OUT, { recursive: true });
 const iv = JSON.parse(await readFile(join(DATA, 'iv.json'), 'utf8'));
 const IV = iv.map(([lo, hi]) => [0, lo, hi]);
@@ -79,11 +82,18 @@ function finish(cls, N, res, prior, pts, dtm) {
   if (!water) return null;
   const dep = contourDepth(cls, N, N, res, IV, prior, MARG, Math.max(2, Math.round(22 / res)));
   if (dtm) {
-    const feat = new Uint8Array(N * N); for (let p = 0; p < N * N; p++) feat[p] = cls[p] < 0 ? 1 : 0;
-    const d2 = edt(feat, N, N);
+    const fL = new Uint8Array(N * N), fK = new Uint8Array(N * N), fE = new Uint8Array(N * N);
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      const p = j * N + i, c = cls[p];
+      fL[p] = c < 0 ? 1 : 0;
+      fK[p] = c >= 0 && ((i < N - 1 && cls[p + 1] !== c) || (j < N - 1 && cls[p + N] !== c)) ? 1 : 0;   // dybdekurve (grense mellom intervaller)
+      fE[p] = c >= 0 && !(dtm[p] === dtm[p]) ? 1 : 0;                                                  // sjø uten modell
+    }
+    const dL = edt(fL, N, N), dK = edt(fK, N, N), dE = edt(fE, N, N);
     for (let p = 0; p < N * N; p++) {
       const c = cls[p], t = dtm[p]; if (c < 0 || !(t === t) || !(dep[p] === dep[p])) continue;
-      const dm = Math.sqrt(d2[p]) * res, s = Math.min(1, Math.max(0, (dm - NEAR0) / (NEAR1 - NEAR0))), w = WMAX * s * s * (3 - 2 * s);
+      const w = WMAX * ramp(Math.sqrt(dL[p]) * res, LAND) * ramp(Math.sqrt(dK[p]) * res, KURVE) * ramp(Math.sqrt(dE[p]) * res, KANT);
+      if (!w) continue;
       const lo = IV[c][1], hi = IV[c][2];
       dep[p] = Math.min(hi, Math.max(lo, dep[p] + w * (Math.min(hi, Math.max(lo, t)) - dep[p])));
     }
