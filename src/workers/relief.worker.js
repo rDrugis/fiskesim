@@ -268,7 +268,8 @@ async function loadPre(z, x, y) {
     let any = false;
     for (let p = 0; p < M; p++) { const v = d16[p]; if (v === 65535) dep[p] = NaN; else { dep[p] = (v > 60000 ? v - 65536 : v) / 10; wet[p] = 1; any = true; } cl[p] = clIn[p]; flag[p] = flIn[p]; }
     const [mx0, my0, mx1] = tileMerc(z, x, y), res = (mx1 - mx0) / S * Math.cos(latOfMercY(my0) * Math.PI / 180);
-    return { dep: any ? dep : null, sh: any ? blurNaN(dep, S, 3, 3) : null, wet, flag, cl, N: S, m: 0, res, iv: iv.map(([lo, hi]) => [0, lo, hi]), pre: true };
+    // skyggen regnes rett fra dybden (allerede glattet): utjevning bare innenfor én flis ga synlige kanter mellom flisene
+    return { dep: any ? dep : null, sh: null, wet, flag, cl, N: S, m: 0, res, iv: iv.map(([lo, hi]) => [0, lo, hi]), pre: true };
   } catch (e) { return null; }
 }
 
