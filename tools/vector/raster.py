@@ -23,6 +23,8 @@ def merc(z, x, y):
 x0, y0 = tile(12, BB['w'], BB['n']); x1, y1 = tile(12, BB['e'], BB['s'])
 allt = [(x, y) for x in range(x0, x1 + 1) for y in range(y0, y1 + 1)]
 mine = [t for i, t in enumerate(allt) if i % NSH == SH]
+# TILES="x_y,x_y" (valgfritt): bare disse z12-blokkene (brukes av testene i tools/dtm)
+if os.environ.get('TILES'): mine = [tuple(map(int, t.split('_'))) for t in os.environ['TILES'].split(',')]
 print(f'shard {SH}/{NSH}: {len(mine)} z12-fliser', flush=True)
 
 # datakildene må holdes i live (ellers blir lagene ugyldige i GDAL for Python)
