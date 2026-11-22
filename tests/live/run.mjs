@@ -243,6 +243,13 @@ async function shot(name, url, { mobile = false, wait = 12000, act = null, style
   log('bilde', name, errs.length ? 'feil: ' + errs.join(' | ').slice(0, 300) : 'ok', extra ? JSON.stringify(extra).slice(0, 300) : '');
   await ctx.close();
 }
+if (want('pre')) {
+  // ferdig utregnet fiskekart: samme steder, med lastetid og hvor mye som ble hentet
+  for (const [nm, q] of [['ortna', '?sted=61.1153,6.1401&z=15.6'], ['ortna-z13', '?sted=61.112,6.13&z=13.6'], ['salhus', '?sted=60.52,5.27&z=13.5'], ['reksta', '?sted=61.559,4.84&z=15']]) {
+    await shot('pre-' + nm, q, { wait: 12000, act: async (pg) => pg.evaluate(async () => { const st = await window.fiskesim.api.reliefStats(); const f = st.flat().filter(Boolean); const c = window.fiskesim.api.map.getCenter(); const r = await window.fiskesim.api.depthsAt([[c.lng, c.lat]]);
+      return { kartverket: f.reduce((a, s) => a + s.fetch.length, 0), utregnet: f.reduce((a, s) => a + s.comp.length, 0), dybde: r && r[0] && Math.round(r[0].depth * 10) / 10, kB: Math.round(performance.getEntriesByType('resource').filter((e) => e.name.includes('/pre/')).reduce((a, e) => a + (e.transferSize || e.encodedBodySize || 0), 0) / 1024) }; }) });
+  }
+}
 if (want('pkt')) {
   // fiskekartet før (nettsiden, uten punkter) og etter (denne versjonen, med loddskudd og grunner)
   for (const [nm, q] of [['ortna-z13', '?sted=61.112,6.13&z=13.6'], ['ortna', '?sted=61.1153,6.1401&z=15.6'], ['klokkarneset', '?sted=60.5415,5.3409&z=15'], ['reksta', '?sted=61.559,4.84&z=15']]) {
