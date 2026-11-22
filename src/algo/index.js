@@ -145,7 +145,7 @@ export async function algoRun(b, m, sel, onNote = () => {}) {
   if (skips.length && want.length) note += ' (' + skips.map((sp) => ART[sp].no + ': ikke vanlig i dette området').join('; ') + ')';
   // rangering per art når arter er valgt (1 = best)
   p.res.forEach((r) => { r.rank = 0; });
-  want.forEach((sp) => p.res.filter((r) => r.sp === sp).sort((a, c) => c.sc - a.sc).forEach((r, i) => { r.rank = i + 1; }));
+  want.forEach((sp) => p.res.filter((r) => r.sp === sp).sort((a, c) => (c.raw ?? c.sc) - (a.raw ?? a.sc) || c.sc - a.sc).forEach((r, i) => { r.rank = i + 1; })); // flest poeng (uten tak) = nr. 1
   return { res: p.res, note };
 }
 export function clearCache() { ATC.clear(); AVER.clear(); return idb('readwrite', (s) => s.clear()); }
