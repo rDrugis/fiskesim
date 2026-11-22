@@ -19,4 +19,4 @@ jobs:
       - name: Hva fila inneholder
         run: |
           sudo apt-get -qq update && sudo apt-get -qq install -y gdal-bin >/dev/null
-          for f in $(find dd -name '*.gml'); do echo "== $f"; ogrinfo -ro -so -al "$f" | grep -E "Layer name|Geometry|Feature Count|Extent|^[a-zA-Z_]+: " | head -80; done
+          for f in $(find dd -name '*.gml'); do echo "== $f"; ogrinfo -ro -so -al "$f" | grep -E "Layer name|Geometry:|Feature Count|dybde|Dybde|verdi|hoyde"; done
