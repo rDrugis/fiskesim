@@ -19,6 +19,7 @@ export const MAP_STYLES = [
   { id: 'dybdekart', label: 'Dybdekart', short: 'Dybde' },
   { id: 'sjokart', label: 'Sjøkart', short: 'Sjø' },
   { id: 'natt', label: 'Natt', short: 'Natt' },
+  { id: 'bunn', label: 'Bunntype', short: 'Bunn' },
 ];
 
 // Norskekysten (Kartverkets dybdedata dekker hele kysten)
@@ -83,7 +84,7 @@ function buildStyle(kind) {
   const land = night ? '#1c1f1b' : '#22261f';
   const sources = {
     ofm: { type: 'vector', url: SRC.ofm, attribution: '© OpenStreetMap' },
-    relief: { type: 'raster', tiles: [`relief://${night ? 'natt' : 'dag'}/{z}/{x}/{y}`], tileSize: 256, minzoom: 7, maxzoom: 17, attribution: '© Kartverket' },
+    relief: { type: 'raster', tiles: [`relief://${night ? 'natt' : kind === 'bunn' ? 'bunn' : 'dag'}/{z}/{x}/{y}`], tileSize: 256, minzoom: 7, maxzoom: 17, attribution: '© Kartverket' },
     dem: { type: 'raster-dem', tiles: [SRC.terrarium], encoding: 'terrarium', tileSize: 256, maxzoom: 14, attribution: 'Mapzen' },
     kvsjo: { type: 'raster', tiles: [SRC.wmtsKV('sjokartraster')], tileSize: 256, maxzoom: 18, attribution: '© Kartverket' },
     names: { type: 'geojson', data: EMPTY },

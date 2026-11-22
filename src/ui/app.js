@@ -74,7 +74,7 @@ export class App {
       if (!m.getSource('ngu')) m.addSource('ngu', { type: 'raster', tileSize: 256, minzoom: 8, maxzoom: 16, attribution: '© NGU',
         tiles: [`${SRC.ngu}?service=WMS&version=1.1.1&request=GetMap&layers=NiN_DK_Det&styles=&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&bbox={bbox-epsg-3857}`] });
       if (!m.getLayer('ngu')) m.addLayer({ id: 'ngu', type: 'raster', source: 'ngu', paint: { 'raster-opacity': 0.55 } }, m.getLayer('roads') ? 'roads' : undefined);
-      m.setLayoutProperty('ngu', 'visibility', this.bunnOn && ['fiskekart', 'natt', 'dybdekart'].includes(api.style) ? 'visible' : 'none');
+      m.setLayoutProperty('ngu', 'visibility', this.bunnOn && ['fiskekart', 'natt', 'dybdekart'].includes(api.style) ? 'visible' : 'none'); // i bunnkartet er bunntypen tegnet inn i kartet
       } catch (e) { m.once('idle', () => this.bunnLayer()); }
     };
     api.onStyle(() => this.bunnLayer());
@@ -165,7 +165,7 @@ export class App {
         <label class="tog"><input type="checkbox" data-k="marks" ${this.marks.on ? 'checked' : ''}><span>Sjømerker, skjær og grunner</span></label>
         <label class="tog"><input type="checkbox" data-k="lodd" ${this.soundings.on ? 'checked' : ''}><span>Loddskudd (dybdetall)</span></label>
         <label class="tog"><input type="checkbox" data-k="bunn" ${this.bunnOn ? 'checked' : ''}><span>Bunntype (NGU)</span></label>
-        ${this.bunnOn ? `<div class="bleg">${NGU_CLS.map((c) => `<span><i style="background:rgb(${c.c.join(',')})"></i>${c.n[0].toUpperCase() + c.n.slice(1)}</span>`).join('')}<small>Bare der NGU har kartlagt bunnen. Kilde: NGU.</small></div>` : ''}
+        ${this.bunnOn || this.api.style === 'bunn' ? `<div class="bleg">${NGU_CLS.map((c) => `<span><i style="background:rgb(${c.c.join(',')})"></i>${c.n[0].toUpperCase() + c.n.slice(1)}</span>`).join('')}<small>Bare der NGU har kartlagt bunnen. Kilde: NGU.</small></div>` : ''}
         <label class="tog"><input type="checkbox" data-k="algo" ${a.on ? 'checked' : ''}><span>Fiskeplasser (algoritme)</span></label>
         <div class="algo-opts${a.on ? '' : ' hidden'}">
           <div class="chips" role="group" aria-label="Arter">${sp.map((s) => `<button class="chip${a.sel.includes(s.k) ? ' on' : ''}" data-sp="${s.k}" style="--c:${s.col}" aria-pressed="${a.sel.includes(s.k)}"><i></i>${esc(s.no)}</button>`).join('')}</div>
