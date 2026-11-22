@@ -2,7 +2,7 @@
 # For hver z12-flis lagres tre rutenett (Uint8: 0 = land/ingen data, 255 = tørrfall, ellers cid + 1):
 #   z12: 512 × 512 (flisa + 128 px kant), z13: 768 × 768 (de fire z13-flisene + kant), z14: 1280 × 1280 (16 z14 + kant)
 # Bruk: python3 raster.py <datamappe> <utmappe> <shard> <antall>
-import math, os, sys
+import json, math, os, sys
 import numpy as np
 from osgeo import gdal, ogr
 
@@ -28,25 +28,34 @@ if os.environ.get('TILES'): mine = [tuple(map(int, t.split('_'))) for t in os.en
 print(f'shard {SH}/{NSH}: {len(mine)} z12-fliser', flush=True)
 
 # datakildene må holdes i live (ellers blir lagene ugyldige i GDAL for Python)
-DS = [ogr.Open(os.path.join(data, 'da.fgb')), ogr.Open(os.path.join(data, 'land.fgb'))]
-da, land = DS[0].GetLayer(0), DS[1].GetLayer(0)
-tfp = os.path.join(data, 'tf.fgb')
-if os.path.exists(tfp): DS.append(ogr.Open(tfp))
-tf = DS[2].GetLayer(0) if len(DS) > 2 else None
+# Flere kilder (merge.py, sources.json): fra lavest til høyest prioritet; en kilde med høyere prioritet overskriver
+# de lavere der den har data (sjø, tørrfall eller land). Én kilde: da.fgb, land.fgb og tf.fgb rett i datamappa.
+DS, SRC = [], []
+meta = json.load(open(os.path.join(data, 'sources.json'))) if os.path.exists(os.path.join(data, 'sources.json')) else [{'dir': '.', 'lut': None}]
+for m in meta:
+    d = os.path.join(data, m['dir']); L = {}
+    for k in ('da', 'land', 'tf'):
+        f = os.path.join(d, k + '.fgb')
+        if os.path.exists(f): ds = ogr.Open(f); DS.append(ds); L[k] = ds.GetLayer(0)
+    L['lut'] = np.array(m['lut'], np.int16) if m['lut'] is not None else None
+    SRC.append(L)
 mem = gdal.GetDriverByName('MEM')
+NONE = -32768
 
 def grid(bx0, by0, bx1, by1, n):
     bx0, by0, bx1, by1 = float(bx0), float(by0), float(bx1), float(by1)
-    d = mem.Create('', n, n, 1, gdal.GDT_Int16)
-    d.SetGeoTransform((bx0, (bx1 - bx0) / n, 0, by1, 0, -(by1 - by0) / n))
-    b = d.GetRasterBand(1); b.Fill(-1)
-    da.SetSpatialFilterRect(bx0, by0, bx1, by1)
-    gdal.RasterizeLayer(d, [1], da, options=['ATTRIBUTE=cid'])
-    if tf is not None:
-        tf.SetSpatialFilterRect(bx0, by0, bx1, by1); gdal.RasterizeLayer(d, [1], tf, burn_values=[-2])
-    land.SetSpatialFilterRect(bx0, by0, bx1, by1); gdal.RasterizeLayer(d, [1], land, burn_values=[-1])
-    a = b.ReadAsArray().astype(np.int16)
-    o = np.zeros(a.shape, np.uint8); o[a >= 0] = (a[a >= 0] + 1).astype(np.uint8); o[a == -2] = 255
+    acc = np.full((n, n), -1, np.int16)   # −1 land / ingen data, −2 tørrfall, ellers felles intervallnummer
+    for L in SRC:
+        d = mem.Create('', n, n, 1, gdal.GDT_Int16)
+        d.SetGeoTransform((bx0, (bx1 - bx0) / n, 0, by1, 0, -(by1 - by0) / n))
+        b = d.GetRasterBand(1); b.Fill(NONE)
+        if 'da' in L: L['da'].SetSpatialFilterRect(bx0, by0, bx1, by1); gdal.RasterizeLayer(d, [1], L['da'], options=['ATTRIBUTE=cid'])
+        if 'tf' in L: L['tf'].SetSpatialFilterRect(bx0, by0, bx1, by1); gdal.RasterizeLayer(d, [1], L['tf'], burn_values=[-2])
+        if 'land' in L: L['land'].SetSpatialFilterRect(bx0, by0, bx1, by1); gdal.RasterizeLayer(d, [1], L['land'], burn_values=[-1])
+        a = b.ReadAsArray().astype(np.int16)
+        if L['lut'] is not None: w = a >= 0; a[w] = L['lut'][a[w]]
+        has = a != NONE; acc[has] = a[has]
+    o = np.zeros(acc.shape, np.uint8); o[acc >= 0] = (acc[acc >= 0] + 1).astype(np.uint8); o[acc == -2] = 255
     return o
 
 n = 0
