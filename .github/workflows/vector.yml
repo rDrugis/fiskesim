@@ -97,3 +97,5 @@ jobs:
           T='${{ github.event.inputs.tag || 'kartdata-vestland-v4' }}'
           gh release view "$T" >/dev/null 2>&1 || gh release create "$T" --title "Kartdata Vestland ($T)" --notes "Fiskekart for Vestland regnet fra Kartverkets vektordata (ekte dybdeintervaller, loddskudd og grunner) med terrengmodellen som bunnform innenfor intervallene. Kilder: Kartverket, Sjøkart – Dybdedata og nasjonal terrengmodell (topobaty) (CC BY 4.0)."
           gh release upload "$T" vestland.tar --clobber
+          # ny data er ikke kontrollert ennå: kartdata-ok kontrollerer og publiserer den
+          gh release edit "$T" --notes "Fiskekart for Vestland regnet fra Kartverkets vektordata (Vestland, Nordsjøen og Norskehavet) med terrengmodellen som bunnform innenfor intervallene. Kilder: Kartverket, Sjøkart – Dybdedata og nasjonal terrengmodell (topobaty) (CC BY 4.0). Regnet $(date -u +%F)."

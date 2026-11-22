@@ -46,7 +46,7 @@ function finish(cls, N, res, prior, pts, dtm = null) {
   const dep = contourDepth(cls, N, N, res, IV, prior, MARG, Math.max(2, Math.round(22 / res)));
   if (dtm) blendDtm(dep, cls, N, res, dtm, IV);
   const pins = pts.length ? fitPoints(dep, cls, N, N, res, pts, IV, coarse) : null;
-  diffuseWithin(dep, cls, N, N, IV, Math.max(1, Math.min(40, Math.round((BLUR_M / res) ** 2 / 4))), 2, pins);
+  diffuseWithin(dep, cls, N, N, IV, Math.max(1, Math.min(40, Math.round((BLUR_M / res) ** 2 / 4))), 2, pins, Math.max(1, Math.round(15 / res)));
   return dep;
 }
 function bil(a, N, m, u, v) {
