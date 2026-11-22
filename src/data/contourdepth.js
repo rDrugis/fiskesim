@@ -166,7 +166,7 @@ export function applyPoints(depth, cls, W, H, res, points, intervals, sigma = 30
  * over til neste kjente dybde (kurve eller land).
  * points: [kol, rad, dybde, …] i cellekoordinater. coarse(k): true for grove intervall-klasser.
  */
-export function fitPoints(depth, cls, W, H, res, points, intervals, coarse, sigma = 60, sigG = 160) {
+export function fitPoints(depth, cls, W, H, res, points, intervals, coarse, sigma = 90, sigG = 200) {
   const pins = [];
   if (!points.length) return pins;
   const sum = new Float32Array(W * H), wsum = new Float32Array(W * H);
@@ -176,9 +176,6 @@ export function fitPoints(depth, cls, W, H, res, points, intervals, coarse, sigm
     if (i0 < 0 || j0 < 0 || i0 >= W || j0 >= H) continue;
     const p0 = j0 * W + i0, here = depth[p0], c = cls[p0];
     if (!(here === here) || c < 0) continue;
-    // bare der sjøkartet har et grovt intervall (f.eks. 0,5–100 m): ellers gir kurvene dybden, og punktene laget
-    // små groper og topper («hull») på dypt vann
-    if (!coarse(c)) continue;
     const lo = intervals[c][1], hi = intervals[c][2], v = Math.min(hi, Math.max(lo, pd));
     pins.push(p0, v);
     const sg = (coarse(c) ? sigG : sigma) / res, rad = Math.ceil(sg * 2.2), s2 = 2 * sg * sg, r = v - here;
@@ -196,7 +193,9 @@ export function fitPoints(depth, cls, W, H, res, points, intervals, coarse, sigm
     if (!wsum[p] || !(depth[p] === depth[p]) || cls[p] < 0) continue;
     const lo = intervals[cls[p]][1], hi = intervals[cls[p]][2];
     // vekten mot 1 nær punktene og mot 0 langt unna (0,15 ≈ et punkt i ca. 2 sigma avstand)
-    const v = depth[p] + sum[p] / (wsum[p] + 0.15);
+    // jevn interpolasjon mellom punktene: nesten full vekt så lenge det finnes et punkt innen ca. 2 sigma (ikke tilbake
+    // til modellen mellom to nære punkter, som ga «flekker»), og en myk overgang til kurvene lenger unna
+    const v = depth[p] + sum[p] / (wsum[p] + 0.02) * Math.min(1, wsum[p] / 0.1);
     depth[p] = v < lo ? lo : v > hi ? hi : v;
   }
   return pins;
