@@ -1,4 +1,4 @@
-# Publiserer nettsiden. (Ferdig utregnet kartdata for Vestland er tatt ut igjen 22.11.2026.)
+# Publiserer nettsiden med ferdig utregnet kartdata for Vestland: v3 (med terrengmodellen) når den er kontrollert, ellers v2.
 # Krever at Settings → Pages → Source er «GitHub Actions».
 name: pages
 on:
@@ -16,7 +16,10 @@ jobs:
         env: { GH_TOKEN: '${{ github.token }}' }
         run: |
           mkdir -p _site/pre && cp -r index.html assets LICENSE LICENSES _site/
-          if gh release download kartdata-vestland-v2 -p vestland.tar -D /tmp; then tar -xf /tmp/vestland.tar -C _site/pre; fi
+          T=kartdata-vestland-v2
+          if gh release view kartdata-vestland-v3 --json body -q .body 2>/dev/null | grep -q '^Kontrollert'; then T=kartdata-vestland-v3; fi
+          echo "kartdata: $T"
+          if gh release download "$T" -p vestland.tar -D /tmp; then tar -xf /tmp/vestland.tar -C _site/pre; fi
           echo "fliser: $(find _site/pre -name '*.bin.gz' | wc -l)"; du -sh _site
       - uses: actions/upload-pages-artifact@v3
         with: { path: _site }

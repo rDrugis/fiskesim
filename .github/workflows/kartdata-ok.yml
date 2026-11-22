@@ -1,0 +1,40 @@
+# Når utregningen av fiskekartet (vector) er ferdig uten feil: kontrollerer den nye utgivelsen og publiserer nettsiden med den.
+# Nettsiden bruker bare en utgivelse som er merket «Kontrollert» (ellers den forrige).
+name: kartdata-ok
+on:
+  workflow_run: { workflows: [vector], types: [completed] }
+  workflow_dispatch:
+permissions: { contents: write, actions: write }
+jobs:
+  sjekk:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    env: { GH_TOKEN: '${{ github.token }}', T: kartdata-vestland-v3, R: '${{ github.repository }}' }
+    steps:
+      - name: Kontroller utgivelsen
+        run: |
+          gh release download "$T" -R "$R" -p vestland.tar -D /tmp && mkdir -p pre && tar -xf /tmp/vestland.tar -C pre
+          N=$(find pre -name '*.bin.gz' | wc -l); echo "fliser: $N"; test -f pre/iv.json
+          test "$N" -ge 19000 || { echo "for få fliser"; exit 1; }
+          python3 - <<'PY'
+          import glob, gzip, random, struct
+          fs = sorted(glob.glob('pre/14/*/*.bin.gz')); random.seed(1); bad = 0; tot = 0
+          for f in random.sample(fs, min(400, len(fs))):
+              b = gzip.open(f).read(); d = struct.unpack('<65536H', b[:131072])
+              for v in d:
+                  if v == 65535: continue
+                  m = (v - 65536 if v > 60000 else v) / 10; tot += 1
+                  if m < -2 or m > 1400: bad += 1
+          print('dybder sjekket:', tot, 'utenfor -2..1400 m:', bad)
+          assert tot > 0 and bad == 0
+          PY
+          gh release edit "$T" -R "$R" --notes "$(gh release view "$T" -R "$R" --json body -q .body | grep -v '^Kontrollert')
+          Kontrollert $(date -u +%F): $N fliser."
+      - name: Publiser nettsiden (prøver igjen ved den kjente feilen i Pages)
+        run: |
+          for k in 1 2 3 4; do
+            gh workflow run pages.yml -R "$R" --ref main; sleep 15
+            ID=$(gh run list -R "$R" -w pages.yml -L 1 --json databaseId -q '.[0].databaseId')
+            gh run watch "$ID" -R "$R" --exit-status >/dev/null 2>&1 && { echo "publisert ($ID)"; exit 0; }
+            echo "forsøk $k feilet"; sleep 30
+          done; exit 1
