@@ -32,7 +32,7 @@ def copy_polys(name, path, field=None, fn=None):
     for f in lyr:
         g = f.GetGeometryRef()
         if g is None: continue
-        g = g.Clone(); g.Transform(tr)
+        g = ogr.ForceToMultiPolygon(g.Clone()); g.Transform(tr)
         of = ogr.Feature(d); of.SetGeometry(g)
         if field: of.SetField(field, fn(f))
         ol.CreateFeature(of); n += 1
@@ -54,7 +54,7 @@ print('intervaller:', len(iv), flush=True)
 copy_polys('Dybdeareal', os.path.join(out, 'da.fgb'), 'cid', lambda f: idx[(float(f.GetField('minimumsdybde')), float(f.GetField('maksimumsdybde')))])
 copy_polys('Landareal', os.path.join(out, 'land.fgb'))
 for n in names:
-    if n.lower().replace('ø', 'o').startswith('torrfall'):
+    if n.lower().replace('ø', 'o') == 'torrfall':
         copy_polys(n, os.path.join(out, 'tf.fgb'))
 
 # punkter: loddskudd og grunner
