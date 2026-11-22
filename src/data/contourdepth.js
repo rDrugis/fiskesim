@@ -204,8 +204,10 @@ export function fitPoints(depth, cls, W, H, res, points, intervals, coarse, sigm
  * sitt eget intervall igjen. Det gir den glatteste flaten som fortsatt holder seg innenfor sjøkartets intervaller
  * (kurvene blir liggende der de ligger), og fjerner «kammer» som oppstår ved taggete kurver i dypt vann.
  * iters runder med radius r: glatter over omtrent r·√(iters·2/3) celler.
+ * pins (målte punkter) holdes på målt dybde med en myk kalott (radius pinR celler), ikke i én enkelt celle:
+ * en enkelt fast celle midt i en glattet flate blir en spiss, som synes som en prikk i skyggen.
  */
-export function diffuseWithin(depth, cls, W, H, intervals, iters, r = 2, pins = null) {
+export function diffuseWithin(depth, cls, W, H, intervals, iters, r = 2, pins = null, pinR = 3) {
   if (iters < 1) return;
   const N = W * H, ok = new Uint8Array(N), lo = new Float32Array(N), hi = new Float32Array(N);
   for (let p = 0; p < N; p++) { const k = cls[p]; if (k >= 0 && depth[p] === depth[p]) { ok[p] = 1; lo[p] = intervals[k][1]; hi[p] = intervals[k][2]; } }
@@ -228,7 +230,23 @@ export function diffuseWithin(depth, cls, W, H, intervals, iters, r = 2, pins = 
     for (let p = 0; p < N; p++) { if (ok[p]) { v[p] = depth[p]; c[p] = 1; } else if (cls[p] === -1 || cls[p] === -2) { v[p] = 0; c[p] = 1; } else { v[p] = 0; c[p] = 0; } }
     pass(v, c, tv, tc, true); pass(tv, tc, v, c, false);
     for (let p = 0; p < N; p++) if (ok[p] && c[p] > 0) { const d = v[p] / c[p]; depth[p] = d < lo[p] ? lo[p] : d > hi[p] ? hi[p] : d; }
-    // målte punkter står fast
-    if (pins) for (let k = 0; k < pins.length; k += 2) depth[pins[k]] = pins[k + 1];
+    // målte punkter står fast, med en myk overgang rundt (ingen spiss)
+    if (pins) holdPins(depth, cls, W, H, lo, hi, pins, pinR);
+  }
+}
+function holdPins(depth, cls, W, H, lo, hi, pins, R) {
+  const rad = Math.max(1, Math.round(R)), s2 = 2 * (rad / 2) ** 2;
+  for (let k = 0; k < pins.length; k += 2) {
+    const p0 = pins[k], v0 = pins[k + 1], i0 = p0 % W, j0 = (p0 / W) | 0;
+    for (let dj = -rad; dj <= rad; dj++) {
+      const j = j0 + dj; if (j < 0 || j >= H) continue;
+      for (let di = -rad; di <= rad; di++) {
+        const i = i0 + di; if (i < 0 || i >= W) continue;
+        const d2 = di * di + dj * dj; if (d2 > rad * rad) continue;
+        const p = j * W + i; if (cls[p] < 0 || !(depth[p] === depth[p])) continue;
+        const w = Math.exp(-d2 / s2), v = depth[p] + w * (v0 - depth[p]);
+        depth[p] = v < lo[p] ? lo[p] : v > hi[p] ? hi[p] : v;
+      }
+    }
   }
 }
