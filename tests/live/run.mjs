@@ -128,6 +128,22 @@ if (want('hvorfor')) {
     await ctx.close();
   } catch (e) { report.errors.push('hvorfor: ' + e.message); }
 }
+if (want('drift')) {
+  // drift med ekte MET-data: trykk midt i kartet, les panelet
+  try {
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } }), pg = await ctx.newPage(), errs = [];
+    pg.on('pageerror', (e) => errs.push(String(e.message || e).slice(0, 200)));
+    await pg.goto(BASE + '?sted=60.5415,5.3409&z=14', { waitUntil: 'load' });
+    await waitFor(pg, () => !!(window.fiskesim && window.fiskesim.app && window.fiskesim.app.drift), 30000);
+    await pg.click('[data-a="drift"]'); await pg.waitForTimeout(300); await pg.click('[data-d="here"]');
+    await pg.waitForFunction(() => document.querySelector('.drbig') || document.querySelector('.drift .warn'), null, { timeout: 30000 }).catch(() => {});
+    await pg.waitForTimeout(1500);
+    report.drift = { text: await pg.evaluate(() => document.querySelector('.drift')?.innerText.slice(0, 500)), errs };
+    log('drift', JSON.stringify(report.drift));
+    await pg.screenshot({ path: 'tests/live/drift.png' });
+    await ctx.close();
+  } catch (e) { report.errors.push('drift: ' + e.message); }
+}
 if (want('speed')) {
   // innlastingstid for fiskekartet med ekte Kartverket: publisert side mot denne versjonen, kald nettleser hver gang
   const t = async (base, sted, z) => {
