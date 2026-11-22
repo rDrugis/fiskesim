@@ -66,6 +66,16 @@ export class App {
     map.on('moveend', () => { const c = map.getCenter(); try { localStorage.setItem('fiskesim.map', JSON.stringify({ c: [c.lng, c.lat], z: map.getZoom() })); } catch (e) { /* privat */ } });
     this.marks = new SeaMarks(api);
     this.soundings = new Soundings(api);
+    // bunntype fra NGU (marine bunnsedimenter) som et halvgjennomsiktig lag over fiskekartet
+    try { this.bunnOn = localStorage.getItem('fiskesim.bunn') === '1'; } catch (e) { this.bunnOn = false; }
+    this.bunnLayer = () => {
+      const m = api.map; if (!m.isStyleLoaded()) return;
+      if (!m.getSource('ngu')) m.addSource('ngu', { type: 'raster', tileSize: 256, minzoom: 8, maxzoom: 16, attribution: '© NGU',
+        tiles: [`${SRC.ngu}?service=WMS&version=1.1.1&request=GetMap&layers=NiN_DK_Det&styles=&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&bbox={bbox-epsg-3857}`] });
+      if (!m.getLayer('ngu')) m.addLayer({ id: 'ngu', type: 'raster', source: 'ngu', paint: { 'raster-opacity': 0.55 } }, m.getLayer('roads') ? 'roads' : undefined);
+      m.setLayoutProperty('ngu', 'visibility', this.bunnOn && ['fiskekart', 'natt', 'dybdekart'].includes(api.style) ? 'visible' : 'none');
+    };
+    api.onStyle(() => this.bunnLayer());
     this.algo = new AlgoLayer(api, { onNote: (t, busy) => this.note(t, busy), onSaved: () => this.renderLayers && this.renderLayers() });
     // dybdeprofil: knappen i høyre kant, panelet nederst
     const pbtn = this.root.querySelector('[data-a="prof"]'), ppanel = this.root.querySelector('.prof');
@@ -151,6 +161,9 @@ export class App {
       panel.innerHTML = `
         <header><h2>Kartlag</h2><button class="iconbtn sm" data-a="lclose" aria-label="Lukk">✕</button></header>
         <label class="tog"><input type="checkbox" data-k="marks" ${this.marks.on ? 'checked' : ''}><span>Sjømerker, skjær og grunner</span></label>
+        <label class="tog"><input type="checkbox" data-k="lodd" ${this.soundings.on ? 'checked' : ''}><span>Loddskudd (dybdetall)</span></label>
+        <label class="tog"><input type="checkbox" data-k="bunn" ${this.bunnOn ? 'checked' : ''}><span>Bunntype (NGU)</span></label>
+        ${this.bunnOn ? `<div class="bleg">${NGU_CLS.map((c) => `<span><i style="background:rgb(${c.c.join(',')})"></i>${c.n[0].toUpperCase() + c.n.slice(1)}</span>`).join('')}<small>Bare der NGU har kartlagt bunnen. Kilde: NGU.</small></div>` : ''}
         <label class="tog"><input type="checkbox" data-k="algo" ${a.on ? 'checked' : ''}><span>Fiskeplasser (algoritme)</span></label>
         <div class="algo-opts${a.on ? '' : ' hidden'}">
           <div class="chips" role="group" aria-label="Arter">${sp.map((s) => `<button class="chip${a.sel.includes(s.k) ? ' on' : ''}" data-sp="${s.k}" style="--c:${s.col}" aria-pressed="${a.sel.includes(s.k)}"><i></i>${esc(s.no)}</button>`).join('')}</div>
@@ -182,6 +195,8 @@ export class App {
     panel.addEventListener('change', (e) => {
       const k = e.target.dataset.k;
       if (k === 'marks') this.marks.setOn(e.target.checked);
+      if (k === 'lodd') this.soundings.setOn(e.target.checked);
+      if (k === 'bunn') { this.bunnOn = e.target.checked; try { localStorage.setItem('fiskesim.bunn', this.bunnOn ? '1' : '0'); } catch (er) { /* privat */ } this.bunnLayer(); render(); }
       else if (k === 'algo') { this.algo.setOn(e.target.checked); render(); }
       else if (k === 'mon') this.algo.setMonth(e.target.value);
     });
