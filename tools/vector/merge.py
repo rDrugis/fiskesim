@@ -14,8 +14,14 @@ mx = lambda lon: math.radians(lon) * R
 my = lambda lat: math.log(math.tan(math.pi / 4 + math.radians(lat) / 2)) * R
 X0, Y0, X1, Y1 = mx(bb[0]) - 20000, my(bb[1]) - 20000, mx(bb[2]) + 20000, my(bb[3]) + 20000
 ivs = [[tuple(p) for p in json.load(open(os.path.join(s, 'iv.json')))] for s in srcs]
-glob = sorted(set(p for iv in ivs for p in iv))
-print('intervaller totalt:', len(glob), '·', ', '.join(f'{os.path.basename(s)}: {len(iv)}' for s, iv in zip(srcs, ivs)), flush=True)
+# bare intervaller som faktisk finnes innenfor området (havområdefilene har mange fra langt unna)
+from osgeo import ogr
+used = []
+for s in srcs:
+    ds = ogr.Open(os.path.join(s, 'da.fgb')); l = ds.GetLayer(0); l.SetSpatialFilterRect(X0, Y0, X1, Y1)
+    used.append({f.GetField('cid') for f in l}); ds = None
+glob = sorted(set(p for iv, u in zip(ivs, used) for k, p in enumerate(iv) if k in u))
+print('intervaller i området:', len(glob), '·', ', '.join(f'{os.path.basename(s)}: {len(u)} av {len(iv)}' for s, iv, u in zip(srcs, ivs, used)), flush=True)
 assert len(glob) <= 253, f'for mange intervaller ({len(glob)}) for Uint8'
 gi = {p: i for i, p in enumerate(glob)}
 json.dump(glob, open(os.path.join(out, 'iv.json'), 'w'))
@@ -25,7 +31,7 @@ with open(os.path.join(out, 'pts.bin'), 'wb') as fo:
         d = os.path.join(out, f'src_{k}'); os.makedirs(d, exist_ok=True)
         for f in ('da.fgb', 'land.fgb', 'tf.fgb'):
             if os.path.exists(os.path.join(s, f)): shutil.move(os.path.join(s, f), os.path.join(d, f))
-        meta.append({'dir': f'src_{k}', 'navn': os.path.basename(s.rstrip('/')), 'lut': [gi[p] for p in iv]})
+        meta.append({'dir': f'src_{k}', 'navn': os.path.basename(s.rstrip('/')), 'lut': [gi.get(p, 0) for p in iv]})   # intervaller utenfor området forekommer ikke
         p = np.fromfile(os.path.join(s, 'pts.bin'), dtype='<f4').reshape(-1, 3)
         m = (p[:, 0] >= X0) & (p[:, 0] <= X1) & (p[:, 1] >= Y0) & (p[:, 1] <= Y1)
         p[m].astype('<f4').tofile(fo)
