@@ -50,6 +50,10 @@ function reliefTile(z, x, y, pal) {
 }
 // Dybden i et punkt etter fiskekartets modell (samme tråd som regner flisa der)
 // målinger fra alle trådene (live-testen)
+export function reliefDump(z, x, y) {
+  const id = ++reqId, k = z <= 12 ? x * 31 + y * 17 + z : (x >> (z - 12)) * 31 + (y >> (z - 12)) * 17 + 12;
+  return new Promise((res, rej) => { waiting.set(id, { res, rej }); reliefWorker(k).postMessage({ id, kind: 'dump', z, x, y }); });
+}
 export function reliefStats() {
   return Promise.all(pool.map((w) => new Promise((res) => { const id = ++reqId; waiting.set(id, { res, rej: () => res(null) }); w.postMessage({ id, kind: 'stats' }); })));
 }
@@ -223,6 +227,7 @@ export async function createMap(container, opts = {}) {
     onStyle(fn) { onStyle.push(fn); if (map.isStyleLoaded()) fn(map); },
     depthAt: reliefDepth,
     reliefStats,
+    reliefDump,
     depthsAt: reliefDepths,
   };
   return api;

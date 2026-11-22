@@ -1,0 +1,25 @@
+# Forhåndsberegning av fiskekartet for Vestland (samme utregning som i kartet), fordelt på flere jobber.
+# Resultatet lastes opp som artefakter (pre-<shard>) og samles i én artefakt til slutt.
+name: precompute
+on:
+  workflow_dispatch:
+    inputs:
+      shards: { description: 'antall jobber', required: true, default: '8' }
+jobs:
+  part:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix: { shard: [0, 1, 2, 3, 4, 5, 6, 7] }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm install --no-audit --no-fund && npm install --no-save --no-audit --no-fund playwright@1.49.1
+      - run: npx playwright install --with-deps chromium
+      - run: node tools/build.mjs
+      - run: node tools/precompute/run.mjs . ${{ matrix.shard }} 8
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: 'pre-${{ matrix.shard }}', path: pre-out, retention-days: 30, compression-level: 0 }

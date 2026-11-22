@@ -426,6 +426,14 @@ self.onmessage = async (ev) => {
   const { id, kind, z, x, y, pal, lon, lat } = ev.data; // hd: skarp flis
   try {
     if (kind === 'stats') { self.postMessage({ id, info: { ...STATS, origin: Math.round(performance.timeOrigin) } }); return; }
+    // forhåndsberegning (GitHub): dybden i kjernen av en flis, dm som Uint16 (65535 = land), klasse og merker
+    if (kind === 'dump') {
+      const { z, x, y } = ev.data, b = z <= CZ ? await computeCoarse(z, x, y) : await computeOne(z, x, y), S = SIZE, m = b.m, N = b.N;
+      const dep = new Uint16Array(S * S), cl = new Uint8Array(S * S), fl = new Uint8Array(S * S); let wet = 0;
+      for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) { const q = (j + m) * N + i + m, p = j * S + i, d = b.dep ? b.dep[q] : NaN;
+        if (b.wet[q] && d === d) { dep[p] = Math.min(65534, Math.round(d * 10)); wet++; } else dep[p] = 65535; cl[p] = b.cl[q]; fl[p] = b.flag[q]; }
+      self.postMessage({ id, info: { wet, dep, cl, fl } }); return;
+    }
     if (kind === 'depth') { self.postMessage({ id, info: await depthAt(lon, lat) }); return; }
     // mange punkter på én gang (dybdeprofil); grovt nivå for lange streker
     if (kind === 'depths') { const out = await Promise.all(ev.data.pts.map(([lo, la]) => depthAt(lo, la, !!ev.data.coarse).catch(() => null))); self.postMessage({ id, info: out }); return; }
