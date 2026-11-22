@@ -273,7 +273,8 @@ function computeOne(z, x, y) {
     }
     const pts = await ptsP.catch(() => null);
     const out = finish(c2, N, res, prior, KEEP_F, SIZE, pts);
-    await idbPut('f' + key, out);
+    // uten punkter (henting feilet) lagres flisa bare i minnet, så den regnes på nytt med punkter neste besøk
+    if (pts) await idbPut('f' + key, out);
     return out;
   }), 40);
 }
