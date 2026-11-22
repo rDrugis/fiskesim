@@ -112,6 +112,22 @@ if (want('algo') || want('algo2')) {
 }
 
 // ---------- Rådata fra Kartverket (for å se hva som er data og hva som er beregning) ----------
+if (want('hvorfor')) {
+  // forklaring på algoritmens forslag i et utsnitt (WHY_STED, WHY_ART), f.eks. «hvorfor er dette nr. 1 for sei?»
+  try {
+    const ctx = await browser.newContext({ viewport: { width: 1000, height: 800 } }), pg = await ctx.newPage();
+    const sted = process.env.WHY_STED || '60.5415,5.3409', z = process.env.WHY_Z || '14', art = process.env.WHY_ART || 'sei';
+    await pg.goto(BASE + '?sted=' + sted + '&z=' + z, { waitUntil: 'load' });
+    await waitFor(pg, () => !!(window.fiskesim && window.fiskesim.ALGO && window.fiskesim.api && window.fiskesim.api.map), 30000);
+    report.hvorfor = await pg.evaluate(async (art) => {
+      const A = window.fiskesim.ALGO, m = window.fiskesim.api.map, bb = m.getBounds(), b = { s: bb.getSouth(), n: bb.getNorth(), w: bb.getWest(), e: bb.getEast() };
+      const out = await A.algoRun(b, new Date().getMonth(), [art], () => {});
+      return (out.res || []).filter((r) => r.sp === art).slice(0, 4).map((r) => ({ rank: r.rank, lat: r.lat, lon: r.lon, sc: r.sc, raw: r.raw, fp: r.fp, iv: [r.dA, r.dB], d0: r.fe && r.fe.d0, fe: r.fe, linjer: A.algoLines(r).map((h) => String(h).replace(/<[^>]+>/g, '')) }));
+    }, art);
+    log('hvorfor', JSON.stringify(report.hvorfor).slice(0, 4000));
+    await ctx.close();
+  } catch (e) { report.errors.push('hvorfor: ' + e.message); }
+}
 if (want('speed')) {
   // innlastingstid for fiskekartet med ekte Kartverket: publisert side mot denne versjonen, kald nettleser hver gang
   const t = async (base, sted, z) => {
