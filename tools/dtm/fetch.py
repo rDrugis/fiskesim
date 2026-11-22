@@ -28,23 +28,34 @@ def get(url):
             print('  prøver igjen:', str(e)[:100], flush=True); time.sleep(5 * (k + 1))
     raise RuntimeError('fikk ikke hentet ' + url[:120])
 
+# Ett felles 50 m-rutenett for hele området (låst til hele 50 m i UTM33), hentet i biter på 10 km og satt sammen.
+# Alle blokker samples fra samme mosaikk, så det blir ingen skjøter mellom dem.
+U0 = V0 = 1e12; U1 = V1 = -1e12; bbs = {}
 for t in TILES:
     x, y = map(int, t.split('_'))
     mx0, my0, mx1, my1 = merc(12, x, y); p12 = (mx1 - mx0) / 256
-    bb = (mx0 - 128 * p12, my0 - 128 * p12, mx1 + 128 * p12, my1 + 128 * p12)
-    xs, ys = [], []
+    bb = (mx0 - 128 * p12, my0 - 128 * p12, mx1 + 128 * p12, my1 + 128 * p12); bbs[t] = bb
     for (a, b) in [(bb[0], bb[1]), (bb[0], bb[3]), (bb[2], bb[1]), (bb[2], bb[3])]:
-        u, v, _ = tr.TransformPoint(a, b); xs.append(u); ys.append(v)
-    u0, v0, u1, v1 = min(xs) - 200, min(ys) - 200, max(xs) + 200, max(ys) + 200
-    # 50 m er det sjødelen av modellen faktisk har innenfor 12 nm (finere forespørsler gir 0 i sjøen)
-    w, h = int((u1 - u0) / 50), int((v1 - v0) / 50)
-    url = (f'{WCS}?service=WCS&version=1.0.0&request=GetCoverage&coverage={COV}&crs=EPSG:25833'
-           f'&bbox={u0:.0f},{v0:.0f},{u1:.0f},{v1:.0f}&width={w}&height={h}&format=GeoTIFF')
-    src = os.path.join(OUT, t + '_src.tif'); open(src, 'wb').write(get(url))
-    ds = gdal.Warp('', src, format='MEM', dstSRS='EPSG:3857', outputBounds=bb, width=N, height=N, resampleAlg='bilinear', dstNodata=float('nan'))
+        u, v, _ = tr.TransformPoint(a, b); U0, V0, U1, V1 = min(U0, u), min(V0, v), max(U1, u), max(V1, v)
+STEP, CH = 50, 10000
+U0, V0 = math.floor((U0 - 500) / CH) * CH, math.floor((V0 - 500) / CH) * CH
+U1, V1 = math.ceil((U1 + 500) / CH) * CH, math.ceil((V1 + 500) / CH) * CH
+parts = []
+for u in range(int(U0), int(U1), CH):
+    for v in range(int(V0), int(V1), CH):
+        f = os.path.join(OUT, f'm_{u}_{v}.tif')
+        url = (f'{WCS}?service=WCS&version=1.0.0&request=GetCoverage&coverage={COV}&crs=EPSG:25833'
+               f'&bbox={u},{v},{u + CH},{v + CH}&width={CH // STEP}&height={CH // STEP}&format=GeoTIFF')
+        data = get(url)
+        if data[:2] not in (b'II', b'MM'): print('  ikke tiff', u, v, flush=True); continue
+        open(f, 'wb').write(data); parts.append(f); time.sleep(0.5)
+vrt = gdal.BuildVRT(os.path.join(OUT, 'mosaikk.vrt'), parts)
+print(f'mosaikk: {len(parts)} biter, {(U1 - U0) / 1000:.0f} × {(V1 - V0) / 1000:.0f} km', flush=True)
+for t, bb in bbs.items():
+    ds = gdal.Warp('', vrt, format='MEM', dstSRS='EPSG:3857', outputBounds=bb, width=N, height=N, resampleAlg='bilinear', dstNodata=float('nan'))
     a = ds.GetRasterBand(1).ReadAsArray().astype(np.float32)
     dep = np.where(np.isfinite(a) & (a < 0), -a, np.nan).astype(np.float32)
     dep.tofile(os.path.join(OUT, t + '.f32'))
-    print(t, f'sjø med modell: {100 * np.isfinite(dep).mean():.0f} %', flush=True)
-    time.sleep(1)
+    print(t, f'med modell: {100 * np.isfinite(dep).mean():.0f} % av blokka', flush=True)
+vrt = None
 print('ferdig', flush=True)
