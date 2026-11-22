@@ -9,9 +9,17 @@ jobs:
   sjekk:
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
-    env: { GH_TOKEN: '${{ github.token }}', T: kartdata-vestland-v3, R: '${{ github.repository }}' }
+    env: { GH_TOKEN: '${{ github.token }}', R: '${{ github.repository }}' }
     steps:
+      - name: Finn den nyeste utgivelsen som ikke er kontrollert
+        run: |
+          for t in kartdata-vestland-v4 kartdata-vestland-v3; do
+            B=$(gh release view "$t" -R "$R" --json body -q .body 2>/dev/null) || continue
+            echo "$B" | grep -q '^Kontrollert' && { echo "$t er allerede kontrollert"; continue; }
+            echo "T=$t" >> $GITHUB_ENV; echo "kontrollerer $t"; break
+          done
       - name: Kontroller utgivelsen
+        if: env.T != ''
         run: |
           gh release download "$T" -R "$R" -p vestland.tar -D /tmp && mkdir -p pre && tar -xf /tmp/vestland.tar -C pre
           N=$(find pre -name '*.bin.gz' | wc -l); echo "fliser: $N"; test -f pre/iv.json
@@ -31,6 +39,7 @@ jobs:
           gh release edit "$T" -R "$R" --notes "$(gh release view "$T" -R "$R" --json body -q .body | grep -v '^Kontrollert')
           Kontrollert $(date -u +%F): $N fliser."
       - name: Publiser nettsiden (prøver igjen ved den kjente feilen i Pages)
+        if: env.T != ''
         run: |
           for k in 1 2 3 4; do
             gh workflow run pages.yml -R "$R" --ref main; sleep 15

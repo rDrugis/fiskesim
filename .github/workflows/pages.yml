@@ -1,4 +1,4 @@
-# Publiserer nettsiden med ferdig utregnet kartdata for Vestland: v3 (med terrengmodellen) når den er kontrollert, ellers v2.
+# Publiserer nettsiden med den nyeste kontrollerte kartdataen for Vestland (v4: med nabofylker og havområder, v3: med terrengmodellen, ellers v2).
 # Krever at Settings → Pages → Source er «GitHub Actions».
 name: pages
 on:
@@ -17,7 +17,9 @@ jobs:
         run: |
           mkdir -p _site/pre && cp -r index.html assets LICENSE LICENSES _site/
           T=kartdata-vestland-v2
-          if gh release view kartdata-vestland-v3 --json body -q .body 2>/dev/null | grep -q '^Kontrollert'; then T=kartdata-vestland-v3; fi
+          for t in kartdata-vestland-v4 kartdata-vestland-v3; do
+            if gh release view "$t" --json body -q .body 2>/dev/null | grep -q '^Kontrollert'; then T=$t; break; fi
+          done
           echo "kartdata: $T"
           if gh release download "$T" -p vestland.tar -D /tmp; then tar -xf /tmp/vestland.tar -C _site/pre; fi
           echo "fliser: $(find _site/pre -name '*.bin.gz' | wc -l)"; du -sh _site
