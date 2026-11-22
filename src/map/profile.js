@@ -162,8 +162,11 @@ export class Profile {
     const S = this.data, ok = S.filter((s) => s.z != null), L = this.L;
     if (!ok.length) return '<p class="hint">Ingen dybdedata langs streken (land eller ikke sjømålt).</p>';
     const maxZ = Math.max(...ok.map((s) => s.z), ...(this.snd || []).map((q) => q.z));
-    const dStep = niceStep(Math.max(2, maxZ), 4), maxD = Math.ceil(maxZ * 1.06 / dStep) * dStep;
     const W = 680, H = 230, l = 46, r = 12, t = 16, bt = 24, pw = W - l - r, ph = H - t - bt;
+    // dybdeaksen strekkes aldri mer enn VX ganger i forhold til lengden: et fall på 30 m skal se slakere ut enn et på 300 m
+    const VX = 3, span = Math.max(maxZ * 1.06, L * ph / pw / VX);
+    const dStep = niceStep(Math.max(2, span), 4), maxD = Math.ceil(span / dStep) * dStep;
+    const vx = (ph / maxD) / (pw / L);
     const X = (d) => l + d / L * pw, Y = (v) => t + Math.min(v, maxD) / maxD * ph;
     Object.assign(this, { W, l, r, t, ph, X, Y });
     let g = '';
@@ -207,7 +210,7 @@ export class Profile {
       meTxt = `<span>Du er her: <b>${s.z != null ? (s.est ? 'ca. ' : '') + dep(s.z) : 'land'}</b> (${fmtD(pos.d)} fra A${pos.off > 25 ? ', ' + fmt(Math.round(pos.off / 5) * 5) + ' m fra streken' : ''})</span>`; }
     const angle = (sl) => fmt(Math.atan(sl) / rad);
     return `<svg class="pchart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Dybdeprofil fra A til B">${g}${gaps}${band}${bed}${line}${est}${dots}
-      <text x="${l + 4}" y="${t + 12}" class="pab">A</text><text x="${W - r - 4}" y="${t + 12}" class="pab" text-anchor="end">B</text>${me}
+      <text x="${l + 4}" y="${t + 12}" class="pab">A</text><text x="${W - r - 4}" y="${t + 12}" class="pab" text-anchor="end">B</text><text x="${W - r - 4}" y="${t + ph - 5}" class="plbl" text-anchor="end">${vx > 1.15 ? 'høyde ' + fmt(vx, vx < 10 ? 1 : 0) + '× overdrevet' : 'ekte helning'}</text>${me}
       <g class="phov" visibility="hidden"><line x1="0" x2="0" y1="${t}" y2="${t}"/><circle cx="0" cy="0" r="4.5"/></g></svg>
       <p class="phovt num"></p>
       <div class="pstat">${meTxt}<span>Grunnest <b>${(shal.est ? 'ca. ' : '') + dep(shal.z)}</b> (${fmtD(shal.d)} fra A)</span><span>Dypest <b>${(deep.est ? 'ca. ' : '') + dep(deep.z)}</b> (${fmtD(deep.d)} fra A)</span>
