@@ -243,6 +243,13 @@ async function shot(name, url, { mobile = false, wait = 12000, act = null, style
   log('bilde', name, errs.length ? 'feil: ' + errs.join(' | ').slice(0, 300) : 'ok', extra ? JSON.stringify(extra).slice(0, 300) : '');
   await ctx.close();
 }
+if (want('bunn')) {
+  // bunntype (NGU) på, og loddskudd-tallene av
+  const on = (bunn, lodd) => async (pg) => { await pg.evaluate(([b, l]) => { localStorage.setItem('fiskesim.bunn', b); localStorage.setItem('fiskesim.lodd', l); }, [bunn, lodd]); await pg.reload({ waitUntil: 'load' }); await pg.waitForTimeout(20000); return pg.evaluate(() => { const m = window.fiskesim.api.map; return { ngu: m.getLayer('ngu') ? m.getLayoutProperty('ngu', 'visibility') : 'mangler', lodd: m.getLayer('dp-txt') ? m.getLayoutProperty('dp-txt', 'visibility') : 'mangler' }; }); };
+  await shot('bunn-salhus', '?sted=60.52,5.27&z=13', { wait: 5000, act: on('1', '1') });
+  await shot('bunn-temba', '?sted=61.47,4.5&z=12.5', { wait: 5000, act: on('1', '1') });
+  await shot('lodd-av-salhus', '?sted=60.5047,5.2575&z=15.3', { wait: 5000, act: on('0', '0') });
+}
 if (want('kanter')) {
   // før (nettsiden) og etter (denne versjonen): brå kanter, loddskudd og vanlige steder
   const views = [['salhus-kant', '?sted=60.5047,5.2575&z=15.3'], ['salhus-naer', '?sted=60.5087,5.2599&z=17.5'], ['salhusfjorden', '?sted=60.51,5.262&z=14.2'],

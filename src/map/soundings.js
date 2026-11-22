@@ -42,10 +42,19 @@ export async function soundingsAlong(a, b, bufM = 90) {
 export class Soundings {
   constructor(api) {
     this.api = api; this.seq = 0; this.data = EMPTY;
+    try { this.on = localStorage.getItem('fiskesim.lodd') !== '0'; } catch (e) { this.on = true; }
     api.onStyle((map) => this.add(map));
     api.map.on('moveend', () => this.refresh());
   }
-  get active() { return ['fiskekart', 'natt'].includes(this.api.style); }
+  get active() { return this.on && ['fiskekart', 'natt'].includes(this.api.style); }
+  // av/på for tallene i kartet (dybden i fiskekartet bruker loddskuddene uansett)
+  setOn(v) {
+    this.on = !!v; try { localStorage.setItem('fiskesim.lodd', v ? '1' : '0'); } catch (e) { /* privat */ }
+    const map = this.api.map;
+    if (map.getLayer('dp-txt')) map.setLayoutProperty('dp-txt', 'visibility', v ? 'visible' : 'none');
+    else if (v) this.add(map);
+    if (v) this.refresh();
+  }
   add(map) {
     if (!this.active) return;
     if (!map.getSource('dp')) map.addSource('dp', { type: 'geojson', data: this.data });
