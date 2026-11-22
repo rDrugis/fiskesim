@@ -1,5 +1,5 @@
 // Fiskesims tillegg til Fiskeguide-algoritmen. Alt annet er likt Fiskeguide (se core.js og fgdata.js).
-// Tilleggene: blåkjeft (ny art) og hylle for kveite (gir bare høyere poeng der det finnes en hylle).
+// Tilleggene: blåkjeft (ny art), hylle for kveite (gir bare høyere poeng der det finnes en hylle) og lysing på slak bakke 40–150 m.
 
 export function applyExtra(D) {
   const SRC = D.src;
@@ -35,6 +35,18 @@ export function applyExtra(D) {
     D.algo.kveite.b = Object.assign({}, D.algo.kveite.b || {}, { shelf: 0.4 });
     D.algo.kveite.kilde = (D.algo.kveite.kilde || []).concat(['gran_kveite', 'aof_hylle', 'fbc_halibut']);
     D.algo.kveite.hvorfor = (D.algo.kveite.hvorfor || '') + '; hyller – nesten flatt parti helt inntil en kant ned mot dypere vann';
+  }
+  /* ---- Lysing: slak bakke med fin bunn, 40–150 m (Fiskesim) ----
+     Fiskeskolen (muntlig, nov. 2026): lysinga liker fine sedimenter i slak bakke, gjerne 40–100 m. Brukerens egen tur
+     22.11.2026 ved Hamre/Klokkarneset passet med dette (fangst i skråningen på ca. 70–80 m). Fiskeguide (NJFF) bruker
+     70–150 m med flat bunn og nær dypere vann. Her strekkes kjernedypet opp til 40 m, slak bakke får vekt 0.6 og flat
+     bunn halveres. Myk bunn og «nær dypere vann» er uendret. Usikkert: bygger på én kilde og én tur. */
+  SRC.fiskeskolen_lysing = ['Seeberg Fiskeskolen (muntlig, nov. 2026): lysing liker fine sedimenter i slak bakke, gjerne 40–100 m', 'https://www.youtube.com/results?search_query=Fiskeskolen+lysing'];
+  if (D.algo.lysing) {
+    D.algo.lysing.core = [40, 150];
+    D.algo.lysing.w = { neardeep: 1, slake: 0.6, flat: 0.3 };
+    D.algo.lysing.kilde = (D.algo.lysing.kilde || []).concat(['fiskeskolen_lysing']);
+    D.algo.lysing.hvorfor = 'slakke bakker og flater med myk bunn på ca. 40–150 m nær dypere vann (Fiskeskolen: fine sedimenter i slak bakke, gjerne 40–100 m)';
   }
   D.art.blakjeft = { no: 'Blåkjeft', lat: 'Helicolenus dactylopterus', col: '#4f6fd8', kort: 'Dype fjorder, ca. 200–800 m', omr: null };
   D.algoUt = String(D.algoUt || '').replace('Flyndrer, blåkjeft og skjellbrosme er ikke med ennå', 'Flyndrer og skjellbrosme er ikke med ennå (blåkjeft er lagt til i Fiskesim)');
