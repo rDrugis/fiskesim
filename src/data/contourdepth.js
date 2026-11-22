@@ -204,10 +204,10 @@ export function fitPoints(depth, cls, W, H, res, points, intervals, coarse, sigm
  * sitt eget intervall igjen. Det gir den glatteste flaten som fortsatt holder seg innenfor sjøkartets intervaller
  * (kurvene blir liggende der de ligger), og fjerner «kammer» som oppstår ved taggete kurver i dypt vann.
  * iters runder med radius r: glatter over omtrent r·√(iters·2/3) celler.
- * pins (målte punkter) holdes på målt dybde med en myk kalott (radius pinR celler), ikke i én enkelt celle:
- * en enkelt fast celle midt i en glattet flate blir en spiss, som synes som en prikk i skyggen.
+ * pins (målte punkter) holdes på målt dybde i sin egen celle (pinR = 0, som før). pinR > 0 (myk kalott) ble prøvd
+ * 22.11.2026, men ga synlige hull rundt loddskuddene og er ikke i bruk.
  */
-export function diffuseWithin(depth, cls, W, H, intervals, iters, r = 2, pins = null, pinR = 3) {
+export function diffuseWithin(depth, cls, W, H, intervals, iters, r = 2, pins = null, pinR = 0) {
   if (iters < 1) return;
   const N = W * H, ok = new Uint8Array(N), lo = new Float32Array(N), hi = new Float32Array(N);
   for (let p = 0; p < N; p++) { const k = cls[p]; if (k >= 0 && depth[p] === depth[p]) { ok[p] = 1; lo[p] = intervals[k][1]; hi[p] = intervals[k][2]; } }
@@ -231,7 +231,7 @@ export function diffuseWithin(depth, cls, W, H, intervals, iters, r = 2, pins = 
     pass(v, c, tv, tc, true); pass(tv, tc, v, c, false);
     for (let p = 0; p < N; p++) if (ok[p] && c[p] > 0) { const d = v[p] / c[p]; depth[p] = d < lo[p] ? lo[p] : d > hi[p] ? hi[p] : d; }
     // målte punkter står fast, med en myk overgang rundt (ingen spiss)
-    if (pins) holdPins(depth, cls, W, H, lo, hi, pins, pinR);
+    if (pins) { if (pinR > 0) holdPins(depth, cls, W, H, lo, hi, pins, pinR); else for (let k = 0; k < pins.length; k += 2) depth[pins[k]] = pins[k + 1]; }
   }
 }
 function holdPins(depth, cls, W, H, lo, hi, pins, R) {
