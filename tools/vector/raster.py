@@ -25,13 +25,16 @@ allt = [(x, y) for x in range(x0, x1 + 1) for y in range(y0, y1 + 1)]
 mine = [t for i, t in enumerate(allt) if i % NSH == SH]
 print(f'shard {SH}/{NSH}: {len(mine)} z12-fliser', flush=True)
 
-da = ogr.Open(os.path.join(data, 'da.fgb')).GetLayer(0)
-land = ogr.Open(os.path.join(data, 'land.fgb')).GetLayer(0)
+# datakildene må holdes i live (ellers blir lagene ugyldige i GDAL for Python)
+DS = [ogr.Open(os.path.join(data, 'da.fgb')), ogr.Open(os.path.join(data, 'land.fgb'))]
+da, land = DS[0].GetLayer(0), DS[1].GetLayer(0)
 tfp = os.path.join(data, 'tf.fgb')
-tf = ogr.Open(tfp).GetLayer(0) if os.path.exists(tfp) else None
+if os.path.exists(tfp): DS.append(ogr.Open(tfp))
+tf = DS[2].GetLayer(0) if len(DS) > 2 else None
 mem = gdal.GetDriverByName('MEM')
 
 def grid(bx0, by0, bx1, by1, n):
+    bx0, by0, bx1, by1 = float(bx0), float(by0), float(bx1), float(by1)
     d = mem.Create('', n, n, 1, gdal.GDT_Int16)
     d.SetGeoTransform((bx0, (bx1 - bx0) / n, 0, by1, 0, -(by1 - by0) / n))
     b = d.GetRasterBand(1); b.Fill(-1)
