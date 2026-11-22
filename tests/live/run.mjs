@@ -246,7 +246,7 @@ async function shot(name, url, { mobile = false, wait = 12000, act = null, style
 if (want('kanter')) {
   // før (nettsiden) og etter (denne versjonen): brå kanter, loddskudd og vanlige steder
   const views = [['salhus-kant', '?sted=60.5047,5.2575&z=15.3'], ['salhus-naer', '?sted=60.5087,5.2599&z=17.5'], ['salhusfjorden', '?sted=60.51,5.262&z=14.2'],
-    ['klokkarneset', '?sted=60.5415,5.3409&z=15'], ['ortna', '?sted=61.1153,6.1401&z=15.6'], ['ornehaugen', '?sted=61.1178,6.1285&z=16.5'], ['reksta', '?sted=61.559,4.84&z=15'], ['askrova', '?sted=61.535,5.08&z=14'], ['sognefjorden', '?sted=61.12,6.12&z=13']];
+    ['klokkarneset', '?sted=60.5415,5.3409&z=15'], ['ortna', '?sted=61.1153,6.1401&z=15.6'], ['ornehaugen', '?sted=61.1178,6.1285&z=16.5'], ['reksta', '?sted=61.559,4.84&z=15'], ['askrova', '?sted=61.535,5.08&z=14'], ['sognefjorden', '?sted=61.12,6.12&z=13'], ['temba', '?sted=61.47,4.5&z=13'], ['salhus-dypt', '?sted=60.513,5.262&z=14.5']];
   for (const [nm, q] of views) {
     await shot('k-' + nm + '-for', 'https://rdrugis.github.io/fiskesim/' + q, { wait: 25000 });
     await shot('k-' + nm + '-etter', q, { wait: 35000 });
