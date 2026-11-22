@@ -1,4 +1,4 @@
-// Live-test (kjøres i GitHub Actions med ekte data): sammenligner fiskeplassalgoritmen i Fiskesim med Fiskeguide (unntatt kveite, som har hylle i Fiskesim),
+// Live-test (kjøres i GitHub Actions med ekte data): sammenligner fiskeplassalgoritmen i Fiskesim med Fiskeguide (unntatt kveite, som har hylle i Fiskesim, og lysing, som har slak bakke 40–150 m),
 // og tar skjermbilder av kartet og 3D-visningen. Resultatet legges i tests/live/out/.
 import http from 'node:http';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
@@ -73,7 +73,7 @@ async function algoArea(A, sel) {
       let same = 0, diff = 0;
       for (const sp of sps) {
         const a = t.c[sp] || [], b = mine.c[sp] || [];
-        if (sp === 'blakjeft') continue; // ny art i Fiskesim
+        if (sp === 'blakjeft' || sp === 'lysing') continue; // ny art / endret i Fiskesim
         if (sp === 'kveite') { // hylle er lagt til i Fiskesim – forventet ulikt, rapporteres for seg
           const ka = new Set(a.map((x) => x.lat + ',' + x.lon)); out.kv.fg += a.length; out.kv.fs += b.length;
           b.forEach((y) => { if (ka.has(y.lat + ',' + y.lon)) out.kv.same++; if (y.fe && y.fe.shelf > 0.5) { out.kv.shelf++; if (out.kv.ex.length < 6) out.kv.ex.push({ sc: y.sc, d: y.fe.d0, shD: y.fe.shD, shelf: y.fe.shelf }); } });
@@ -88,13 +88,13 @@ async function algoArea(A, sel) {
       out.tiles.push({ k: t.k, same, diff, nD: [t.nD, mine.nD], nB: [t.nB, mine.nB] });
     }
     const run = await AL.algoRun(fgRes.b, m, sel);
-    out.run = run && run.res.filter((r) => r.sp !== 'blakjeft' && r.sp !== 'kveite').map((r) => ({ sp: r.sp, lat: r.lat, lon: r.lon, sc: r.sc }));
+    out.run = run && run.res.filter((r) => r.sp !== 'blakjeft' && r.sp !== 'kveite' && r.sp !== 'lysing').map((r) => ({ sp: r.sp, lat: r.lat, lon: r.lon, sc: r.sc }));
     out.blakjeft = run && run.res.filter((r) => r.sp === 'blakjeft').length;
     out.note = run && run.note;
     return out;
   }, [fgRes, sel]);
   const key = (r) => r.sp + '@' + r.lat + ',' + r.lon;
-  const fgSet = new Set(fgRes.res.filter((r) => r.sp !== 'kveite').map(key)), fsSet = new Set((cmp.run || []).map(key));
+  const fgSet = new Set(fgRes.res.filter((r) => r.sp !== 'kveite' && r.sp !== 'lysing').map(key)), fsSet = new Set((cmp.run || []).map(key));
   const onlyFg = [...fgSet].filter((k) => !fsSet.has(k)), onlyFs = [...fsSet].filter((k) => !fgSet.has(k));
   const tilesSame = cmp.tiles.reduce((a, t) => a + t.same, 0), tilesDiff = cmp.tiles.reduce((a, t) => a + t.diff, 0);
   log(A.id, 'Fiskesim ferdig etter', Math.round((Date.now() - t1) / 1000), 's. Ruter: like punkter', tilesSame, 'ulike', tilesDiff, '· utvalg: bare FG', onlyFg.length, 'bare FS', onlyFs.length, '· blåkjeft', cmp.blakjeft, '· kveite', JSON.stringify(cmp.kv), '·', cmp.note);
@@ -122,9 +122,9 @@ if (want('hvorfor')) {
     report.hvorfor = await pg.evaluate(async (art) => {
       const A = window.fiskesim.ALGO, m = window.fiskesim.api.map, bb = m.getBounds(), b = { s: bb.getSouth(), n: bb.getNorth(), w: bb.getWest(), e: bb.getEast() };
       const out = await A.algoRun(b, new Date().getMonth(), [art], () => {});
-      return (out.res || []).filter((r) => r.sp === art).slice(0, 4).map((r) => ({ rank: r.rank, lat: r.lat, lon: r.lon, sc: r.sc, raw: r.raw, fp: r.fp, iv: [r.dA, r.dB], d0: r.fe && r.fe.d0, fe: r.fe, linjer: A.algoLines(r).map((h) => String(h).replace(/<[^>]+>/g, '')) }));
+      return (out.res || []).filter((r) => r.sp === art).slice(0, 8).map((r, i) => ({ rank: r.rank, lat: r.lat, lon: r.lon, sc: r.sc, raw: r.raw, fp: r.fp, iv: [r.dA, r.dB], d0: r.fe && r.fe.d0, fe: i < 3 ? r.fe : undefined, linjer: i >= 3 ? undefined : A.algoLines(r).map((h) => String(h).replace(/<[^>]+>/g, '')) }));
     }, art);
-    log('hvorfor', JSON.stringify(report.hvorfor).slice(0, 4000));
+    log('hvorfor', JSON.stringify(report.hvorfor).slice(0, 8000));
     await ctx.close();
   } catch (e) { report.errors.push('hvorfor: ' + e.message); }
 }
