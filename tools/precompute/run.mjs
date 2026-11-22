@@ -27,10 +27,13 @@ log(`shard ${SHARD}/${NSH}: ${mine.length} av ${all.length} z12-fliser`);
 
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const pg = await (await browser.newContext({ viewport: { width: 800, height: 600 } })).newPage();
-await pg.goto('http://127.0.0.1:8123/?sted=61,5.5&z=6', { waitUntil: 'load' });
+pg.on('pageerror', (e) => log('sidefeil', String(e.message || e).slice(0, 300)));
+pg.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') log('konsoll', m.type(), m.text().slice(0, 300)); });
+pg.on('requestfailed', (r) => log('henting feilet', r.url().slice(0, 150), r.failure()?.errorText));
+await pg.goto('http://127.0.0.1:8123/?sted=60.52,5.27&z=13', { waitUntil: 'load' });
 let ready = false;
 for (let k = 0; k < 90 && !(ready = await pg.evaluate(() => !!(window.fiskesim && window.fiskesim.api && window.fiskesim.api.reliefDump)).catch(() => false)); k++) await pg.waitForTimeout(1000);
-if (!ready) { log('siden startet ikke – avbryter'); process.exit(1); }
+if (!ready) { log('siden startet ikke – avbryter', JSON.stringify(await pg.evaluate(() => ({ fs: typeof window.fiskesim, body: document.body.innerText.slice(0, 200) })).catch((e) => String(e)))); process.exit(1); }
 log('siden er klar');
 
 async function dump(z, x, y) {
