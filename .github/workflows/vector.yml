@@ -8,6 +8,7 @@ on:
     inputs:
       vdata_run: { description: 'gjenbruk omgjorte data fra denne kjøringen (tom = gjør om på nytt)', required: false, default: '' }
       tag: { description: 'utgivelse', required: false, default: 'kartdata-vestland-v4' }
+      dtm_run: { description: 'gjenbruk terrengmodellen (dtm) fra denne kjøringen', required: false, default: '' }
       vsrc_run: { description: 'gjenbruk omgjorte kilder (prep) fra denne kjøringen', required: false, default: '' }
 permissions: { contents: write, actions: read }
 jobs:
@@ -44,7 +45,7 @@ jobs:
         with: { name: vdata, path: vdata, retention-days: 7, compression-level: 0 }
   dtm:
     needs: merge
-    if: always() && (needs.merge.result == 'success' || needs.merge.result == 'skipped')
+    if: always() && github.event.inputs.dtm_run == '' && (needs.merge.result == 'success' || needs.merge.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 180
     steps:
@@ -57,7 +58,7 @@ jobs:
         with: { name: dtm, path: dtm/vestland.tif, retention-days: 7, compression-level: 0 }
   part:
     needs: [merge, dtm]
-    if: always() && (needs.merge.result == 'success' || needs.merge.result == 'skipped') && needs.dtm.result == 'success'
+    if: always() && (needs.merge.result == 'success' || needs.merge.result == 'skipped') && (needs.dtm.result == 'success' || (needs.dtm.result == 'skipped' && github.event.inputs.dtm_run != ''))
     runs-on: ubuntu-latest
     timeout-minutes: 300
     strategy:
@@ -71,7 +72,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with: { name: vdata, path: vdata, run-id: '${{ github.event.inputs.vdata_run || github.run_id }}', github-token: '${{ secrets.GITHUB_TOKEN }}' }
       - uses: actions/download-artifact@v4
-        with: { name: dtm, path: dtm }
+        with: { name: dtm, path: dtm, run-id: '${{ github.event.inputs.dtm_run || github.run_id }}', github-token: '${{ secrets.GITHUB_TOKEN }}' }
       - run: python3 tools/vector/raster.py vdata ras ${{ matrix.shard }} 16
       - run: python3 tools/dtm/fetch.py blokker dtm/vestland.tif dtmb 1024 ras
       - run: node tools/vector/depth.mjs vdata ras pre-out dtmb
