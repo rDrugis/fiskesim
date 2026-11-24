@@ -1,0 +1,15 @@
+# Strømkart: henter MET sin havmodell (NorKyst v3) for Vestland og legger strømmen i grenen strom-data.
+name: strom
+on:
+  workflow_dispatch:
+    inputs:
+      mode: { description: 'finn = list katalogen, data = lag strømdata', required: true, default: 'data' }
+permissions: { contents: write }
+jobs:
+  strom:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - if: github.event.inputs.mode == 'finn'
+        run: python3 tools/strom/finn.py
