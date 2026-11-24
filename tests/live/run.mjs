@@ -308,7 +308,7 @@ if (want('strom')) {
   // film av strømkartet (partiklene som flyter)
   { const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, recordVideo: { dir: OUT, size: { width: 1280, height: 800 } } });
     await ctx.addInitScript(() => localStorage.setItem('fiskesim.kart', 'strom'));
-    const pg = await ctx.newPage(); await pg.goto(BASE + '?sted=61.0,4.75&z=10.5', { waitUntil: 'load' }); await pg.waitForTimeout(16000);
+    const pg = await ctx.newPage(); await pg.goto(BASE + '?sted=61.0,4.75&z=10.5', { waitUntil: 'load' }); await pg.waitForTimeout(40000);
     const v = pg.video(); await ctx.close(); if (v) { const fs = await import('node:fs'); fs.renameSync(await v.path(), join(OUT, 'strom-film.webm')); log('film', 'strom-film.webm'); } }
   await shot('strom-info', '?sted=60.525,5.265&z=13', { wait: 14000, init: on, act: async (pg) => { const r = await pg.evaluate(async () => { await window.fiskesim.app.pick(5.265, 60.525); await new Promise((r) => setTimeout(r, 4000)); return document.querySelector('.info')?.innerText; }); return { info: r }; } });
 }
