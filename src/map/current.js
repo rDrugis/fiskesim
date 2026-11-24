@@ -59,7 +59,7 @@ export class Current {
       const col = ['interpolate', ['linear'], ['get', 's']]; for (const [s, c] of SPEED_STOPS) col.push(s, c);
       map.addLayer({ id: 'strom', type: 'symbol', source: 'strom', layout: {
         'icon-image': 'strom-pil', 'icon-rotate': ['get', 'd'], 'icon-rotation-alignment': 'map', 'icon-allow-overlap': true, 'icon-ignore-placement': true,
-        'icon-size': ['interpolate', ['linear'], ['get', 's'], 0, 0.35, 0.3, 0.65, 1, 1.0],
+        'icon-size': ['interpolate', ['linear'], ['get', 's'], 0, 0.7, 0.3, 1.15, 1, 1.7],
       }, paint: { 'icon-color': col, 'icon-halo-color': 'rgba(10,20,30,0.85)', 'icon-halo-width': 1.2, 'icon-opacity': ['interpolate', ['linear'], ['get', 's'], 0, 0.45, 0.1, 0.95] } });
     }
   }
@@ -68,8 +68,8 @@ export class Current {
     const map = this.api.map, M = this.meta, h = this.h, seq = (this.seq = (this.seq || 0) + 1);
     let f; try { f = await this.frame(h); } catch (e) { this.err = 'Fikk ikke hentet strømmen for denne timen.'; this.onChange(); return; }
     if (seq !== this.seq || !map.getSource('strom')) return;
-    // en pil per ca. 34 skjermpunkter
-    const cell = (M.bbox[2] - M.bbox[0]) / M.nx, mPerPx = 2 * ORIG / (512 * 2 ** map.getZoom()), st = Math.max(1, Math.round(34 * mPerPx / cell));
+    // en pil per ca. 44 skjermpunkter
+    const cell = (M.bbox[2] - M.bbox[0]) / M.nx, mPerPx = 2 * ORIG / (512 * 2 ** map.getZoom()), st = Math.max(1, Math.round(44 * mPerPx / cell));
     const b = map.getBounds(), x0 = mxOf(b.getWest()), x1 = mxOf(b.getEast()), y0 = myOf(Math.max(-85, b.getSouth())), y1 = myOf(Math.min(85, b.getNorth()));
     const i0 = Math.max(0, Math.floor((x0 - M.bbox[0]) / cell / st) * st), i1 = Math.min(M.nx - 1, Math.ceil((x1 - M.bbox[0]) / cell));
     const j0 = Math.max(0, Math.floor((M.bbox[3] - y1) / cell / st) * st), j1 = Math.min(M.ny - 1, Math.ceil((M.bbox[3] - y0) / cell));
