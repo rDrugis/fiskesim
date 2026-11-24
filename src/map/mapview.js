@@ -20,6 +20,7 @@ export const MAP_STYLES = [
   { id: 'sjokart', label: 'Sjøkart', short: 'Sjø' },
   { id: 'natt', label: 'Natt', short: 'Natt' },
   { id: 'bunn', label: 'Bunntype', short: 'Bunn' },
+  { id: 'strom', label: 'Strøm', short: 'Strøm' },
 ];
 
 // Norskekysten (Kartverkets dybdedata dekker hele kysten)
@@ -84,7 +85,7 @@ function buildStyle(kind) {
   const land = night ? '#1c1f1b' : '#22261f';
   const sources = {
     ofm: { type: 'vector', url: SRC.ofm, attribution: '© OpenStreetMap' },
-    relief: { type: 'raster', tiles: [`relief://${night ? 'natt' : kind === 'bunn' ? 'bunn' : 'dag'}/{z}/{x}/{y}`], tileSize: 256, minzoom: 7, maxzoom: 17, attribution: '© Kartverket' },
+    relief: { type: 'raster', tiles: [`relief://${night ? 'natt' : kind === 'bunn' ? 'bunn' : kind === 'strom' ? 'stromnow' : 'dag'}/{z}/{x}/{y}`], tileSize: 256, minzoom: 7, maxzoom: 17, attribution: '© Kartverket' },
     dem: { type: 'raster-dem', tiles: [SRC.terrarium], encoding: 'terrarium', tileSize: 256, maxzoom: 14, attribution: 'Mapzen' },
     kvsjo: { type: 'raster', tiles: [SRC.wmtsKV('sjokartraster')], tileSize: 256, maxzoom: 18, attribution: '© Kartverket' },
     names: { type: 'geojson', data: EMPTY },
@@ -100,7 +101,7 @@ function buildStyle(kind) {
     layers.push({ id: 'wood', type: 'fill', source: 'ofm', 'source-layer': 'landcover', filter: ['==', ['get', 'class'], 'wood'], paint: { 'fill-color': night ? '#1d241c' : '#243022', 'fill-opacity': 0.8 } });
     layers.push({ id: 'shade', type: 'hillshade', source: 'dem', paint: { 'hillshade-shadow-color': '#0b0d0b', 'hillshade-highlight-color': night ? '#3a3f38' : '#5d6553', 'hillshade-accent-color': '#151815', 'hillshade-exaggeration': 0.55 } });
     // sjø under fiskekartet (synes bare før flisene er regnet ut): middels blå, ikke svart
-    layers.push({ id: 'water', type: 'fill', source: 'ofm', 'source-layer': 'water', paint: { 'fill-color': night ? '#15324c' : '#3a72a6' } });
+    layers.push({ id: 'water', type: 'fill', source: 'ofm', 'source-layer': 'water', paint: { 'fill-color': night ? '#15324c' : kind === 'strom' ? '#1c2c44' : '#3a72a6' } });
     layers.push({ id: 'relief', type: 'raster', source: 'relief', paint: { 'raster-opacity': night ? 0.85 : 1, 'raster-resampling': 'linear', 'raster-fade-duration': 150 } });
     layers.push({ id: 'roads', type: 'line', source: 'ofm', 'source-layer': 'transportation', minzoom: 11, filter: ['in', ['get', 'class'], ['literal', ['primary', 'secondary', 'tertiary', 'minor', 'service', 'trunk']]], paint: { 'line-color': '#4a4f45', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 0.4, 16, 2.2] } });
     layers.push({ id: 'bygg', type: 'fill', source: 'ofm', 'source-layer': 'building', minzoom: 13.5, paint: { 'fill-color': '#5b5f57', 'fill-outline-color': '#2a2d28' } });

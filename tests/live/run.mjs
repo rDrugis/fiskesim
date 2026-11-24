@@ -303,7 +303,7 @@ if (want('dyp')) {
 if (want('strom')) {
   // strømkartet: piler fra MET NorKyst, tidsstolpe og strøm i infoboksen
   const on = () => localStorage.setItem('fiskesim.strom', '1');
-  for (const [nm, q, st] of [['oversikt', '?sted=60.9,5.0&z=8.5', null], ['salhus', '?sted=60.52,5.27&z=12', null], ['salhus-sjokart', '?sted=60.52,5.27&z=12', 'sjokart'], ['mobil', '?sted=61.55,4.9&z=11', null]])
+  for (const [nm, q, st] of [['kart-oversikt', '?sted=60.9,5.0&z=9', 'strom'], ['kart-salhus', '?sted=60.52,5.27&z=12', 'strom'], ['kart-sula', '?sted=61.0,4.75&z=11', 'strom'], ['oversikt', '?sted=60.9,5.0&z=8.5', null], ['salhus', '?sted=60.52,5.27&z=12', null], ['salhus-sjokart', '?sted=60.52,5.27&z=12', 'sjokart'], ['mobil', '?sted=61.55,4.9&z=11', null]])
     await shot('strom-' + nm, q, { wait: 14000, init: on, style: st, mobile: nm === 'mobil', act: async (pg) => pg.evaluate(() => ({ piler: window.fiskesim.api.map.getSource('strom')?._data?.features?.length ?? null, tid: document.querySelector('.strombar')?.innerText?.slice(0, 80) })) });
   await shot('strom-info', '?sted=60.525,5.265&z=13', { wait: 14000, init: on, act: async (pg) => { const r = await pg.evaluate(async () => { await window.fiskesim.app.pick(5.265, 60.525); await new Promise((r) => setTimeout(r, 4000)); return document.querySelector('.info')?.innerText; }); return { info: r }; } });
 }
