@@ -3,7 +3,7 @@
 import { createMap, MAP_STYLES } from '../map/mapview.js';
 import { SeaMarks } from '../map/seamarks.js';
 import { Soundings } from '../map/soundings.js';
-import { Current, SPEED_STOPS, HEAT_STOPS } from '../map/current.js';
+import { Current, HEAT_STOPS } from '../map/current.js';
 import { AlgoLayer, SPECIES } from '../map/algolayer.js';
 import { Profile, ICON_PROF } from '../map/profile.js';
 import { Drift, ICON_DRIFT } from '../map/drift.js';
@@ -156,7 +156,7 @@ export class App {
         <header><h2>Kartlag</h2><button class="iconbtn sm" data-a="lclose" aria-label="Lukk">✕</button></header>
         <label class="tog"><input type="checkbox" data-k="marks" ${this.marks.on ? 'checked' : ''}><span>Sjømerker, skjær og grunner</span></label>
         <label class="tog"><input type="checkbox" data-k="lodd" ${this.soundings.on ? 'checked' : ''}><span>Loddskudd (dybdetall)</span></label>
-        <label class="tog"><input type="checkbox" data-k="strom" ${this.current.on ? 'checked' : ''}><span>Strøm (MET-prognose)</span></label>
+        <label class="tog"><input type="checkbox" data-k="strom" ${this.current.on ? 'checked' : ''}><span>Strøm som flytende streker (MET-prognose)</span></label>
         ${this.api.style === 'bunn' ? `<div class="bleg">${NGU_CLS.map((c) => `<span><i style="background:rgb(${c.c.join(',')})"></i>${c.n[0].toUpperCase() + c.n.slice(1)}</span>`).join('')}<small>Bare der NGU har kartlagt bunnen. Kilde: NGU.</small></div>` : ''}
         <label class="tog"><input type="checkbox" data-k="algo" ${a.on ? 'checked' : ''}><span>Fiskeplasser (algoritme)</span></label>
         <div class="algo-opts${a.on ? '' : ' hidden'}">
@@ -261,12 +261,12 @@ export class App {
     }
     const c = this.current, t = c.time;
     const when = t ? new Date(t).toLocaleString('nb-NO', { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : '…';
-    const heatMap = this.api.style === 'strom', stops = heatMap ? HEAT_STOPS : SPEED_STOPS, top = heatMap ? 1 : 1.2;
-    const grad = stops.map(([v, col]) => `${col} ${(v / top * 100).toFixed(0)}%`).join(',');
+    const heatMap = this.api.style === 'strom', top = 1;
+    const grad = HEAT_STOPS.map(([v, col]) => `${col} ${(v / top * 100).toFixed(0)}%`).join(',');
     bar.innerHTML = c.err ? `<span class="warn">${esc(c.err)}</span>` : `
       <div class="st-row"><b>Strøm</b><button class="iconbtn sm" data-st="-1" aria-label="En time tilbake">‹</button><span class="num">${esc(when)}</span><button class="iconbtn sm" data-st="1" aria-label="En time fram">›</button></div>
-      <div class="st-bar" style="background:linear-gradient(90deg,${grad})"></div><div class="st-ticks num">${heatMap ? '<span>0</span><span>0,25</span><span>0,5</span><span>1 m/s</span>' : '<span>0</span><span>0,3</span><span>0,6</span><span>1,2 m/s</span>'}</div>
-      <small>${heatMap ? '≈ ' + (top * 1.944).toFixed(1).replace('.', ',') + ' kn ved 1 m/s · ' : ''}Overflaten, MET NorKyst 800 m. Prognose, ikke måling.</small>`;
+      ${heatMap ? `<div class="st-bar" style="background:linear-gradient(90deg,${grad})"></div><div class="st-ticks num"><span>0</span><span>0,25</span><span>0,5</span><span>1 m/s</span></div>` : ''}
+      <small>${heatMap ? '1 m/s ≈ 1,9 kn · ' : 'Strekene flyter med strømmen. '}Overflaten, MET NorKyst 800 m. Prognose, ikke måling.</small>`;
   }
 
   closeInfo() { this.root.querySelector('.info').classList.add('hidden'); this.api.setMarks(null); this.picked = null; }

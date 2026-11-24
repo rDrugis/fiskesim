@@ -306,4 +306,4 @@ a { color: #8fd0ec; }
 .strombar .st-bar { height: 6px; border-radius: 3px; margin-top: 6px; }
 .strombar .st-ticks { display: flex; justify-content: space-between; font-size: 10px; margin-top: 1px; }
 .strombar small { display: block; margin-top: 3px; font-size: 10px; opacity: .8; } .strombar .warn { color: var(--warn, #ffb347); }
-.in3d .strombar { display: none; }
+.in3d .strombar, .in3d .flowcv { display: none; }
