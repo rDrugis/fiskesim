@@ -1,10 +1,12 @@
-# Strømkart: henter MET sin havmodell (NorKyst v3) for Vestland og legger strømmen i grenen strom-data.
+# Strømkart: henter MET sin havmodell (NorKyst v3) for Vestland og legger strømmen i grenen strom-data
+# (leses av nettsiden fra raw.githubusercontent.com, så nettsiden trenger ikke publiseres på nytt).
 name: strom
 on:
   workflow_dispatch:
     inputs:
       mode: { description: 'finn = list katalogen, data = lag strømdata', required: true, default: 'data' }
 permissions: { contents: write }
+concurrency: { group: strom, cancel-in-progress: false }
 jobs:
   strom:
     runs-on: ubuntu-latest
@@ -13,3 +15,14 @@ jobs:
       - uses: actions/checkout@v4
       - if: github.event.inputs.mode == 'finn'
         run: python3 tools/strom/finn.py
+      - if: github.event.inputs.mode != 'finn'
+        run: sudo apt-get -qq update && sudo apt-get -qq install -y python3-netcdf4 python3-scipy python3-numpy >/dev/null
+      - if: github.event.inputs.mode != 'finn'
+        run: python3 tools/strom/strom.py out && du -sh out && ls out | head -3
+      - name: Legg strømdata i grenen strom-data
+        if: github.event.inputs.mode != 'finn'
+        run: |
+          cd out && git init -q && git checkout -q -b strom-data
+          git config user.name "fiskesim-strom" && git config user.email "actions@users.noreply.github.com"
+          git add -A && git commit -q -m "Strøm $(date -u +%FT%H:%MZ) (MET NorKyst v3, CC BY 4.0)"
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" strom-data
