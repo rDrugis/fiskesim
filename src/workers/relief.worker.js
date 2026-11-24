@@ -11,7 +11,6 @@ import { openBridges, openPontoons } from '../data/thinland.js';
 import { fetchCached, SRC } from '../data/sources.js';
 import { PAL, rgb } from '../map/palette.js';
 import { NGU_CLS } from '../data/terrainbuild.js';
-import { currentMeta, currentFrame, nearestHour, speedAt, heat } from '../data/currentdata.js';
 
 const R = 6378137, ORIG = Math.PI * R;
 const tileMerc = (z, x, y) => { const s = (2 * ORIG) / 2 ** z; return [-ORIG + x * s, ORIG - (y + 1) * s, -ORIG + (x + 1) * s, ORIG - y * s]; };
@@ -342,28 +341,7 @@ async function baseFor(z, x, y) {
 const LEVELS = [5, 10, 20, 30, 40, 50, 100, 150, 200, 250, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300];
 const MAJOR = new Set([10, 20, 50, 100, 200, 300, 500, 1000]);
 
-// Strømkartet: overflatestrømmen (MET NorKyst) i varmefarger, bare i sjøen (land og kystlinje fra dybdeflisene).
-// palName: «stromnow» eller «strom<ms>» (timen nærmest det tidspunktet)
-async function stromTile(z, x, y, palName, hd) {
-  const k = hd ? 2 : 1, T = SIZE * k, img = new ImageData(T, T);
-  const M = await currentMeta(), q = palName.slice(5), h = nearestHour(M, q === 'now' ? Date.now() : Number(q)), F = await currentFrame(M, h);
-  const { base, u0, v0, scale: sc0 } = await baseFor(z, x, y); const scale = sc0 / k;
-  if (!base.dep) return createImageBitmap(img);
-  const [bx0, by0, bx1, by1] = tileMerc(z, x, y);
-  for (let j = 0; j < T; j++) for (let i = 0; i < T; i++) {
-    const u = u0 + (i + 0.5) * scale, v = v0 + (j + 0.5) * scale, o = (j * T + i) * 4;
-    const d = bil(base.dep, base.N, base.m, u, v), w = bilU8(base.wet, base.N, base.m, u, v), fg = base.flag ? nearU8(base.flag, base.N, base.m, u, v) : 0;
-    if (fg === 2 || fg === 3) { img.data[o] = 126; img.data[o + 1] = 118; img.data[o + 2] = 98; img.data[o + 3] = 255; continue; }   // holmer, skjær og pongtonger
-    if (!(d === d) || w < 0.02) continue;
-    const sp = speedAt(M, F, bx0 + (i + 0.5) / T * (bx1 - bx0), by1 - (j + 0.5) / T * (by1 - by0));
-    const c = sp === sp ? heat(sp) : [34, 44, 58];
-    img.data[o] = c[0]; img.data[o + 1] = c[1]; img.data[o + 2] = c[2]; img.data[o + 3] = Math.round(255 * Math.min(1, w * 1.6));
-  }
-  return createImageBitmap(img);
-}
-
 async function renderTile(z, x, y, palName, hd = false) {
-  if (palName && palName.startsWith('strom')) return stromTile(z, x, y, palName, hd);
   const k = hd ? 2 : 1, T = SIZE * k; // skarpe fliser på skjermer med høy oppløsning (512 px vist som 256)
   const pal = PAL[palName] || PAL.dag;
   const night = palName === 'natt';
