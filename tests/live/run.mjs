@@ -237,9 +237,10 @@ if (want('raw')) {
 }
 
 // ---------- 2. Skjermbilder ----------
-async function shot(name, url, { mobile = false, wait = 12000, act = null, style = null, geo = null } = {}) {
+async function shot(name, url, { mobile = false, wait = 12000, act = null, style = null, geo = null, init = null } = {}) {
   const ctx = await browser.newContext({ ...(mobile ? { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true } : { viewport: { width: 1280, height: 800 } }), ...(geo ? { geolocation: geo, permissions: ['geolocation'] } : {}) });
   if (style) await ctx.addInitScript((st) => localStorage.setItem('fiskesim.kart', st), style);
+  if (init) await ctx.addInitScript(init);
   const pg = await ctx.newPage(); const errs = [];
   pg.on('pageerror', (e) => errs.push(String(e).slice(0, 300)));
   pg.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push('konsoll: ' + m.text().slice(0, 200)); });
@@ -298,6 +299,13 @@ if (want('pre')) {
 if (want('dyp')) {
   // dype fjorder: kurver under 500 m og lilla under 1000 m (Sognefjorden), med ferdig utregnet kart
   for (const [nm, q] of [['sogn-oversikt', '?sted=61.12,6.0&z=11.5'], ['sogn-dyp', '?sted=61.13,6.30&z=13'], ['sogn-dyp-z14', '?sted=61.125,6.27&z=14.2']]) await shot('dyp-' + nm, q, { wait: 15000 });
+}
+if (want('strom')) {
+  // strømkartet: piler fra MET NorKyst, tidsstolpe og strøm i infoboksen
+  const on = () => localStorage.setItem('fiskesim.strom', '1');
+  for (const [nm, q, st] of [['oversikt', '?sted=60.9,5.0&z=8.5', null], ['salhus', '?sted=60.52,5.27&z=12', null], ['salhus-sjokart', '?sted=60.52,5.27&z=12', 'sjokart'], ['mobil', '?sted=61.55,4.9&z=11', null]])
+    await shot('strom-' + nm, q, { wait: 14000, init: on, style: st, mobile: nm === 'mobil', act: async (pg) => pg.evaluate(() => ({ piler: window.fiskesim.api.map.getSource('strom')?._data?.features?.length ?? null, tid: document.querySelector('.strombar')?.innerText?.slice(0, 80) })) });
+  await shot('strom-info', '?sted=60.525,5.265&z=13', { wait: 14000, init: on, act: async (pg) => { const r = await pg.evaluate(async () => { await window.fiskesim.app.pick(5.265, 60.525); await new Promise((r) => setTimeout(r, 4000)); return document.querySelector('.info')?.innerText; }); return { info: r }; } });
 }
 if (want('pkt')) {
   // fiskekartet før (nettsiden, uten punkter) og etter (denne versjonen, med loddskudd og grunner)

@@ -3,6 +3,7 @@
 import { createMap, MAP_STYLES } from '../map/mapview.js';
 import { SeaMarks } from '../map/seamarks.js';
 import { Soundings } from '../map/soundings.js';
+import { Current, SPEED_STOPS } from '../map/current.js';
 import { AlgoLayer, SPECIES } from '../map/algolayer.js';
 import { Profile, ICON_PROF } from '../map/profile.js';
 import { Drift, ICON_DRIFT } from '../map/drift.js';
@@ -66,6 +67,7 @@ export class App {
     map.on('moveend', () => { const c = map.getCenter(); try { localStorage.setItem('fiskesim.map', JSON.stringify({ c: [c.lng, c.lat], z: map.getZoom() })); } catch (e) { /* privat */ } });
     this.marks = new SeaMarks(api);
     this.soundings = new Soundings(api);
+    this.current = new Current(api, { onChange: () => this.stromBar() });
     this.algo = new AlgoLayer(api, { onNote: (t, busy) => this.note(t, busy), onSaved: () => this.renderLayers && this.renderLayers() });
     // dybdeprofil: knappen i høyre kant, panelet nederst
     const pbtn = this.root.querySelector('[data-a="prof"]'), ppanel = this.root.querySelector('.prof');
@@ -154,6 +156,7 @@ export class App {
         <header><h2>Kartlag</h2><button class="iconbtn sm" data-a="lclose" aria-label="Lukk">✕</button></header>
         <label class="tog"><input type="checkbox" data-k="marks" ${this.marks.on ? 'checked' : ''}><span>Sjømerker, skjær og grunner</span></label>
         <label class="tog"><input type="checkbox" data-k="lodd" ${this.soundings.on ? 'checked' : ''}><span>Loddskudd (dybdetall)</span></label>
+        <label class="tog"><input type="checkbox" data-k="strom" ${this.current.on ? 'checked' : ''}><span>Strøm (MET-prognose)</span></label>
         ${this.api.style === 'bunn' ? `<div class="bleg">${NGU_CLS.map((c) => `<span><i style="background:rgb(${c.c.join(',')})"></i>${c.n[0].toUpperCase() + c.n.slice(1)}</span>`).join('')}<small>Bare der NGU har kartlagt bunnen. Kilde: NGU.</small></div>` : ''}
         <label class="tog"><input type="checkbox" data-k="algo" ${a.on ? 'checked' : ''}><span>Fiskeplasser (algoritme)</span></label>
         <div class="algo-opts${a.on ? '' : ' hidden'}">
@@ -187,6 +190,7 @@ export class App {
       const k = e.target.dataset.k;
       if (k === 'marks') this.marks.setOn(e.target.checked);
       if (k === 'lodd') this.soundings.setOn(e.target.checked);
+      if (k === 'strom') this.current.setOn(e.target.checked);
       if (k === 'algo') { this.algo.setOn(e.target.checked); render(); }
       else if (k === 'mon') this.algo.setMonth(e.target.value);
     });
@@ -247,6 +251,23 @@ export class App {
     map.on('mouseout', hide); map.on('dragstart', hide); map.on('zoomstart', hide);
   }
 
+  // tid og forklaring for strømkartet
+  stromBar() {
+    let bar = this.root.querySelector('.strombar');
+    if (!this.current.on) { if (bar) bar.remove(); return; }
+    if (!bar) {
+      bar = document.createElement('div'); bar.className = 'strombar'; this.root.appendChild(bar);
+      bar.addEventListener('click', (e) => { const b = e.target.closest('[data-st]'); if (b) this.current.step(Number(b.dataset.st)); });
+    }
+    const c = this.current, t = c.time;
+    const when = t ? new Date(t).toLocaleString('nb-NO', { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : '…';
+    const grad = SPEED_STOPS.map(([v, col]) => `${col} ${(v / 1.2 * 100).toFixed(0)}%`).join(',');
+    bar.innerHTML = c.err ? `<span class="warn">${esc(c.err)}</span>` : `
+      <div class="st-row"><b>Strøm</b><button class="iconbtn sm" data-st="-1" aria-label="En time tilbake">‹</button><span class="num">${esc(when)}</span><button class="iconbtn sm" data-st="1" aria-label="En time fram">›</button></div>
+      <div class="st-bar" style="background:linear-gradient(90deg,${grad})"></div><div class="st-ticks num"><span>0</span><span>0,3</span><span>0,6</span><span>1,2 m/s</span></div>
+      <small>Overflaten, MET NorKyst 800 m. Prognose, ikke måling.</small>`;
+  }
+
   closeInfo() { this.root.querySelector('.info').classList.add('hidden'); this.api.setMarks(null); this.picked = null; }
 
   async pick(lon, lat) {
@@ -258,7 +279,7 @@ export class App {
     card.innerHTML = head + '<div class="depthbig num">…</div>';
     card.classList.remove('hidden');
     card.querySelector('[data-a="iclose"]').addEventListener('click', () => this.closeInfo());
-    const [d, sed] = await Promise.all([this.api.depthAt(lon, lat).catch(() => null), sediment(lon, lat).catch(() => null)]);
+    const [d, sed, cur] = await Promise.all([this.api.depthAt(lon, lat).catch(() => null), sediment(lon, lat).catch(() => null), this.current.at(lon, lat).catch(() => null)]);
     if (id !== this.pickId) return;
     let big, sub = '';
     if (!d) big = 'Ukjent dybde';
@@ -268,7 +289,7 @@ export class App {
       big = (d.est ? 'ca. ' : '') + depthText(d.depth);
       if (d.lo != null) sub = d.est ? `Sjøkartet sier bare ${n1(d.lo)}–${n1(d.hi)} m her – dybden er anslått` : `Sjøkart ${n1(d.lo)}–${n1(d.hi)} m · anslått mellom kurvene`;
     }
-    card.innerHTML = head + `<div class="depthbig num">${big}</div>${sub ? `<p class="sub">${sub}</p>` : ''}${sed ? `<p class="sub">Bunn: ${esc(sed)} <span class="tag">NGU</span></p>` : ''}
+    card.innerHTML = head + `<div class="depthbig num">${big}</div>${sub ? `<p class="sub">${sub}</p>` : ''}${sed ? `<p class="sub">Bunn: ${esc(sed)} <span class="tag">NGU</span></p>` : ''}${cur ? `<p class="sub">Strøm: ${n1(cur.s)} m/s (${n1(cur.s * 1.944)} kn) mot ${DIR16[Math.round(cur.d / 22.5) % 16]} <span class="tag">MET-prognose</span></p>` : ''}
       <div class="row"><button class="btn primary" data-a="i3d">Bølger i 3D her</button></div>`;
     card.querySelector('[data-a="iclose"]').addEventListener('click', () => this.closeInfo());
     card.querySelector('[data-a="i3d"]').addEventListener('click', () => this.open3D(lon, lat));
@@ -292,6 +313,7 @@ export class App {
   }
 }
 
+const DIR16 = ['nord', 'nordnordøst', 'nordøst', 'østnordøst', 'øst', 'østsørøst', 'sørøst', 'sørsørøst', 'sør', 'sørsørvest', 'sørvest', 'vestsørvest', 'vest', 'vestnordvest', 'nordvest', 'nordnordvest'];
 const depthText = (d) => d < 10 ? `${n1(d)} m` : `${Math.round(d)} m`;
 
 // Bunntype fra NGU i et punkt
