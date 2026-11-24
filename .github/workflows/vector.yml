@@ -12,6 +12,8 @@ on:
       vsrc_run: { description: 'gjenbruk omgjorte kilder (prep) fra denne kjøringen', required: false, default: '' }
 permissions: { contents: write, actions: read }
 jobs:
+  test:
+    uses: ./.github/workflows/test.yml
   prep:
     if: github.event.inputs.vdata_run == '' && github.event.inputs.vsrc_run == ''
     runs-on: ubuntu-latest
@@ -44,8 +46,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: vdata, path: vdata, retention-days: 7, compression-level: 0 }
   dtm:
-    needs: merge
-    if: always() && github.event.inputs.dtm_run == '' && (needs.merge.result == 'success' || needs.merge.result == 'skipped')
+    needs: [test, merge]
+    if: always() && needs.test.result == 'success' && github.event.inputs.dtm_run == '' && (needs.merge.result == 'success' || needs.merge.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 180
     steps:
@@ -57,8 +59,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: dtm, path: dtm/vestland.tif, retention-days: 7, compression-level: 0 }
   part:
-    needs: [merge, dtm]
-    if: always() && (needs.merge.result == 'success' || needs.merge.result == 'skipped') && (needs.dtm.result == 'success' || (needs.dtm.result == 'skipped' && github.event.inputs.dtm_run != ''))
+    needs: [test, merge, dtm]
+    if: always() && needs.test.result == 'success' && (needs.merge.result == 'success' || needs.merge.result == 'skipped') && (needs.dtm.result == 'success' || (needs.dtm.result == 'skipped' && github.event.inputs.dtm_run != ''))
     runs-on: ubuntu-latest
     timeout-minutes: 300
     strategy:
