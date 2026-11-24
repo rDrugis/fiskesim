@@ -356,10 +356,14 @@ export class SeaView {
     const sun = new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el));
     U.uSun.value.copy(sun);
     this.sky.material.uniforms.sunPosition.value.copy(sun.clone().multiplyScalar(1000));
-    const day = Math.max(0, Math.min(1, (sp.elev + 4) / 12)), cloud = (st.cloud ?? 50) / 100;
+    // dagslys: lyst fra borgerlig skumring (solen 7° under horisonten) og fullt ved 2° over. Vinterstid står solen lavt
+    // hele dagen (ca. 9° midt på dagen i november på Vestlandet), så lyset skal ikke vente på høy sol.
+    // Direkte sollys kommer først når solen er over horisonten.
+    const ss = (a, b, x) => { const k = Math.min(1, Math.max(0, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
+    const day = ss(-7, 2, sp.elev), direct = ss(-1, 6, sp.elev), cloud = (st.cloud ?? 50) / 100;
     U.uNight.value = 1 - day;
-    U.uSunCol.value.setRGB(1, 0.85 + 0.12 * Math.min(1, sp.elev / 20), 0.7 + 0.25 * Math.min(1, sp.elev / 20)).multiplyScalar(day * (1 - 0.75 * cloud));
-    this.sunL.position.copy(sun).multiplyScalar(1000); this.sunL.intensity = 2.2 * day * (1 - 0.5 * cloud) + 0.05;
+    U.uSunCol.value.setRGB(1, 0.85 + 0.12 * Math.min(1, sp.elev / 20), 0.7 + 0.25 * Math.min(1, sp.elev / 20)).multiplyScalar(direct * (1 - 0.75 * cloud));
+    this.sunL.position.copy(sun).multiplyScalar(1000); this.sunL.intensity = 2.2 * direct * (1 - 0.5 * cloud) + 0.05;
     this.hemi.intensity = 0.25 + 0.75 * day;
     this.renderer.toneMappingExposure = 0.35 + 0.3 * day;
     this.scene.background = null;
