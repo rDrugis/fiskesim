@@ -25,8 +25,10 @@ def files():
         try:
             with urllib.request.urlopen(CAT + p + 'catalog.xml', timeout=60) as r: x = r.read().decode()
         except Exception as e: print('ingen katalog', p, e); continue
+        # AN-fila dekker selve døgnet (fra kl. 00 UTC), FC-filene døgnene etter
+        an = sorted(set(re.findall(r'urlPath="([^"]*norkyst800_his_zdepth_\d{8}T00Z_m00_AN\.nc)"', x)))
         fc = sorted(set(re.findall(r'urlPath="([^"]*norkyst800_his_zdepth_latest_m00_FC_\d+\.nc)"', x)))
-        if fc: return fc
+        if fc: return an[-1:] + fc
     raise SystemExit('fant ingen NorKyst-prognose')
 
 def opendap(path, tries=4):
