@@ -1,0 +1,16 @@
+# Enhetstester for fiskeplassalgoritmen og dybdemodellen. Kjøres ved hver push, og før publisering og utregning av kartet.
+name: test
+on:
+  push:
+  pull_request:
+  workflow_call:
+permissions: { contents: read }
+jobs:
+  enhetstester:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm test
