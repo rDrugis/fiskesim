@@ -1,8 +1,9 @@
 // Strøm: overflatestrøm fra MET sin havmodell NorKyst v3 (800 m, timesprognose) som piler i kartet, og som eget
 // varmefarget kart («Strøm» blant kartene, tegnet i tegnetrådene). Dataene lages på GitHub (tools/strom/strom.py).
-// Strømmen vises som flytende partikler (som en film) som driver med strømmen: fart og retning ses av bevegelsen.
+// Strømmen vises som rolige, flytende farger: myke fargeflekker i strømfargen driver sakte med strømmen oppå det
+// varmefargede kartet, så fargene ser ut til å bevege seg. Ingen piler eller streker.
 // Det er en modellprognose, ikke måling: i trange sund og nær land kan strømmen være sterkere enn 800 m-rutene får fram.
-import { currentMeta, currentFrame, nearestHour, HEAT } from '../data/currentdata.js';
+import { currentMeta, currentFrame, nearestHour, HEAT, heat } from '../data/currentdata.js';
 const ORIG = Math.PI * 6378137;
 export const HEAT_STOPS = HEAT.map(([v, c]) => [v, `rgb(${c.join(',')})`]);
 const lonOf = (x) => x / ORIG * 180, latOf = (y) => (2 * Math.atan(Math.exp(y / 6378137)) - Math.PI / 2) * 180 / Math.PI;
@@ -12,7 +13,7 @@ const mxOf = (lon) => lon / 180 * ORIG, myOf = (lat) => Math.log(Math.tan(Math.P
 class Flow {
   constructor(map) {
     this.map = map; this.cv = document.createElement('canvas'); this.cv.className = 'flowcv';
-    Object.assign(this.cv.style, { position: 'absolute', left: 0, top: 0, pointerEvents: 'none' });
+    Object.assign(this.cv.style, { position: 'absolute', left: 0, top: 0, pointerEvents: 'none', filter: 'blur(3px)', opacity: '0.9' });
     map.getCanvasContainer().appendChild(this.cv); this.g = this.cv.getContext('2d'); this.P = []; this.run = false;
     this.resize = () => { const c = map.getCanvas(), r = window.devicePixelRatio || 1; this.dpr = r; this.cv.width = c.clientWidth * r; this.cv.height = c.clientHeight * r; this.cv.style.width = c.clientWidth + 'px'; this.cv.style.height = c.clientHeight + 'px'; this.seed(); };
     this.clear = () => { this.g.clearRect(0, 0, this.cv.width, this.cv.height); };
@@ -34,12 +35,12 @@ class Flow {
     const W = this.cv.width / this.dpr, H = this.cv.height / this.dpr;
     for (let t = 0; t < 8; t++) {
       const x = Math.random() * W, y = Math.random() * H, ll = this.map.unproject([x, y]), mx = mxOf(ll.lng), my = myOf(ll.lat);
-      if (this.vel(mx, my)) { p.mx = mx; p.my = my; p.age = 0; p.max = 40 + Math.random() * 80; return p; }
+      if (this.vel(mx, my)) { p.mx = mx; p.my = my; p.age = 0; p.max = 160 + Math.random() * 200; return p; }
     }
     p.mx = NaN; p.age = 0; p.max = 10; return p;
   }
   seed() {
-    const W = this.cv.width / (this.dpr || 1), H = this.cv.height / (this.dpr || 1), n = Math.round(Math.min(2600, W * H / (W < 600 ? 520 : 380)));
+    const W = this.cv.width / (this.dpr || 1), H = this.cv.height / (this.dpr || 1), n = Math.round(Math.min(900, W * H / (W < 600 ? 1600 : 1200)));
     this.P = Array.from({ length: n }, () => { const p = this.spawn({}); p.age = Math.random() * p.max; return p; });
     this.clear();
   }
@@ -47,20 +48,26 @@ class Flow {
     if (!this.run) return; requestAnimationFrame(() => this.loop());
     if (document.hidden || !this.M || this.map.isMoving()) return;
     const g = this.g, r = this.dpr, now = performance.now(), dt = Math.min(0.05, ((now - (this.last || now)) / 1000) || 0.016); this.last = now;
-    // gamle spor blekner
-    g.globalCompositeOperation = 'destination-in'; g.fillStyle = 'rgba(0,0,0,0.9)'; g.fillRect(0, 0, this.cv.width, this.cv.height);
-    g.globalCompositeOperation = 'source-over'; g.lineWidth = 1.3 * r; g.lineCap = 'round'; g.strokeStyle = 'rgba(255,255,255,0.85)'; g.beginPath();
-    // skjermfart: 1 m/s ≈ 75 skjermpunkter i sekundet (uavhengig av zoom, så bevegelsen alltid synes)
-    const z = this.map.getZoom(), mPerPx = 2 * ORIG / (512 * 2 ** z), K = 75 * mPerPx;
+    // gamle spor blekner sakte
+    g.globalCompositeOperation = 'destination-in'; g.fillStyle = 'rgba(0,0,0,0.965)'; g.fillRect(0, 0, this.cv.width, this.cv.height);
+    g.globalCompositeOperation = 'source-over'; g.lineWidth = 9 * r; g.lineCap = 'round';
+    // rolig: 1 m/s ≈ 28 skjermpunkter i sekundet (uavhengig av zoom)
+    const z = this.map.getZoom(), mPerPx = 2 * ORIG / (512 * 2 ** z), K = 28 * mPerPx;
+    const bins = new Map();
     for (const p of this.P) {
       if (!(p.mx === p.mx) || ++p.age > p.max) { this.spawn(p); continue; }
       const v = this.vel(p.mx, p.my); if (!v) { this.spawn(p); continue; }
       const a = this.map.project([lonOf(p.mx), latOf(p.my)]);
       p.mx += v[0] * K * dt; p.my += v[1] * K * dt;
-      const b = this.map.project([lonOf(p.mx), latOf(p.my)]);
-      g.moveTo(a.x * r, a.y * r); g.lineTo(b.x * r, b.y * r);
+      const b = this.map.project([lonOf(p.mx), latOf(p.my)]), s = Math.hypot(v[0], v[1]), bk = Math.min(12, Math.round(s / 0.08));
+      if (!bins.has(bk)) bins.set(bk, []); bins.get(bk).push(a.x * r, a.y * r, b.x * r, b.y * r);
     }
-    g.stroke();
+    for (const [bk, L] of bins) {
+      const c = heat(bk * 0.08).map((v) => Math.min(255, v * 1.25 + 30));   // litt lysere enn bakgrunnen, så bevegelsen synes
+      g.strokeStyle = `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},0.13)`; g.beginPath();
+      for (let i = 0; i < L.length; i += 4) { g.moveTo(L[i], L[i + 1]); g.lineTo(L[i + 2], L[i + 3]); }
+      g.stroke();
+    }
   }
   stop() { this.run = false; this.clear(); }
   remove() { this.stop(); this.cv.remove(); }
@@ -74,7 +81,7 @@ export class Current {
     if (this.active) this.load();
   }
   // aktiv: slått på som lag, eller strømkartet er valgt
-  get active() { return this.on || this.api.style === 'strom'; }
+  get active() { return this.api.style === 'strom'; }
   get heatMap() { return this.api.style === 'strom'; }
   setOn(v) {
     this.on = !!v; try { localStorage.setItem('fiskesim.strom', v ? '1' : '0'); } catch (e) { /* privat */ }
