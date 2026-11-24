@@ -86,6 +86,7 @@ function buildStyle(kind) {
   const sources = {
     ofm: { type: 'vector', url: SRC.ofm, attribution: '© OpenStreetMap' },
     relief: { type: 'raster', tiles: [`relief://${night ? 'natt' : kind === 'bunn' ? 'bunn' : kind === 'strom' ? 'stromnow' : 'dag'}/{z}/{x}/{y}`], tileSize: 256, minzoom: 7, maxzoom: 17, attribution: '© Kartverket' },
+    ...(kind === 'strom' ? { relief2: { type: 'raster', tiles: ['relief://stromnow/{z}/{x}/{y}'], tileSize: 256, minzoom: 7, maxzoom: 17 } } : {}),
     dem: { type: 'raster-dem', tiles: [SRC.terrarium], encoding: 'terrarium', tileSize: 256, maxzoom: 14, attribution: 'Mapzen' },
     kvsjo: { type: 'raster', tiles: [SRC.wmtsKV('sjokartraster')], tileSize: 256, maxzoom: 18, attribution: '© Kartverket' },
     names: { type: 'geojson', data: EMPTY },
@@ -103,6 +104,8 @@ function buildStyle(kind) {
     // sjø under fiskekartet (synes bare før flisene er regnet ut): middels blå, ikke svart
     layers.push({ id: 'water', type: 'fill', source: 'ofm', 'source-layer': 'water', paint: { 'fill-color': night ? '#15324c' : kind === 'strom' ? '#1c2c44' : '#3a72a6' } });
     layers.push({ id: 'relief', type: 'raster', source: 'relief', paint: { 'raster-opacity': night ? 0.85 : 1, 'raster-resampling': 'linear', 'raster-fade-duration': 150 } });
+    // strømkartet: to lag som tones over i hverandre når timen skifter (rolig bevegelse i fargene)
+    if (kind === 'strom') layers.push({ id: 'relief2', type: 'raster', source: 'relief2', paint: { 'raster-opacity': 0, 'raster-resampling': 'linear', 'raster-fade-duration': 0, 'raster-opacity-transition': { duration: 1600 } } });
     layers.push({ id: 'roads', type: 'line', source: 'ofm', 'source-layer': 'transportation', minzoom: 11, filter: ['in', ['get', 'class'], ['literal', ['primary', 'secondary', 'tertiary', 'minor', 'service', 'trunk']]], paint: { 'line-color': '#4a4f45', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 0.4, 16, 2.2] } });
     layers.push({ id: 'bygg', type: 'fill', source: 'ofm', 'source-layer': 'building', minzoom: 13.5, paint: { 'fill-color': '#5b5f57', 'fill-outline-color': '#2a2d28' } });
     layers.push({ id: 'place', type: 'symbol', source: 'ofm', 'source-layer': 'place', filter: ['in', ['get', 'class'], ['literal', ['city', 'town', 'village', 'hamlet', 'island', 'islet', 'suburb', 'neighbourhood']]],
