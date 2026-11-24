@@ -300,18 +300,6 @@ if (want('dyp')) {
   // dype fjorder: kurver under 500 m og lilla under 1000 m (Sognefjorden), med ferdig utregnet kart
   for (const [nm, q] of [['sogn-oversikt', '?sted=61.12,6.0&z=11.5'], ['sogn-dyp', '?sted=61.13,6.30&z=13'], ['sogn-dyp-z14', '?sted=61.125,6.27&z=14.2']]) await shot('dyp-' + nm, q, { wait: 15000 });
 }
-if (want('strom')) {
-  // strømkartet: piler fra MET NorKyst, tidsstolpe og strøm i infoboksen
-  const on = () => localStorage.setItem('fiskesim.strom', '1');
-  for (const [nm, q, st] of [['kart-oversikt', '?sted=60.9,5.0&z=9', 'strom'], ['kart-salhus', '?sted=60.52,5.27&z=12', 'strom'], ['kart-sula', '?sted=61.0,4.75&z=11', 'strom'], ['oversikt', '?sted=60.9,5.0&z=8.5', null], ['salhus', '?sted=60.52,5.27&z=12', null], ['salhus-sjokart', '?sted=60.52,5.27&z=12', 'sjokart'], ['mobil', '?sted=61.55,4.9&z=11', null]])
-    await shot('strom-' + nm, q, { wait: 14000, init: on, style: st, mobile: nm === 'mobil', act: async (pg) => pg.evaluate(() => ({ piler: window.fiskesim.api.map.getSource('strom')?._data?.features?.length ?? null, tid: document.querySelector('.strombar')?.innerText?.slice(0, 80) })) });
-  // film av strømkartet (partiklene som flyter)
-  { const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, recordVideo: { dir: OUT, size: { width: 1280, height: 800 } } });
-    await ctx.addInitScript(() => localStorage.setItem('fiskesim.kart', 'strom'));
-    const pg = await ctx.newPage(); await pg.goto(BASE + '?sted=61.0,4.75&z=10.5', { waitUntil: 'load' }); await pg.waitForTimeout(40000);
-    const v = pg.video(); await ctx.close(); if (v) { const fs = await import('node:fs'); fs.renameSync(await v.path(), join(OUT, 'strom-film.webm')); log('film', 'strom-film.webm'); } }
-  await shot('strom-info', '?sted=60.525,5.265&z=13', { wait: 14000, init: on, act: async (pg) => { const r = await pg.evaluate(async () => { await window.fiskesim.app.pick(5.265, 60.525); await new Promise((r) => setTimeout(r, 4000)); return document.querySelector('.info')?.innerText; }); return { info: r }; } });
-}
 if (want('pkt')) {
   // fiskekartet før (nettsiden, uten punkter) og etter (denne versjonen, med loddskudd og grunner)
   for (const [nm, q] of [['ortna-z13', '?sted=61.112,6.13&z=13.6'], ['ortna', '?sted=61.1153,6.1401&z=15.6'], ['klokkarneset', '?sted=60.5415,5.3409&z=15'], ['reksta', '?sted=61.559,4.84&z=15']]) {
