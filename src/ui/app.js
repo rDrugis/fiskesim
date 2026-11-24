@@ -256,16 +256,16 @@ export class App {
     if (!this.current.on) { if (bar) bar.remove(); return; }
     if (!bar) {
       bar = document.createElement('div'); bar.className = 'strombar'; this.root.appendChild(bar);
-      bar.addEventListener('click', (e) => { const b = e.target.closest('[data-st]'); if (b) this.current.step(Number(b.dataset.st)); });
+      bar.addEventListener('click', (e) => { const b = e.target.closest('[data-st]'); if (!b) return; if (b.dataset.st === 'play') this.current.toggle(); else this.current.step(Number(b.dataset.st)); });
     }
     const c = this.current, t = c.time;
     const when = t ? new Date(t).toLocaleString('nb-NO', { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : '…';
     const heatMap = this.api.style === 'strom', top = 1;
     const grad = HEAT_STOPS.map(([v, col]) => `${col} ${(v / top * 100).toFixed(0)}%`).join(',');
     bar.innerHTML = c.err ? `<span class="warn">${esc(c.err)}</span>` : `
-      <div class="st-row"><b>Strøm</b><button class="iconbtn sm" data-st="-1" aria-label="En time tilbake">‹</button><span class="num">${esc(when)}</span><button class="iconbtn sm" data-st="1" aria-label="En time fram">›</button></div>
+      <div class="st-row"><b>Strøm</b><button class="iconbtn sm" data-st="play" aria-label="${c.playing ? 'Pause' : 'Spill av'}">${c.playing ? '❚❚' : '▶'}</button><button class="iconbtn sm" data-st="-1" aria-label="En time tilbake">‹</button><span class="num">${esc(when)}</span><button class="iconbtn sm" data-st="1" aria-label="En time fram">›</button></div>
       ${heatMap ? `<div class="st-bar" style="background:linear-gradient(90deg,${grad})"></div><div class="st-ticks num"><span>0</span><span>0,25</span><span>0,5</span><span>1 m/s</span></div>` : ''}
-      <small>1 m/s ≈ 1,9 kn · Fargene flyter med strømmen. Overflaten, MET NorKyst 800 m. Prognose, ikke måling.</small>`;
+      <small>1 m/s ≈ 1,9 kn · Spilles av time for time. Overflaten, MET NorKyst 800 m. Prognose, ikke måling.</small>`;
   }
 
   closeInfo() { this.root.querySelector('.info').classList.add('hidden'); this.api.setMarks(null); this.picked = null; }
