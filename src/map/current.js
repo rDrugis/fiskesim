@@ -1,20 +1,69 @@
 // Strøm: overflatestrøm fra MET sin havmodell NorKyst v3 (800 m, timesprognose) som piler i kartet, og som eget
 // varmefarget kart («Strøm» blant kartene, tegnet i tegnetrådene). Dataene lages på GitHub (tools/strom/strom.py).
-// Pilene peker dit strømmen går; farge og størrelse viser farten. Det er en modellprognose, ikke måling:
-// i trange sund og nær land kan strømmen være sterkere enn 800 m-rutene får fram.
+// Strømmen vises som flytende partikler (som en film) som driver med strømmen: fart og retning ses av bevegelsen.
+// Det er en modellprognose, ikke måling: i trange sund og nær land kan strømmen være sterkere enn 800 m-rutene får fram.
 import { currentMeta, currentFrame, nearestHour, HEAT } from '../data/currentdata.js';
-const ORIG = Math.PI * 6378137, EMPTY = { type: 'FeatureCollection', features: [] };
-export const SPEED_STOPS = [[0, '#8fd3ff'], [0.15, '#58e0c0'], [0.3, '#f4e15a'], [0.5, '#ff9e3d'], [0.8, '#ff4d4d'], [1.2, '#d63aa8']];
+const ORIG = Math.PI * 6378137;
 export const HEAT_STOPS = HEAT.map(([v, c]) => [v, `rgb(${c.join(',')})`]);
 const lonOf = (x) => x / ORIG * 180, latOf = (y) => (2 * Math.atan(Math.exp(y / 6378137)) - Math.PI / 2) * 180 / Math.PI;
 const mxOf = (lon) => lon / 180 * ORIG, myOf = (lat) => Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)) * 6378137;
 
-function arrowImage() {
-  const S = 48, c = document.createElement('canvas'); c.width = c.height = S; const g = c.getContext('2d');
-  g.fillStyle = '#fff'; g.beginPath();
-  g.moveTo(S / 2, 3); g.lineTo(S / 2 + 11, 20); g.lineTo(S / 2 + 4, 18); g.lineTo(S / 2 + 4, S - 4); g.lineTo(S / 2 - 4, S - 4); g.lineTo(S / 2 - 4, 18); g.lineTo(S / 2 - 11, 20);
-  g.closePath(); g.fill();
-  return g.getImageData(0, 0, S, S);
+// partikler som flyter med strømmen, tegnet på et eget lerret over kartet
+class Flow {
+  constructor(map) {
+    this.map = map; this.cv = document.createElement('canvas'); this.cv.className = 'flowcv';
+    Object.assign(this.cv.style, { position: 'absolute', left: 0, top: 0, pointerEvents: 'none' });
+    map.getCanvasContainer().appendChild(this.cv); this.g = this.cv.getContext('2d'); this.P = []; this.run = false;
+    this.resize = () => { const c = map.getCanvas(), r = window.devicePixelRatio || 1; this.dpr = r; this.cv.width = c.clientWidth * r; this.cv.height = c.clientHeight * r; this.cv.style.width = c.clientWidth + 'px'; this.cv.style.height = c.clientHeight + 'px'; this.seed(); };
+    this.clear = () => { this.g.clearRect(0, 0, this.cv.width, this.cv.height); };
+    map.on('resize', this.resize); map.on('movestart', this.clear); map.on('move', this.clear); map.on('moveend', () => this.seed());
+    this.resize();
+  }
+  setField(M, F) { this.M = M; this.F = F; this.seed(); if (!this.run) { this.run = true; this.loop(); } }
+  // fart i m/s i et punkt (EPSG:3857), eller null på land / utenfor
+  vel(mx, my) {
+    const M = this.M, F = this.F; if (!M || !F) return null;
+    const cell = (M.bbox[2] - M.bbox[0]) / M.nx, x = (mx - M.bbox[0]) / cell - 0.5, y = (M.bbox[3] - my) / cell - 0.5;
+    if (x < 0 || y < 0 || x >= M.nx - 1 || y >= M.ny - 1) return null;
+    const i = x | 0, j = y | 0, tx = x - i, ty = y - j, k = j * M.nx + i;
+    if (!(F.raw.u[Math.round(y) * M.nx + Math.round(x)] === F.raw.u[Math.round(y) * M.nx + Math.round(x)])) return null;   // land i modellen
+    const b = (a) => { const A = a[k], B = a[k + 1], C = a[k + M.nx], D = a[k + M.nx + 1]; if (!(A === A && B === B && C === C && D === D)) return NaN; return (A * (1 - tx) + B * tx) * (1 - ty) + (C * (1 - tx) + D * tx) * ty; };
+    const u = b(F.u), v = b(F.v); return u === u ? [u, v] : null;
+  }
+  spawn(p) {
+    const W = this.cv.width / this.dpr, H = this.cv.height / this.dpr;
+    for (let t = 0; t < 8; t++) {
+      const x = Math.random() * W, y = Math.random() * H, ll = this.map.unproject([x, y]), mx = mxOf(ll.lng), my = myOf(ll.lat);
+      if (this.vel(mx, my)) { p.mx = mx; p.my = my; p.age = 0; p.max = 40 + Math.random() * 80; return p; }
+    }
+    p.mx = NaN; p.age = 0; p.max = 10; return p;
+  }
+  seed() {
+    const W = this.cv.width / (this.dpr || 1), H = this.cv.height / (this.dpr || 1), n = Math.round(Math.min(2600, W * H / (W < 600 ? 520 : 380)));
+    this.P = Array.from({ length: n }, () => { const p = this.spawn({}); p.age = Math.random() * p.max; return p; });
+    this.clear();
+  }
+  loop() {
+    if (!this.run) return; requestAnimationFrame(() => this.loop());
+    if (document.hidden || !this.M || this.map.isMoving()) return;
+    const g = this.g, r = this.dpr, now = performance.now(), dt = Math.min(0.05, ((now - (this.last || now)) / 1000) || 0.016); this.last = now;
+    // gamle spor blekner
+    g.globalCompositeOperation = 'destination-in'; g.fillStyle = 'rgba(0,0,0,0.9)'; g.fillRect(0, 0, this.cv.width, this.cv.height);
+    g.globalCompositeOperation = 'source-over'; g.lineWidth = 1.3 * r; g.lineCap = 'round'; g.strokeStyle = 'rgba(255,255,255,0.85)'; g.beginPath();
+    // skjermfart: 1 m/s ≈ 75 skjermpunkter i sekundet (uavhengig av zoom, så bevegelsen alltid synes)
+    const z = this.map.getZoom(), mPerPx = 2 * ORIG / (512 * 2 ** z), K = 75 * mPerPx;
+    for (const p of this.P) {
+      if (!(p.mx === p.mx) || ++p.age > p.max) { this.spawn(p); continue; }
+      const v = this.vel(p.mx, p.my); if (!v) { this.spawn(p); continue; }
+      const a = this.map.project([lonOf(p.mx), latOf(p.my)]);
+      p.mx += v[0] * K * dt; p.my += v[1] * K * dt;
+      const b = this.map.project([lonOf(p.mx), latOf(p.my)]);
+      g.moveTo(a.x * r, a.y * r); g.lineTo(b.x * r, b.y * r);
+    }
+    g.stroke();
+  }
+  stop() { this.run = false; this.clear(); }
+  remove() { this.stop(); this.cv.remove(); }
 }
 
 export class Current {
@@ -22,7 +71,6 @@ export class Current {
     this.api = api; this.onChange = onChange; this.meta = null; this.frames = new Map(); this.h = 0; this.err = '';
     try { this.on = localStorage.getItem('fiskesim.strom') === '1'; } catch (e) { this.on = false; }
     api.onStyle((map) => this.add(map));
-    api.map.on('moveend', () => this.refresh());
     if (this.active) this.load();
   }
   // aktiv: slått på som lag, eller strømkartet er valgt
@@ -31,8 +79,7 @@ export class Current {
   setOn(v) {
     this.on = !!v; try { localStorage.setItem('fiskesim.strom', v ? '1' : '0'); } catch (e) { /* privat */ }
     const map = this.api.map;
-    if (map.getLayer('strom')) map.setLayoutProperty('strom', 'visibility', this.active ? 'visible' : 'none');
-    if (this.active) this.load(); else this.onChange();
+    if (this.active) this.load(); else { if (this.flow) this.flow.stop(); this.onChange(); }
   }
   async load() {
     try {
@@ -52,37 +99,20 @@ export class Current {
   get time() { return this.meta ? this.meta.t[this.h] : null; }
   add(map) {
     this.heatUrl = null;
-    if (!this.active) { this.onChange(); return; }
+    if (!this.active) { if (this.flow) this.flow.stop(); this.onChange(); return; }
     if (!this.meta) { this.load(); return; }
     this.syncHeat();
-    if (!map.hasImage('strom-pil')) map.addImage('strom-pil', arrowImage(), { sdf: true, pixelRatio: 2 });
-    if (!map.getSource('strom')) map.addSource('strom', { type: 'geojson', data: EMPTY });
-    if (!map.getLayer('strom')) {
-      const col = ['interpolate', ['linear'], ['get', 's']]; for (const [s, c] of SPEED_STOPS) col.push(s, c);
-      map.addLayer({ id: 'strom', type: 'symbol', source: 'strom', layout: {
-        'icon-image': 'strom-pil', 'icon-rotate': ['get', 'd'], 'icon-rotation-alignment': 'map', 'icon-allow-overlap': true, 'icon-ignore-placement': true,
-        'icon-size': ['interpolate', ['linear'], ['get', 's'], 0, 0.7, 0.3, 1.15, 1, 1.7],
-      }, paint: { 'icon-color': this.heatMap ? 'rgba(255,255,255,0.9)' : col, 'icon-halo-color': 'rgba(10,20,30,0.85)', 'icon-halo-width': 1.2, 'icon-opacity': ['interpolate', ['linear'], ['get', 's'], 0, 0.45, 0.1, 0.95] } });
-    }
   }
   async refresh() {
-    if (!this.active || !this.meta) return;
-    const map = this.api.map, M = this.meta, h = this.h, seq = (this.seq = (this.seq || 0) + 1);
+    if (!this.active || !this.meta) { if (this.flow) this.flow.stop(); return; }
+    const M = this.meta, h = this.h, seq = (this.seq = (this.seq || 0) + 1);
     let f; try { f = await this.frame(h); } catch (e) { this.err = 'Fikk ikke hentet strømmen for denne timen.'; this.onChange(); return; }
-    if (seq !== this.seq || !map.getSource('strom')) return;
-    // en pil per ca. 44 skjermpunkter
-    const cell = (M.bbox[2] - M.bbox[0]) / M.nx, mPerPx = 2 * ORIG / (512 * 2 ** map.getZoom()), st = Math.max(1, Math.round(44 * mPerPx / cell));
-    const b = map.getBounds(), x0 = mxOf(b.getWest()), x1 = mxOf(b.getEast()), y0 = myOf(Math.max(-85, b.getSouth())), y1 = myOf(Math.min(85, b.getNorth()));
-    const i0 = Math.max(0, Math.floor((x0 - M.bbox[0]) / cell / st) * st), i1 = Math.min(M.nx - 1, Math.ceil((x1 - M.bbox[0]) / cell));
-    const j0 = Math.max(0, Math.floor((M.bbox[3] - y1) / cell / st) * st), j1 = Math.min(M.ny - 1, Math.ceil((M.bbox[3] - y0) / cell));
-    const feats = [];
-    for (let j = j0; j <= j1; j += st) for (let i = i0; i <= i1; i += st) {
-      const k = j * M.nx + i, ue = f.raw.u[k], vn = f.raw.v[k]; if (!(ue === ue)) continue;
-      const s = Math.hypot(ue, vn); if (s < 0.02) continue;
-      feats.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [lonOf(M.bbox[0] + (i + 0.5) * cell), latOf(M.bbox[3] - (j + 0.5) * cell)] },
-        properties: { s: Math.round(s * 100) / 100, d: Math.round((Math.atan2(ue, vn) * 180 / Math.PI + 360) % 360) } });
+    if (seq !== this.seq) return;
+    if (this.fieldKey !== M.laget + ':' + h || !this.flow || !this.flow.run) {
+      this.fieldKey = M.laget + ':' + h;
+      if (!this.flow) this.flow = new Flow(this.api.map);
+      this.flow.setField(M, f);
     }
-    map.getSource('strom').setData({ type: 'FeatureCollection', features: feats });
     this.onChange();
   }
   // strømmen i et punkt (til infoboksen): { s m/s, d grader dit den går } eller null
