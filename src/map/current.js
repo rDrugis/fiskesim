@@ -41,11 +41,12 @@ export class Current {
     if (first) { map.getSource('relief').setTiles([url]); this.front = 'relief'; map.setPaintProperty('relief', 'raster-opacity-transition', { duration: 1600 }); return; }
     const back = this.front === 'relief' ? 'relief2' : 'relief', seq = (this.xseq = (this.xseq || 0) + 1);
     map.getSource(back).setTiles([url]);
+    this.pending = true;
     const swap = () => {
-      if (seq !== this.xseq) return;
+      if (seq !== this.xseq) return; this.pending = false;
       map.setPaintProperty(back, 'raster-opacity', 1); map.setPaintProperty(this.front, 'raster-opacity', 0); this.front = back;
     };
-    let tries = 0; const wait = () => { if (seq !== this.xseq) return; if (map.isSourceLoaded(back) || ++tries > 40) swap(); else setTimeout(wait, 100); };
+    let tries = 0; const wait = () => { if (seq !== this.xseq) return; if (map.isSourceLoaded(back) || ++tries > 100) swap(); else setTimeout(wait, 100); };
     setTimeout(wait, 150);
   }
   step(d) { if (!this.meta) return; this.pause(); this.h = Math.max(0, Math.min(this.meta.t.length - 1, this.h + d)); this.syncHeat(); this.onChange(); }
@@ -58,15 +59,15 @@ export class Current {
     if (this.playing === undefined) { let calm = false; try { calm = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { /* eldre nettlesere */ } if (!calm) this.play(); }
   }
   async refresh() { this.onChange(); }
-  // avspilling: én time hvert 2,5 sekund, fra nå og ut prognosen, så tilbake til nå
+  // avspilling: én time hvert 3. sekund (eller så snart forrige time er tegnet), fra nå og ut prognosen, så tilbake til nå
   play() {
     if (!this.meta) return; this.playing = true; clearInterval(this.timer);
     this.timer = setInterval(() => {
-      if (!this.active || document.hidden) return;
+      if (!this.active || document.hidden || this.pending) return;   // venter til forrige time er ferdig tegnet
       this.h = this.h >= this.meta.t.length - 1 ? nearestHour(this.meta, Date.now()) : this.h + 1;
       this.syncHeat(); this.onChange();
       currentFrame(this.meta, Math.min(this.meta.t.length - 1, this.h + 1)).catch(() => {});
-    }, 2500);
+    }, 3000);
     this.onChange();
   }
   pause() { this.playing = false; clearInterval(this.timer); this.onChange(); }
