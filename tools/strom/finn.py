@@ -15,5 +15,7 @@ p = 'fou-hi/norkystv3_his_files/'
 for _ in range(3):
     refs, ds = cat(p + 'catalog.xml')
     if not refs: break
-    p = p + sorted(refs)[-1].replace('catalog.xml', '')
+    num = sorted(r for r in refs if r.split('/')[0].isdigit())
+    if not num: break
+    p = p + num[-1].replace('catalog.xml', '')
 refs, ds = cat(p + 'catalog.xml'); print('== nyeste', p); [print('  DS', d) for d in ds]
