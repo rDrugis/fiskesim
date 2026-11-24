@@ -299,3 +299,11 @@ a { color: #8fd0ec; }
 .bleg i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
 .bleg small { flex-basis: 100%; color: var(--text-3); }
 .drprof { margin-top: 10px; width: 100%; }
+
+/* strømkart: tid og fartsskala */
+.strombar { position: fixed; left: calc(12px + var(--safe-l, 0px)); bottom: calc(52px + var(--safe-b)); z-index: 4; background: var(--hull); border: 1px solid var(--line); border-radius: var(--r-s); padding: 6px 9px; font-size: 12px; color: var(--text-2); width: 200px; }
+.strombar .st-row { display: flex; align-items: center; gap: 6px; } .strombar .st-row b { color: var(--text); margin-right: auto; }
+.strombar .st-bar { height: 6px; border-radius: 3px; margin-top: 6px; }
+.strombar .st-ticks { display: flex; justify-content: space-between; font-size: 10px; margin-top: 1px; }
+.strombar small { display: block; margin-top: 3px; font-size: 10px; opacity: .8; } .strombar .warn { color: var(--warn, #ffb347); }
+.in3d .strombar { display: none; }
