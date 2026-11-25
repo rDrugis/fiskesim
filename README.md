@@ -48,7 +48,7 @@ npm run build      # bygger assets/
 python3 -m http.server 8000
 ```
 
-Algoritmedata hentes fra Fiskeguide med `node tools/fgsync.mjs ../Fiskeguide/index.html`.
+Algoritmedataene ligger i `src/algo/fgdata.js` (opprinnelig fra Fiskeguide, som ikke har algoritmen lenger) og Fiskesims tillegg i `src/algo/extra.js`.
 Live-testen (`.github/workflows/livetest.yml`) sammenligner fiskeplassene med Fiskeguide og tar skjermbilder; resultatet havner i grenen `livetest-results`.
 
 ## Lisens
