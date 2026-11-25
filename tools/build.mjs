@@ -25,7 +25,8 @@ const opts = {
   logLevel: 'info',
   legalComments: 'linked',
   // versjon i adressene til trådene, så nettleseren ikke bruker gamle filer etter en oppdatering
-  define: { __V__: JSON.stringify(Date.now().toString(36)) },
+  // DATA_BASE (Mac-appen): dybdeflisene hentes fra nettsiden i stedet for fra appen selv
+  define: { __V__: JSON.stringify(Date.now().toString(36)), __DATA_BASE__: JSON.stringify(process.env.DATA_BASE || '') },
 };
 if (watch) { const ctx = await esbuild.context(opts); await ctx.watch(); }
 else {
