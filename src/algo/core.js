@@ -1,6 +1,5 @@
-// Fiskeplassalgoritmen fra Fiskeguide (rDrugis/Fiskeguide), overført linje for linje til Fiskesim.
-// Samme dybdekrav, bunnformer, terskler, månedsunntak, fredningsvarsler, oppdrettsavstand og bonus for registrerte
-// fiskeplasser – slik at punktene blir de samme som i Fiskeguide. Tilleggene i Fiskesim står i extra.js og er merket der.
+// Fiskeplassalgoritmen, opprinnelig overført linje for linje fra Fiskeguide (rDrugis/Fiskeguide, e3bb4f7).
+// Fiskeguide har ikke algoritmen lenger – den vedlikeholdes nå bare her. Tilleggene i Fiskesim står i extra.js og er merket der.
 //
 // Hvordan algoritmen virker (fra Fiskeguide):
 //  • Kartet deles i faste ruter på 6 × 6 km (EPSG:3857). Hver rute regnes én gang med 10 m per bildepunkt
