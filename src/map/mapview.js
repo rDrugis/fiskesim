@@ -1,5 +1,6 @@
 // 2D-kart (MapLibre): dybderelieff, sjøkart og nattkart med Kartverkets data.
 import { SRC } from '../data/sources.js';
+import { offFetch } from '../net/offline.js';
 import { UTM33 } from '../geo/proj.js';
 
 let ml = null;
@@ -13,6 +14,13 @@ export async function loadMapLibre() {
 }
 
 const EMPTY = { type: 'FeatureCollection', features: [] };
+
+// Nedlastede områder: kartdataene går via off://, som bruker offline-lageret før nettet (se net/offline.js).
+// Slått på bare når det finnes nedlastede områder, så vanlig bruk går rett mot nettet.
+export const offMode = () => { try { return +(localStorage.getItem('fiskesim.offn') || 0) > 0; } catch (e) { return false; } };
+const W = (u) => (offMode() ? 'off://' + u : u);
+// uten nett: sjøkartet strekkes fra zoom 15 (det som lastes ned), i stedet for tomme fliser
+const kvMax = () => (offMode() && typeof navigator !== 'undefined' && navigator.onLine === false ? 15 : 18);
 
 export const MAP_STYLES = [
   { id: 'fiskekart', label: 'Fiskekart', short: 'Fisk' },
@@ -83,10 +91,11 @@ function buildStyle(kind) {
   const night = kind === 'natt';
   const land = night ? '#1c1f1b' : '#22261f';
   const sources = {
-    ofm: { type: 'vector', url: SRC.ofm, attribution: '© OpenStreetMap' },
+    ofm: { type: 'vector', url: W(SRC.ofm), attribution: '© OpenStreetMap' },
     relief: { type: 'raster', tiles: [`relief://${night ? 'natt' : kind === 'bunn' ? 'bunn' : 'dag'}/{z}/{x}/{y}`], tileSize: 256, minzoom: 7, maxzoom: 17, attribution: '© Kartverket' },
-    dem: { type: 'raster-dem', tiles: [SRC.terrarium], encoding: 'terrarium', tileSize: 256, maxzoom: 14, attribution: 'Mapzen' },
-    kvsjo: { type: 'raster', tiles: [SRC.wmtsKV('sjokartraster')], tileSize: 256, maxzoom: 18, attribution: '© Kartverket' },
+    // zoom 12 holder (terrengdataene i Norge er grovere enn det); høyere zoom strekkes
+    dem: { type: 'raster-dem', tiles: [W(SRC.terrarium)], encoding: 'terrarium', tileSize: 256, maxzoom: 12, attribution: 'Mapzen' },
+    kvsjo: { type: 'raster', tiles: [W(SRC.wmtsKV('sjokartraster'))], tileSize: 256, maxzoom: kvMax(), attribution: '© Kartverket' },
     names: { type: 'geojson', data: EMPTY },
     marks: { type: 'geojson', data: EMPTY },
   };
@@ -113,7 +122,7 @@ function buildStyle(kind) {
     paint: { 'text-color': kind === 'sjokart' ? '#173a5c' : ['case', ['==', ['get', 'sjo'], 1], '#bfe0ef', '#eef0ea'], 'text-halo-color': kind === 'sjokart' ? '#ffffffcc' : '#0b1620', 'text-halo-width': 1.2 } });
   layers.push({ id: 'marks-line', type: 'line', source: 'marks', filter: ['==', ['geometry-type'], 'LineString'], paint: { 'line-color': '#ff6a13', 'line-width': 2, 'line-dasharray': [2, 1.5] } });
   layers.push({ id: 'marks-pt', type: 'circle', source: 'marks', filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-radius': 6, 'circle-color': '#ff6a13', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 } });
-  return { version: 8, glyphs: SRC.ofmGlyphs, sources, layers };
+  return { version: 8, glyphs: W(SRC.ofmGlyphs), sources, layers };
 }
 
 // Dybdekart slik Fiskeguiden viser det: Kartverkets gråtonekart med dybdedata (Dybdedata2) oppå
@@ -174,6 +183,12 @@ async function loadNames(lat, lon, radius) {
 
 export async function createMap(container, opts = {}) {
   const maplibregl = await loadMapLibre();
+  maplibregl.addProtocol('off', async (params, ctl) => {
+    const r = await offFetch(fetch, params.url.slice(6), { signal: ctl && ctl.signal });
+    if (!r.ok) throw new Error('Svar ' + r.status);
+    if (params.type === 'json') { const j = await r.json(); if (j.tiles) j.tiles = j.tiles.map((t) => 'off://' + t); return { data: j }; }
+    return { data: await r.arrayBuffer() };
+  });
   maplibregl.addProtocol('relief', async (params) => {
     const m = params.url.match(/^relief:\/\/(\w+)\/(\d+)\/(\d+)\/(\d+)/);
     const data = await reliefTile(+m[2], +m[3], +m[4], m[1]);
@@ -226,7 +241,14 @@ export async function createMap(container, opts = {}) {
     depthAt: reliefDepth,
     reliefStats,
     depthsAt: reliefDepths,
+    // nedlasting av områder
+    reliefRec: (area) => Promise.all((reliefWorker(0), pool).map((w) => new Promise((res, rej) => { const id = ++reqId; waiting.set(id, { res, rej }); w.postMessage({ id, kind: 'rec', area }); }))),
+    reliefPrefetch: (z, x, y) => { const id = ++reqId; return new Promise((res, rej) => { waiting.set(id, { res, rej }); reliefWorker(x * 31 + y * 17 + z).postMessage({ id, kind: 'prefetch', z, x, y }); }); },
+    refresh() { api.setStyle(kind); },
   };
+  // nett av/på: sjøkartet bytter mellom full oppløsning og det som er lastet ned
+  addEventListener('online', () => { if (offMode() && kind === 'sjokart') api.refresh(); });
+  addEventListener('offline', () => { if (offMode() && kind === 'sjokart') api.refresh(); });
   return api;
 }
 

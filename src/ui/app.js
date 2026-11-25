@@ -12,6 +12,8 @@ import { SRC, ATTRIB } from '../data/sources.js';
 import { wmsImage } from '../data/kartverket.js';
 import { NGU_CLS } from '../data/terrainbuild.js';
 import { UTM33, fmtLat, fmtLon } from '../geo/proj.js';
+import { listAreas, deleteArea } from '../net/offline.js';
+import { plan, downloadArea, areaName, MAX_BYTES } from '../net/download.js';
 
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const n1 = (v) => (Math.round(v * 10) / 10).toString().replace('.', ',');
@@ -19,6 +21,7 @@ const MONTHS = ['januar', 'februar', 'mars', 'april', 'mai', 'juni', 'juli', 'au
 const ICON = {
   layers: '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 3 2 8l10 5 10-5-10-5Zm-10 9 10 5 10-5M2 16l10 5 10-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
   search: '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="m15.5 15.5 5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  offline: '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   info: '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 11v6M12 7.5v.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
 };
 
@@ -40,6 +43,7 @@ export class App {
         <button class="iconbtn" data-a="layers" aria-label="Kartlag" aria-expanded="false">${ICON.layers}</button>
         <button class="iconbtn" data-a="prof" aria-label="Dybdeprofil langs en strek" aria-pressed="false" title="Dybdeprofil: trykk to punkter i kartet">${ICON_PROF}</button>
         <button class="iconbtn" data-a="drift" aria-label="Drift med strøm og vind" aria-pressed="false" title="Drift: trykk der du vil fiske">${ICON_DRIFT}</button>
+        <button class="iconbtn" data-a="offline" aria-label="Offline-kart" aria-expanded="false" title="Last ned område til bruk uten nett">${ICON.offline}</button>
         <button class="iconbtn" data-a="about" aria-label="Om kartet og kilder">${ICON.info}</button>
       </div>
       <div class="status hidden" aria-live="polite"></div>
@@ -48,6 +52,7 @@ export class App {
       <section class="sheet-p info hidden" aria-live="polite"></section>
       <section class="sheet-p prof hidden" aria-label="Dybdeprofil"></section>
       <section class="sheet-p drift hidden" aria-label="Drift"></section>
+      <section class="sheet-p offl hidden" aria-label="Offline-kart"></section>
       <div class="xhair hidden" aria-hidden="true"></div>
       <div class="legend${style === 'fiskekart' ? '' : ' hidden'}" aria-hidden="true"><div class="bar"></div><div class="ticks num"><span>0</span><span>20</span><span>50</span><span>100</span><span>250</span><span>1000 m</span></div></div>`;
     const bar = root.querySelector('.legend .bar');
@@ -94,6 +99,7 @@ export class App {
     this.initStyles();
     this.initSearch();
     this.initLayers();
+    this.initOffline();
     if (!this.mobile) this.initCursorDepth(map);
     api.onClick((ll, e) => { if (this.profile.click(ll.lng, ll.lat)) return; if (this.drift.click(ll.lng, ll.lat)) return; if (e && this.marks.click(e)) return; this.pick(ll.lng, ll.lat); });
     this.root.querySelector('[data-a="about"]').addEventListener('click', () => this.about());
@@ -192,6 +198,64 @@ export class App {
       if (k === 'algo') { this.algo.setOn(e.target.checked); render(); }
       else if (k === 'mon') this.algo.setMonth(e.target.value);
     });
+  }
+
+  // Offline-kart: last ned området du ser, til bruk uten nett (på sjøen eller i Mac-appen)
+  initOffline() {
+    const btn = this.root.querySelector('[data-a="offline"]'), panel = this.root.querySelector('.offl'), map = this.api.map;
+    const st = { sj: false, dl: null, areas: [], use: null };
+    const mb = (b) => (b >= 1e9 ? n1(b / 1e9) + ' GB' : b >= 1e7 ? Math.round(b / 1e6) + ' MB' : n1(Math.max(0.1, b / 1e6)) + ' MB');
+    const bbox = () => { const b = map.getBounds(); return [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].map((v) => Math.round(v * 1e4) / 1e4); };
+    const render = () => {
+      const p = plan(bbox(), { sjokart: st.sj }), tooBig = p.est > MAX_BYTES || map.getZoom() < 8.5;
+      const d = st.dl;
+      panel.innerHTML = `
+        <header><h2>Offline-kart</h2><button class="iconbtn sm" data-a="oclose" aria-label="Lukk">✕</button></header>
+        <p class="hint">Laster ned området du ser i kartet nå: fiskekartet, grunnkart og terreng. Uten nett virker kartet, dybden og dybdeprofilen der. Vær, drift, fiskeplass-forslag, stedsnavn-søk og 3D trenger nett.</p>
+        ${d ? `<div class="oprog"><div class="obar"><i style="width:${Math.round(100 * d.done / Math.max(1, d.total))}%"></i></div>
+          <p class="hint">${esc(d.phase || 'Starter')} · ${d.done} av ${d.total}${d.fail ? ` · ${d.fail} feilet` : ''}</p>
+          <button class="btn sm" data-a="ostop">Avbryt</button></div>`
+        : `<label class="tog"><input type="checkbox" data-k="osj" ${st.sj ? 'checked' : ''}><span>Ta med Kartverkets sjøkart (zoom inntil 15)</span></label>
+          <button class="btn primary" data-a="odl" ${tooBig ? 'disabled' : ''}>Last ned dette området (ca. ${mb(p.est)})</button>
+          ${tooBig ? '<p class="hint">Området er for stort – zoom inn litt.</p>' : ''}`}
+        <h3>Nedlastet</h3>
+        ${st.areas.length ? `<ul class="oareas">${st.areas.map((a) => `<li><button class="go" data-ogo="${a.id}"><b>${esc(a.name)}</b><small>${mb(a.bytes)} · ${new Date(a.ts).toLocaleDateString('nb-NO')}${a.sjokart ? ' · med sjøkart' : ''}${a.fail ? ` · ${a.fail} deler mangler` : ''}</small></button><button class="btn sm" data-oup="${a.id}" ${d ? 'disabled' : ''}>Oppdater</button><button class="iconbtn sm" data-odel="${a.id}" aria-label="Slett området">✕</button></li>`).join('')}</ul>`
+        : '<p class="hint">Ingen områder ennå.</p>'}
+        ${st.use ? `<p class="hint">Brukt lagring: ${mb(st.use.usage || 0)}${st.use.quota ? ` av ${mb(st.use.quota)}` : ''}</p>` : ''}`;
+    };
+    const reload = async () => {
+      st.areas = await listAreas();
+      try { localStorage.setItem('fiskesim.offn', String(st.areas.length)); } catch (e) { /* privat */ }
+      try { st.use = navigator.storage && navigator.storage.estimate ? await navigator.storage.estimate() : null; } catch (e) { st.use = null; }
+      if (!panel.classList.contains('hidden')) render();
+    };
+    const open = (v) => { panel.classList.toggle('hidden', !v); btn.setAttribute('aria-expanded', String(v)); if (v) { this.closeInfo(); this.root.querySelector('.layers').classList.add('hidden'); render(); reload(); } };
+    btn.addEventListener('click', () => open(panel.classList.contains('hidden')));
+    map.on('moveend', () => { if (!panel.classList.contains('hidden') && !st.dl) render(); });
+    const run = async (bb, name, sj, replaceId) => {
+      const wasOff = (localStorage.getItem('fiskesim.offn') || '0') !== '0';
+      st.dl = { done: 0, total: plan(bb, { sjokart: sj }).n, fail: 0, phase: 'Starter' }; st.stop = false; render();
+      let area = null;
+      try { area = await downloadArea(this.api, { bb, name, sjokart: sj }, (pr) => { st.dl = pr; if (!panel.classList.contains('hidden')) render(); }, () => st.stop); }
+      catch (e) { this.note('Nedlastingen feilet: ' + (e.message || e)); }
+      st.dl = null;
+      if (area && replaceId) await deleteArea(replaceId);
+      await reload(); render();
+      if (area) { this.note(`${area.name} er lastet ned (${mb(area.bytes)})`); if (!wasOff) this.api.refresh(); }
+      else if (st.stop) this.note('Nedlastingen ble avbrutt');
+    };
+    panel.addEventListener('click', async (e) => {
+      if (e.target.closest('[data-a="oclose"]')) { open(false); return; }
+      if (e.target.closest('[data-a="ostop"]')) { st.stop = true; return; }
+      if (e.target.closest('[data-a="odl"]')) { const bb = bbox(), c = map.getCenter(); run(bb, await areaName(c.lng, c.lat), st.sj); return; }
+      const g = e.target.closest('[data-ogo]'); if (g) { const a = st.areas.find((x) => x.id === g.dataset.ogo); if (a) map.fitBounds([[a.bb[0], a.bb[1]], [a.bb[2], a.bb[3]]], { padding: 10 }); if (this.mobile) open(false); return; }
+      const u = e.target.closest('[data-oup]'); if (u) { const a = st.areas.find((x) => x.id === u.dataset.oup); if (a) run(a.bb, a.name, a.sjokart, a.id); return; }
+      const del = e.target.closest('[data-odel]'); if (del) { const freed = await deleteArea(del.dataset.odel); await reload(); this.note(`Slettet (${mb(freed)} frigjort)`); if (!st.areas.length) this.api.refresh(); }
+    });
+    panel.addEventListener('change', (e) => { if (e.target.dataset.k === 'osj') { st.sj = e.target.checked; render(); } });
+    addEventListener('offline', () => this.note(st.areas.length || localStorage.getItem('fiskesim.offn') > 0 ? 'Uten nett – nedlastede områder vises' : 'Uten nett'));
+    addEventListener('online', () => this.note('Nett igjen'));
+    reload();
   }
 
   initSearch() {

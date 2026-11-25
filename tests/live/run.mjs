@@ -368,6 +368,44 @@ if (want('shots') || want('3d')) {
   await shot('3d-mobil', '?sted=60.516,5.262&z=14&vis=3d', { mobile: true, wait: 50000, act: day3d });
 }
 
+// ---------- Offline: last ned et område, steng nettet (også pre/), last siden på nytt ----------
+if (want('offline')) {
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const pg = await ctx.newPage(), errs = [];
+  pg.on('pageerror', (e) => errs.push(String(e).slice(0, 300)));
+  pg.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push('konsoll: ' + m.text().slice(0, 200)); });
+  await pg.goto(BASE + '?sted=60.525,5.262&z=12.6', { waitUntil: 'load' });
+  await waitFor(pg, () => !!(window.fiskesim && window.fiskesim.api), 30000);
+  await pg.waitForTimeout(4000);
+  await pg.click('[data-a="offline"]'); await pg.waitForTimeout(800);
+  const estTxt = await pg.textContent('[data-a="odl"]').catch(() => null);
+  const t0 = Date.now();
+  await pg.click('[data-a="odl"]');
+  const doneTxt = await waitFor(pg, () => { const li = document.querySelector('.oareas li'); return li && !document.querySelector('.oprog') ? li.innerText : null; }, 900000, 3000);
+  const dlSec = Math.round((Date.now() - t0) / 1000);
+  log('offline: nedlasting', dlSec, 's', estTxt, '→', doneTxt && doneTxt.replace(/\s+/g, ' '));
+  await pg.screenshot({ path: join(OUT, 'offline-panel.png') });
+  // tøm de vanlige hurtiglagrene, så bare offline-lageret kan gi data
+  await pg.evaluate(async () => { try { await caches.delete('fiskesim-data-v1'); } catch (e) {} await new Promise((r) => { const q = indexedDB.deleteDatabase('fiskekart'); q.onsuccess = q.onerror = q.onblocked = () => r(); }); });
+  const blocked = [];
+  await ctx.route('**/*', (r) => { const u = r.request().url(); if (u.startsWith('http://127.0.0.1:8123/') && !u.includes('/pre/')) return r.continue(); blocked.push(u.replace(/\?.*/, '').slice(0, 90)); return r.abort('internetdisconnected'); });
+  const out = { dlSec, est: estTxt, done: doneTxt, views: [] };
+  for (const [name, q] of [['offline-z12', '?sted=60.525,5.262&z=12.3'], ['offline-z14', '?sted=60.518,5.27&z=14'], ['offline-z16', '?sted=60.518,5.27&z=16'], ['offline-utenfor', '?sted=60.40,5.10&z=13']]) {
+    blocked.length = 0;
+    await pg.goto(BASE + q, { waitUntil: 'load' });
+    await waitFor(pg, () => !!(window.fiskesim && window.fiskesim.api), 30000);
+    await pg.waitForTimeout(15000);
+    const info = await pg.evaluate(async () => { const api = window.fiskesim.api, c = api.map.getCenter(); let d = null; try { d = await api.depthAt(c.lng, c.lat); } catch (e) { d = String(e); }
+      return { depth: d, ofm: api.map.isSourceLoaded('ofm'), relief: api.map.isSourceLoaded('relief') }; }).catch((e) => ({ err: String(e) }));
+    const ext = [...new Set(blocked.map((u) => new URL(u).host + (u.includes('/pre/') ? '/pre' : '')))];
+    out.views.push({ name, info, blockedHosts: ext, nBlocked: blocked.length });
+    log('offline:', name, JSON.stringify(info).slice(0, 200), '· blokkert', blocked.length, ext.join(' '));
+    await pg.screenshot({ path: join(OUT, name + '.png') });
+  }
+  out.errs = errs; report.offline = out;
+  await ctx.close();
+}
+
 report.finished = new Date().toISOString();
 await writeFile(join(OUT, 'report.json'), JSON.stringify(report, null, 1));
 log('ferdig', report.errors.length ? 'feil: ' + report.errors.join('; ') : '');

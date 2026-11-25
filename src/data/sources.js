@@ -1,4 +1,5 @@
 // Datakilder (alle hentes direkte i nettleseren, ingen egen server).
+import { OFF } from '../net/offline.js';
 
 export const SRC = {
   wmsDybde: 'https://wms.geonorge.no/skwms1/wms.dybdedata2',
@@ -29,7 +30,8 @@ export const ATTRIB = [
 const CACHE_NAME = 'fiskesim-data-v1';
 export async function fetchCached(url, { timeout = 30000, cache = true, as = 'arrayBuffer' } = {}) {
   let c = null;
-  if (cache && typeof caches !== 'undefined') {
+  // under nedlasting av et område hentes alt på nytt, så det havner i offline-lageret
+  if (cache && !OFF.rec && typeof caches !== 'undefined') {
     try { c = await caches.open(CACHE_NAME); const hit = await c.match(url); if (hit) return await hit[as](); } catch (e) { c = null; }
   }
   const ctl = new AbortController();
