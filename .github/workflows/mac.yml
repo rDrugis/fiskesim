@@ -1,0 +1,60 @@
+# Bygger Fiskesim som Mac-app (Tauri, universal: Apple Silicon og Intel) og legger den i releasen «mac-app».
+# Appen er ikke signert av Apple (krever betalt utviklerkonto), bare ad hoc-signert.
+name: mac-app
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['src/**', 'app/**', 'index.html', 'tools/build.mjs', 'package.json', '.github/workflows/mac.yml']
+permissions:
+  contents: write
+concurrency: { group: mac-app, cancel-in-progress: true }
+jobs:
+  mac:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci --no-audit --no-fund
+      - name: Bygg nettsiden for appen (dybdeflisene hentes fra nettsiden)
+        env: { DATA_BASE: 'https://rdrugis.github.io/fiskesim/' }
+        run: |
+          node tools/build.mjs
+          mkdir -p app/dist && cp -r index.html assets LICENSE LICENSES app/dist/
+      - run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: 'app/src-tauri -> target' }
+      - name: Ikoner
+        working-directory: app
+        run: npx --yes @tauri-apps/cli@2 icon icon.png -o src-tauri/icons
+      - name: Bygg appen
+        working-directory: app
+        run: npx --yes @tauri-apps/cli@2 build --target universal-apple-darwin --bundles app
+      - name: Lag .dmg
+        run: |
+          APP=$(find app/src-tauri/target/universal-apple-darwin/release/bundle/macos -maxdepth 1 -name '*.app' | head -1)
+          echo "app: $APP"; du -sh "$APP"; codesign -dv "$APP" 2>&1 | head -5 || true
+          mkdir -p /tmp/dmg && cp -R "$APP" /tmp/dmg/ && ln -s /Applications /tmp/dmg/Programmer
+          hdiutil create -volname Fiskesim -srcfolder /tmp/dmg -ov -format UDZO Fiskesim.dmg
+          ditto -c -k --keepParent "$APP" Fiskesim-mac.zip
+          ls -la Fiskesim.dmg Fiskesim-mac.zip
+      - name: Legg i releasen «mac-app»
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          NOTES=$(cat <<'TXT'
+          Fiskesim som Mac-app (Apple Silicon og Intel, macOS 13 eller nyere).
+
+          **Installering:** åpne Fiskesim.dmg og dra Fiskesim til Programmer.
+
+          **Første gang:** appen er ikke signert av Apple, så macOS stopper den. Åpne Systeminnstillinger → Personvern og sikkerhet, bla ned og trykk «Åpne likevel» ved Fiskesim. Etter det åpnes den som vanlig. (Virker ikke det: kjør `xattr -dr com.apple.quarantine /Applications/Fiskesim.app` i Terminal.)
+
+          **Offline:** trykk på nedlastingsknappen til høyre i kartet og last ned området du ser.
+          TXT
+          )
+          gh release view mac-app >/dev/null 2>&1 || gh release create mac-app --title "Fiskesim for Mac" --notes "$NOTES" --latest=false
+          gh release edit mac-app --notes "$NOTES
+
+          Bygget fra ${GITHUB_SHA::7} $(date -u +%Y-%m-%d)."
+          gh release upload mac-app Fiskesim.dmg Fiskesim-mac.zip --clobber
