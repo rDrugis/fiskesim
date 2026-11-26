@@ -409,7 +409,8 @@ if (want('autorute')) {
       return { err: leg.error || leg.warn || null, cell: leg.cell, punkter: L.length, nm: Math.round(m / 1852 * 10) / 10, rettNm: Math.round(d(a, b) / 1852 * 10) / 10, rute: await chk(L), rett: await chk([a, b]), txt: document.querySelector('.fuel .fuout').textContent.slice(0, 160) };
     }, { a, b }).catch((e) => ({ err: String(e).slice(0, 200) }));
     r.sek = Math.round((Date.now() - t0) / 100) / 10;
-    await pg.evaluate(({ a, b }) => window.fiskesim.api.map.fitBounds([[Math.min(a[0], b[0]), Math.min(a[1], b[1])], [Math.max(a[0], b[0]), Math.max(a[1], b[1])]], { padding: 120, duration: 0 }), { a, b });
+    r.linje = await pg.evaluate(() => window.fiskesim.app.fuel.line().map((p) => [Math.round(p[0] * 1e3) / 1e3, Math.round(p[1] * 1e3) / 1e3]));
+    await pg.evaluate(() => { const L = window.fiskesim.app.fuel.line(); const xs = L.map((p) => p[0]), ys = L.map((p) => p[1]); window.fiskesim.api.map.fitBounds([[Math.min(...xs), Math.min(...ys)], [Math.max(...xs), Math.max(...ys)]], { padding: { top: 80, bottom: 40, left: 560, right: 80 }, duration: 0 }); });
     await pg.waitForTimeout(3500); await pg.screenshot({ path: join(OUT, 'autorute-' + name + '.png') });
     out.push({ name, ...r }); log('autorute', name, JSON.stringify(r));
   }
