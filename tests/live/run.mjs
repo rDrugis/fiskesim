@@ -368,6 +368,25 @@ if (want('shots') || want('3d')) {
   await shot('3d-mobil', '?sted=60.516,5.262&z=14&vis=3d', { mobile: true, wait: 50000, act: day3d });
 }
 
+// ---------- Drivstoffkalkulator ----------
+if (want('drivstoff')) {
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const pg = await ctx.newPage(), errs = [];
+  pg.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));
+  await pg.goto(BASE + '?sted=60.52,5.27&z=12', { waitUntil: 'load' });
+  await waitFor(pg, () => !!(window.fiskesim && window.fiskesim.api), 30000);
+  await pg.waitForTimeout(3000);
+  await pg.click('[data-a="fuel"]');
+  for (const [x, y] of [[400, 400], [800, 300], [900, 600]]) { await pg.mouse.click(x, y); await pg.waitForTimeout(400); }
+  const txt1 = await pg.textContent('.fuel .fuout');
+  await pg.fill('.fuel input[data-k="kn"]', '10'); await pg.check('.fuel input[data-k="retur"]'); await pg.waitForTimeout(300);
+  const txt2 = await pg.textContent('.fuel .fuout');
+  const exp = await pg.evaluate(() => { const f = window.fiskesim.app.fuel; return { pts: f.pts.length, calc: f.calc() }; });
+  await pg.screenshot({ path: join(OUT, 'drivstoff.png') });
+  report.drivstoff = { txt1, txt2, exp, errs }; log('drivstoff', JSON.stringify(report.drivstoff));
+  await ctx.close();
+}
+
 report.finished = new Date().toISOString();
 await writeFile(join(OUT, 'report.json'), JSON.stringify(report, null, 1));
 log('ferdig', report.errors.length ? 'feil: ' + report.errors.join('; ') : '');

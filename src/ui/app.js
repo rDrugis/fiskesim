@@ -6,6 +6,7 @@ import { Soundings } from '../map/soundings.js';
 import { AlgoLayer, SPECIES } from '../map/algolayer.js';
 import { Profile, ICON_PROF } from '../map/profile.js';
 import { Drift, ICON_DRIFT } from '../map/drift.js';
+import { Fuel, ICON_FUEL } from '../map/fuel.js';
 import * as ALGO from '../algo/index.js';
 import { PAL, rgb } from '../map/palette.js';
 import { SRC, ATTRIB } from '../data/sources.js';
@@ -40,6 +41,7 @@ export class App {
         <button class="iconbtn" data-a="layers" aria-label="Kartlag" aria-expanded="false">${ICON.layers}</button>
         <button class="iconbtn" data-a="prof" aria-label="Dybdeprofil langs en strek" aria-pressed="false" title="Dybdeprofil: trykk to punkter i kartet">${ICON_PROF}</button>
         <button class="iconbtn" data-a="drift" aria-label="Drift med strøm og vind" aria-pressed="false" title="Drift: trykk der du vil fiske">${ICON_DRIFT}</button>
+        <button class="iconbtn" data-a="fuel" aria-label="Drivstoffkalkulator" aria-pressed="false" title="Drivstoff: trykk punkter for ruten">${ICON_FUEL}</button>
         <button class="iconbtn" data-a="about" aria-label="Om kartet og kilder">${ICON.info}</button>
       </div>
       <div class="status hidden" aria-live="polite"></div>
@@ -48,6 +50,7 @@ export class App {
       <section class="sheet-p info hidden" aria-live="polite"></section>
       <section class="sheet-p prof hidden" aria-label="Dybdeprofil"></section>
       <section class="sheet-p drift hidden" aria-label="Drift"></section>
+      <section class="sheet-p fuel hidden" aria-label="Drivstoff"></section>
       <div class="xhair hidden" aria-hidden="true"></div>
       <div class="legend${style === 'fiskekart' ? '' : ' hidden'}" aria-hidden="true"><div class="bar"></div><div class="ticks num"><span>0</span><span>20</span><span>50</span><span>100</span><span>250</span><span>1000 m</span></div></div>`;
     const bar = root.querySelector('.legend .bar');
@@ -90,12 +93,21 @@ export class App {
     // hold plass til profilpanelet: punktinfo legger seg over det, og fargeskalaen skjules
     new ResizeObserver(() => { const h = ppanel.classList.contains('hidden') ? 0 : ppanel.offsetHeight; this.root.style.setProperty('--profh', h + 'px'); this.root.classList.toggle('hasprof', h > 0); }).observe(ppanel);
     new MutationObserver(() => { const h = ppanel.classList.contains('hidden') ? 0 : ppanel.offsetHeight; this.root.style.setProperty('--profh', h + 'px'); this.root.classList.toggle('hasprof', h > 0); }).observe(ppanel, { attributes: true, attributeFilter: ['class'] });
+    // drivstoffkalkulator: trykk punkter i kartet for ruten
+    const fbtn = this.root.querySelector('[data-a="fuel"]'), fpanel = this.root.querySelector('.fuel');
+    this.fuel = new Fuel(api, fpanel, { onMode: (on) => fbtn.setAttribute('aria-pressed', String(on)) });
+    fbtn.addEventListener('click', () => {
+      if (this.fuel.active) { this.fuel.clear(); return; }
+      this.profile.clear(); this.drift.clear(); this.closeInfo(); this.root.querySelector('.layers').classList.add('hidden'); this.fuel.start();
+    });
+    pbtn.addEventListener('click', () => this.fuel.active && this.fuel.clear());
+    dbtn.addEventListener('click', () => this.fuel.active && this.fuel.clear());
     this.initGPS();
     this.initStyles();
     this.initSearch();
     this.initLayers();
     if (!this.mobile) this.initCursorDepth(map);
-    api.onClick((ll, e) => { if (this.profile.click(ll.lng, ll.lat)) return; if (this.drift.click(ll.lng, ll.lat)) return; if (e && this.marks.click(e)) return; this.pick(ll.lng, ll.lat); });
+    api.onClick((ll, e) => { if (this.fuel.click(ll.lng, ll.lat)) return; if (this.profile.click(ll.lng, ll.lat)) return; if (this.drift.click(ll.lng, ll.lat)) return; if (e && this.marks.click(e)) return; this.pick(ll.lng, ll.lat); });
     this.root.querySelector('[data-a="about"]').addEventListener('click', () => this.about());
     window.fiskesim = { app: this, api, algo: this.algo, ALGO }; // for feilsøking og tester
     if (p.get('vis') === '3d') this.open3D(center[0], center[1]);
