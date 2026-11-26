@@ -409,6 +409,11 @@ if (want('algobunn')) {
 // ---------- Tidevannsgraf ----------
 if (want('tide')) {
   const out = [];
+  { const ctx = await browser.newContext(), pg = await ctx.newPage(); await pg.goto(BASE, { waitUntil: 'load' });
+    for (const u of ['https://vannstand.kartverket.no/tideapi.php', 'https://api.sehavniva.no/tideapi.php']) {
+      const r = await pg.evaluate(async (u) => { try { const q = u + '?tide_request=locationdata&lat=60.5200&lon=5.2700&datatype=PRE&lang=nb&place=&dst=0&refcode=CD&fromtime=2026-11-26T00:00%2B01:00&totime=2026-11-26T03:00%2B01:00&interval=60'; const x = await fetch(q); return x.status + ' ' + (await x.text()).slice(0, 400); } catch (e) { return 'feil ' + e; } }, u);
+      log('tideprobe', u, JSON.stringify(r));
+    } await ctx.close(); }
   for (const [vw, vh, nm] of [[1280, 800, 'tide-pc'], [390, 844, 'tide-mobil']]) {
     const ctx = await browser.newContext({ viewport: { width: vw, height: vh } }), pg = await ctx.newPage(), errs = [];
     pg.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));
