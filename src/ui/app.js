@@ -7,6 +7,7 @@ import { AlgoLayer, SPECIES } from '../map/algolayer.js';
 import { Profile, ICON_PROF } from '../map/profile.js';
 import { Drift, ICON_DRIFT } from '../map/drift.js';
 import { Fuel, ICON_FUEL } from '../map/fuel.js';
+import { TidePanel } from '../map/tidepanel.js';
 import * as ALGO from '../algo/index.js';
 import { PAL, rgb } from '../map/palette.js';
 import { SRC, ATTRIB } from '../data/sources.js';
@@ -34,7 +35,7 @@ export class App {
       <div id="map" aria-label="Kart"></div>
       <header class="top">
         <div class="brand"><svg width="24" height="24" viewBox="0 0 32 32" aria-hidden="true"><path d="M3 17c5-7 14-9 20-3l6-4-2 6 2 6-6-4c-6 6-15 4-20-1z" fill="#ff6a13"/><circle cx="9" cy="15" r="1.4" fill="#0b1820"/></svg><h1>Fiskesim</h1></div>
-        <nav class="seg" role="group" aria-label="Karttype">${MAP_STYLES.map((s) => `<button data-style="${s.id}" aria-pressed="${s.id === style}" aria-label="${s.label}"><span class="l">${s.label}</span><span class="s">${s.short}</span></button>`).join('')}<button data-a="3d" class="s3d" title="Bølgene i 3D der du er (live-data)">3D</button></nav>
+        <nav class="seg" role="group" aria-label="Karttype">${MAP_STYLES.map((s) => `<button data-style="${s.id}" aria-pressed="${s.id === style}" aria-label="${s.label}"><span class="l">${s.label}</span><span class="s">${s.short}</span></button>`).join('')}<button data-a="3d" class="s3d" title="Bølgene i 3D der du er (live-data)">3D</button><button data-a="tide" class="stide" aria-expanded="false" title="Tidevann for kartmidten"><span class="l">Tidevann</span><span class="s">Tide</span></button></nav>
         <div class="search"><button class="iconbtn sbtn" data-a="search" aria-label="Søk etter sted">${ICON.search}</button><input type="search" placeholder="Søk etter sted" aria-label="Søk etter sted" autocomplete="off"><ul class="hidden" role="listbox"></ul></div>
       </header>
       <div class="rail">
@@ -51,6 +52,7 @@ export class App {
       <section class="sheet-p prof hidden" aria-label="Dybdeprofil"></section>
       <section class="sheet-p drift hidden" aria-label="Drift"></section>
       <section class="sheet-p fuel hidden" aria-label="Drivstoff"></section>
+      <section class="sheet-p tidep hidden" aria-label="Tidevann"></section>
       <div class="xhair hidden" aria-hidden="true"></div>
       <div class="legend${style === 'fiskekart' ? '' : ' hidden'}" aria-hidden="true"><div class="bar"></div><div class="ticks num"><span>0</span><span>20</span><span>50</span><span>100</span><span>250</span><span>1000 m</span></div></div>`;
     const bar = root.querySelector('.legend .bar');
@@ -127,6 +129,7 @@ export class App {
       this.api.setStyle(b.dataset.style);
       this.root.querySelector('.legend').classList.toggle('hidden', b.dataset.style !== 'fiskekart');
     }));
+    this.tide = new TidePanel(api, this.root.querySelector('[data-a="tide"]'), this.root.querySelector('.tidep'));
     this.root.querySelector('[data-a="3d"]').addEventListener('click', () => {
       const c = this.picked || [this.api.map.getCenter().lng, this.api.map.getCenter().lat];
       this.open3D(c[0], c[1]);

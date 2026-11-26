@@ -406,6 +406,25 @@ if (want('algobunn')) {
   report.algobunn = out; await ctx.close();
 }
 
+// ---------- Tidevannsgraf ----------
+if (want('tide')) {
+  const out = [];
+  for (const [vw, vh, nm] of [[1280, 800, 'tide-pc'], [390, 844, 'tide-mobil']]) {
+    const ctx = await browser.newContext({ viewport: { width: vw, height: vh } }), pg = await ctx.newPage(), errs = [];
+    pg.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));
+    await pg.goto(BASE + '?sted=60.52,5.27&z=12', { waitUntil: 'load' });
+    await waitFor(pg, () => !!(window.fiskesim && window.fiskesim.api), 30000);
+    await pg.click('[data-a="tide"]');
+    const txt = await waitFor(pg, () => { const t = document.querySelector('.tidep .tnow'); return t ? t.innerText : (document.querySelector('.tidep p') || {}).innerText && /Fant ikke/.test(document.querySelector('.tidep p').innerText) ? 'FEIL: ' + document.querySelector('.tidep p').innerText : null; }, 30000, 500);
+    const head = await pg.textContent('.tidep header').catch(() => null);
+    const nEx = await pg.$$eval('.tgraph .hw, .tgraph .lw', (x) => x.length).catch(() => 0);
+    await pg.screenshot({ path: join(OUT, nm + '.png') });
+    out.push({ nm, txt, head, nEx, errs }); log('tide', nm, JSON.stringify({ txt, head, nEx, errs }));
+    await ctx.close();
+  }
+  report.tide = out;
+}
+
 report.finished = new Date().toISOString();
 await writeFile(join(OUT, 'report.json'), JSON.stringify(report, null, 1));
 log('ferdig', report.errors.length ? 'feil: ' + report.errors.join('; ') : '');

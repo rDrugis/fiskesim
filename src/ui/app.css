@@ -315,3 +315,23 @@ a { color: #8fd0ec; }
 .drprof { margin-top: 10px; width: 100%; }
 
 
+
+/* Tidevannsgraf (nedtrekk fra knappen ved siden av 3D) */
+.seg .stide { margin-left: 4px; color: var(--text); border: 1px solid var(--line-2); }
+.seg .stide[aria-expanded="true"] { background: var(--hull-2); }
+.tidep { left: 12px; top: calc(70px + var(--safe-t)); width: min(600px, calc(100vw - 90px)); }
+.tidep header { justify-content: flex-start; gap: 10px; }
+.tidep header .psp { flex: 1; }
+.tidep .tnow { margin: 4px 0 6px; font-size: 14px; color: var(--text-2); }
+.tidep .tnow b { font-size: 20px; color: var(--text); font-family: var(--num); }
+.tgraph { width: 100%; height: auto; display: block; font-family: var(--num); font-size: 10.5px; }
+.tgraph text { fill: var(--text-3); }
+.tgraph .gl { stroke: var(--line); stroke-width: 1; }
+.tgraph .gd { stroke: var(--line-2); stroke-width: 1.4; }
+.tgraph .ta { fill: rgba(60, 150, 220, .22); }
+.tgraph .tp { fill: none; stroke: #5bb0f0; stroke-width: 2.2; }
+.tgraph .hw { fill: #5bb0f0; } .tgraph .lw { fill: #9fb3c2; }
+.tgraph .tl { fill: var(--text-2); font-size: 10px; }
+.tgraph .nw { stroke: var(--buoy); stroke-width: 1.5; stroke-dasharray: 3 3; }
+.tgraph .nd { fill: var(--buoy); stroke: #10202a; stroke-width: 1.5; }
+@media (max-width: 760px) { .tidep { left: 8px; right: 8px; width: auto; top: calc(118px + var(--safe-t)); } }
