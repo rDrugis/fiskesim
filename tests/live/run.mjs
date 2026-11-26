@@ -394,7 +394,7 @@ if (want('autorute')) {
   await pg.goto(BASE + '?sted=60.52,5.27&z=12', { waitUntil: 'load' });
   await waitFor(pg, () => !!(window.fiskesim && window.fiskesim.api), 30000);
   await pg.waitForTimeout(2000); await pg.click('[data-a="fuel"]'); await pg.check('.fuel input[data-k="auto"]');
-  const CASES = [['salhus-knarvik', [5.2655, 60.5096], [5.284, 60.546]], ['salhus-kleppesto', [5.2655, 60.5096], [5.226, 60.405]], ['salhus-vagen', [5.2655, 60.5096], [5.322, 60.398]]];
+  const CASES = [['salhus-knarvik', [5.2655, 60.5096], [5.284, 60.546]], ['salhus-kleppesto', [5.2655, 60.5096], [5.226, 60.405]], ['salhus-vagen', [5.2655, 60.5096], [5.322, 60.398]], ['salhus-nordost', [5.2704, 60.5081], [5.418, 60.7004]]];
   for (const [name, a, b] of CASES) {
     const t0 = Date.now();
     const r = await pg.evaluate(async ({ a, b }) => {
