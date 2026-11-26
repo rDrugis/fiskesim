@@ -387,6 +387,35 @@ if (want('drivstoff')) {
   await ctx.close();
 }
 
+// ---------- Auto-rute i drivstoffkalkulatoren: rundt land, kontrollert med fine dybder hver 20. m ----------
+if (want('autorute')) {
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } }), pg = await ctx.newPage(), errs = [], out = [];
+  pg.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));
+  await pg.goto(BASE + '?sted=60.52,5.27&z=12', { waitUntil: 'load' });
+  await waitFor(pg, () => !!(window.fiskesim && window.fiskesim.api), 30000);
+  await pg.waitForTimeout(2000); await pg.click('[data-a="fuel"]'); await pg.check('.fuel input[data-k="auto"]');
+  const CASES = [['salhus-knarvik', [5.2655, 60.5096], [5.284, 60.546]], ['salhus-isdalsto', [5.2655, 60.5096], [5.268, 60.566]], ['salhus-vagen', [5.2655, 60.5096], [5.322, 60.398]]];
+  for (const [name, a, b] of CASES) {
+    const t0 = Date.now();
+    const r = await pg.evaluate(async ({ a, b }) => {
+      const f = window.fiskesim.app.fuel, api = window.fiskesim.api;
+      f.pts = []; f.legs = []; f.click(a[0], a[1]); f.click(b[0], b[1]);
+      for (let i = 0; i < 240 && (f.busy || !f.legs[1] || f.legs[1].busy); i++) await new Promise((r) => setTimeout(r, 500));
+      const leg = f.legs[1] || {}, L = f.line();
+      const R = 6371008.8, rad = Math.PI / 180, d = (p, q) => R * Math.hypot((q[0] - p[0]) * rad * Math.cos((p[1] + q[1]) / 2 * rad), (q[1] - p[1]) * rad);
+      const sample = (line) => { const pts = []; for (let i = 1; i < line.length; i++) { const n = Math.max(1, Math.ceil(d(line[i - 1], line[i]) / 20)); for (let k = 0; k < n; k++) pts.push([line[i - 1][0] + (line[i][0] - line[i - 1][0]) * k / n, line[i - 1][1] + (line[i][1] - line[i - 1][1]) * k / n]); } return pts; };
+      const chk = async (line) => { const s = sample(line).slice(20, -20); const ds = await api.depthsAt(s, false); let land = 0, grunt = 0; ds.forEach((x) => { if (!x || x.land) land++; else if (x.depth < 2) grunt++; }); return { n: s.length, land, grunt }; };
+      let m = 0; for (let i = 1; i < L.length; i++) m += d(L[i - 1], L[i]);
+      return { err: leg.error || null, cell: leg.cell, punkter: L.length, nm: Math.round(m / 1852 * 10) / 10, rettNm: Math.round(d(a, b) / 1852 * 10) / 10, rute: await chk(L), rett: await chk([a, b]), txt: document.querySelector('.fuel .fuout').textContent.slice(0, 160) };
+    }, { a, b }).catch((e) => ({ err: String(e).slice(0, 200) }));
+    r.sek = Math.round((Date.now() - t0) / 100) / 10;
+    await pg.evaluate(({ a, b }) => window.fiskesim.api.map.fitBounds([[Math.min(a[0], b[0]), Math.min(a[1], b[1])], [Math.max(a[0], b[0]), Math.max(a[1], b[1])]], { padding: 120, duration: 0 }), { a, b });
+    await pg.waitForTimeout(3500); await pg.screenshot({ path: join(OUT, 'autorute-' + name + '.png') });
+    out.push({ name, ...r }); log('autorute', name, JSON.stringify(r));
+  }
+  report.autorute = { out, errs }; if (errs.length) log('autorute', 'feil', JSON.stringify(errs)); await ctx.close();
+}
+
 // ---------- Algoritmen med bunntype: toppforslag per art i faste områder (før/etter-sammenligning) ----------
 if (want('algobunn')) {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } }), pg = await ctx.newPage(), out = {};
