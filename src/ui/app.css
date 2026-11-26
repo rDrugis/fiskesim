@@ -301,17 +301,3 @@ a { color: #8fd0ec; }
 .drprof { margin-top: 10px; width: 100%; }
 
 
-
-/* Offline-kart */
-.offl { right: 62px; top: calc(66px + var(--safe-t)); width: 360px; max-height: calc(100vh - 140px); overflow: auto; }
-.offl h3 { margin: 14px 0 6px; font-size: 14px; font-weight: 600; border-top: 1px solid var(--line); padding-top: 10px; }
-.offl .btn.primary { margin-top: 10px; width: 100%; }
-.offl .btn[disabled] { opacity: .5; cursor: not-allowed; }
-.oprog { margin-top: 8px; }
-.obar { height: 8px; border-radius: 4px; background: var(--hull-2); overflow: hidden; }
-.obar i { display: block; height: 100%; background: var(--buoy); transition: width .3s; }
-.oareas { list-style: none; margin: 0; padding: 0; }
-.oareas li { display: flex; align-items: center; gap: 4px; }
-.oareas .go { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; text-align: left; background: none; border: 0; padding: 7px 4px; border-radius: 6px; cursor: pointer; color: var(--text); }
-.oareas .go:hover { background: var(--hull-2); }
-.oareas .go small { color: var(--text-3); }
