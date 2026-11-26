@@ -64,7 +64,8 @@ export class TidePanel {
     const next = ex.find((e) => e.t > now);
     // akse: timer hver 6. time, dagsskille ved midnatt
     let grid = '';
-    for (let t = ta; t <= tb; t += 3600e3 * 6) {
+    const g0 = new Date(ta); g0.setMinutes(0, 0, 0); while (g0.getHours() % 6 || g0.getTime() < ta) g0.setHours(g0.getHours() + 1); // hele 6-timers klokkeslett
+    for (let t = g0.getTime(); t <= tb; t += 3600e3 * 6) {
       const x = X(t).toFixed(1), h = new Date(t).getHours();
       grid += `<line x1="${x}" x2="${x}" y1="${T}" y2="${H - B}" class="${h === 0 ? 'gd' : 'gl'}"/><text x="${x}" y="${H - 6}" text-anchor="middle">${h === 0 ? day(t) : pad(h)}</text>`;
     }
