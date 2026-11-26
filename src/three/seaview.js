@@ -352,7 +352,8 @@ export class SeaView {
     // terskel: (1 − J)/spredning er omtrent normalfordelt, flekkstøyen legger til ca. 0,58 i spredning (samlet ≈ 1,15)
     U.uFoamT.value = cover > 2e-4 && st.hs > 0.15 ? 1.0 * zOf(1 - cover) : 99;
     // sol og himmel
-    const sp = sunPos(t, this.lat, this.lon), el = sp.elev * Math.PI / 180, az = this.world.trueToGrid(sp.az) * Math.PI / 180;
+    // alltid dag (brukerens ønske): solen står minst 25° over horisonten, retningen er den ekte
+    const sp0 = sunPos(t, this.lat, this.lon), sp = { az: sp0.az, elev: Math.max(25, sp0.elev) }, el = sp.elev * Math.PI / 180, az = this.world.trueToGrid(sp.az) * Math.PI / 180;
     const sun = new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el));
     U.uSun.value.copy(sun);
     this.sky.material.uniforms.sunPosition.value.copy(sun.clone().multiplyScalar(1000));
