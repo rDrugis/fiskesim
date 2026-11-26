@@ -36,7 +36,11 @@ jobs:
           for q in '?sted=60.52,5.27&z=13' '?sted=60.52,5.27&z=10' '?sted=60.6,5.2&z=8'; do
             n=$(echo "$q" | tr -c 'a-z0-9' '_')
             FISKESIM_START="$q" "$APP/Contents/MacOS/fiskesim" & P=$!
-            sleep 45; screencapture -x "tests/app/out/app$n.png" || true
+            sleep 8
+            for f in '' 'assets/app.js' 'assets/vendor/maplibre-gl.mjs' 'assets/vendor/maplibre-gl-worker.mjs' 'assets/relief.worker.js' 'assets/app.css' 'assets/vendor/maplibre-gl.css'; do
+              echo "MIME $f: $(curl -s -o /dev/null -w '%{http_code} %{content_type}' "http://localhost:47815/$f")"
+            done
+            sleep 37; screencapture -x "tests/app/out/app$n.png" || true
             kill $P; sleep 2
           done
       - name: Lagre resultat

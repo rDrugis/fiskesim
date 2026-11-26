@@ -22,7 +22,7 @@ async function view(name, q, { wait = 25000, act } = {}) {
   await pg.waitForTimeout(wait);
   const info = await pg.evaluate(() => { const m = window.fiskesim.api.map, src = (id) => (m.getSource(id) ? m.isSourceLoaded(id) : 'mangler');
     const land = m.getStyle().sources.ofm ? m.querySourceFeatures('ofm', { sourceLayer: 'water' }).length : -1;
-    const lodd = m.getSource('soundings') ? m.querySourceFeatures('soundings').length : (m.getStyle().layers.filter((l) => /lodd|sound/i.test(l.id)).map((l) => l.id).join(',') || 'ingen lag');
+    const sd = window.fiskesim.app.soundings, lodd = { on: !!(sd && sd.on), data: sd && sd.data ? (sd.data.features || []).length : null, rendered: m.getLayer('dp-txt') ? m.queryRenderedFeatures({ layers: ['dp-txt'] }).length : 'ingen lag' };
     return { z: Math.round(m.getZoom() * 10) / 10, ofm: src('ofm'), relief: src('relief'), dem: src('dem'), vannflater: land, lodd, sources: Object.keys(m.getStyle().sources).join(',') }; }).catch((e) => ({ err: String(e) }));
   const hosts = {}; for (const f of failed) hosts[f] = (hosts[f] || 0) + 1;
   rep.views.push({ name, q, info, failed: hosts, errs: [...new Set(errs)].slice(0, 8) });
