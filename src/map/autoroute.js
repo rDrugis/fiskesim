@@ -94,7 +94,7 @@ export async function autoRoute(nav, depthsAt, a, b, { minDepth = 2 } = {}) {
   const sG = pG[0], tG = pG[pG.length - 1], penG = shorePen(G, okG), t0 = Date.now(), dbg = [];
   // 2) korridor med fine celler rundt den grove ruten. Feiler den, var den grove ruten trolig over en smal landtange
   // (en grov celle med litt vann i seg): steng den første grove cellen som ikke kan nås over vann, og prøv igjen
-  for (let round = 0; round < 8 && pG && Date.now() - t0 < 40000; round++) {
+  for (let round = 0; round < 40 && pG && Date.now() - t0 < 40000; round++) {
     const r = await corridor(pG, 1);
     dbg.push({ round, pG: pG.length, path: !!r.path, why: r.why, block: r.blockG ? r.blockG.length : null, ms: Date.now() - t0 });
     if (r.path) return { ...r, dbg };
