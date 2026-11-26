@@ -91,8 +91,19 @@ export async function autoRoute(nav, depthsAt, a, b, { minDepth = 2 } = {}) {
     pG = findPath(okG, G.W, G.H, s, t, shorePen(G, okG)); if (pG) break;
   }
   if (!pG) return { error: 'Fant ingen vei over vann' };
-  // 2) korridor med fine celler rundt den grove ruten
-  for (const widen of [1, 3]) {
+  const sG = pG[0], tG = pG[pG.length - 1], penG = shorePen(G, okG), t0 = Date.now();
+  // 2) korridor med fine celler rundt den grove ruten. Feiler den, var den grove ruten trolig over en smal landtange
+  // (en grov celle med litt vann i seg): steng den første grove cellen som ikke kan nås over vann, og prøv igjen
+  for (let round = 0; round < 8 && pG && Date.now() - t0 < 40000; round++) {
+    const r = await corridor(pG, 1);
+    if (r.path) return r;
+    if (r.blockG == null) break;
+    okG[r.blockG] = 0; pG = findPath(okG, G.W, G.H, sG, tG, penG);
+  }
+  if (!pG) return { error: 'Fant ingen vei over vann' };
+  return { path: [a, ...smooth(okG, G.W, pG).map((k) => { const [x, y] = centre(G, k); return [ilon(x), ilat(y)]; }), b], cell: Math.round(G.cell * sc), warn: 'Grov rute – kan gå over nes eller grunner' };
+
+  async function corridor(pG, widen) {
     const rad0 = Math.max(400 / sc, G.cell * 2) * widen; // korridorens halve bredde
     let x0 = Math.min(ax, bx), x1 = Math.max(ax, bx), y0 = Math.min(ay, by), y1 = Math.max(ay, by);
     for (const k of pG) { const [x, y] = centre(G, k); x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
@@ -116,7 +127,14 @@ export async function autoRoute(nav, depthsAt, a, b, { minDepth = 2 } = {}) {
     for (let k = 0; k < ok.length; k++) ok[k] = nv[k] & inC[k];
     const pen = shorePen(F, ok);
     const s = snap(F, ok, cellOf(F, ax, ay), Math.ceil(500 / (F.cell * sc))), t = snap(F, ok, cellOf(F, bx, by), Math.ceil(500 / (F.cell * sc)));
-    if (s < 0 || t < 0) continue;
+    if (s < 0) return {};
+    // hvilke grove celler som kan nås over vann fra start (i korridoren)
+    const reach = () => { const seen = new Uint8Array(F.W * F.H), st = [s], rc = new Set(); seen[s] = 1;
+      while (st.length) { const k = st.pop(), x = k % F.W, y = (k / F.W) | 0; const [cx, cy] = centre(F, k); rc.add(cellOf(G, cx, cy));
+        for (const [u, v] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + u, ny = y + v; if (nx < 0 || ny < 0 || nx >= F.W || ny >= F.H) continue; const j = ny * F.W + nx; if (ok[j] && !seen[j]) { seen[j] = 1; st.push(j); } } }
+      return rc; };
+    const firstMissing = () => { const rc = reach(); for (const k of pG) if (!rc.has(k)) return k; return null; };
+    if (t < 0) return { blockG: firstMissing() };
     // 3) kontroll mot fine dybder; steng celler som treffer land/grunner og søk igjen
     let p = null, bad = 0;
     for (let it = 0; it < 10; it++) {
@@ -131,7 +149,6 @@ export async function autoRoute(nav, depthsAt, a, b, { minDepth = 2 } = {}) {
       if (!bad) break;
     }
     if (p) return { path: [a, ...p.map((k) => { const [x, y] = centre(F, k); return [ilon(x), ilat(y)]; }), b], cell: Math.round(F.cell * sc), warn: bad ? 'Ruten kan gå over et nes eller grunne' : null };
+    return { blockG: firstMissing() };
   }
-  // korridoren fant ingenting: bruk den grove ruten, men si fra
-  return { path: [a, ...smooth(okG, G.W, pG).map((k) => { const [x, y] = centre(G, k); return [ilon(x), ilat(y)]; }), b], cell: Math.round(G.cell * sc), warn: 'Grov rute – kan gå over nes eller grunner' };
 }
