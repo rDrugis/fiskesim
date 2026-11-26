@@ -5,7 +5,7 @@
 // og bruker zoom 12-resultatet som føring langt fra kurvene, så flisene passer sammen. Over 14 skaleres 14 jevnt opp.
 // Broer (også flytebruer) gjøres om til sjø før dybden regnes ut.
 import { decodeDybdelag, DYB_ALL, GEN0, generalSLD, generalClassOf, parseWfsPoints } from '../data/depthmodel.js';
-import { contourDepth, diffuseWithin, fitPoints } from '../data/contourdepth.js';
+import { contourDepth, diffuseWithin, fitPoints, despike } from '../data/contourdepth.js';
 import { UTM33 } from '../geo/proj.js';
 import { openBridges, openPontoons } from '../data/thinland.js';
 import { fetchCached, SRC } from '../data/sources.js';
@@ -27,7 +27,7 @@ const coarse = new Map(), fine = new Map();
 
 // Ferdig utregnede fliser lagres i nettleseren (IndexedDB), så kartet kommer fram med en gang neste gang.
 // Endre MODEL_V når dybdemodellen endres, så gamle resultater ikke brukes.
-const MODEL_V = 'm15-' + BLUR_M, IDB_MAX = 700;
+const MODEL_V = 'm16-' + BLUR_M, IDB_MAX = 700;
 let dbP = null;
 function db() {
   if (dbP) return dbP;
@@ -169,7 +169,8 @@ function finishInner(c2, N, res, prior, keep, core, pts) {
   if (dep && BLUR_M > 0) diffuseWithin(dep, c2, N, N, DYB_ALL, Math.max(1, Math.min(40, Math.round((BLUR_M / res) ** 2 / 4))), 2, pins);
   // skyggen regnes fra en mykere kopi uten intervallgrensene: klemmingen til intervallet gir et lite knekkpunkt ved
   // hver kurve, og det ble tegnet som lyse/mørke striper langs kurvene. Dybden og fargene bruker fortsatt dep.
-  const sh = dep ? blurNaN(dep, N, 3, 3) : null;
+  // loddskuddene står som en liten spiss i sin egen rute; den tas bort i skyggen så de ikke tegnes som prikker
+  const sh = dep ? blurNaN(pins && pins.length ? despike(dep, N, c2, pinIdx(pins)) : dep, N, 3, 3) : null;
   const isl = water ? isletMask(c2, N) : null;
   const S = core + 2 * keep, o = MARG - keep;
   const d = new Float32Array(S * S).fill(NaN), hs = sh ? new Float32Array(S * S) : null, wet = new Uint8Array(S * S), flag = new Uint8Array(S * S), cl = new Uint8Array(S * S);
@@ -181,8 +182,16 @@ function finishInner(c2, N, res, prior, keep, core, pts) {
     cl[p] = c2[q] >= 0 ? c2[q] + 1 : 0;
     if (dep) { d[p] = dep[q]; hs[p] = sh[q]; }
   }
-  return { dep: dep ? d : null, sh: hs, wet, flag, cl, N: S, m: keep, res };
+  // loddskuddenes ruter i den lagrede flisa (til tegningen)
+  let pk = null;
+  if (pins && pins.length) {
+    const a = [];
+    for (let k = 0; k < pins.length; k += 2) { const q = pins[k], i = q % N - o, j = ((q / N) | 0) - o; if (i >= 0 && j >= 0 && i < S && j < S) a.push(j * S + i); }
+    pk = Int32Array.from(a);
+  }
+  return { dep: dep ? d : null, sh: hs, wet, flag, cl, N: S, m: keep, res, pk };
 }
+const pinIdx = (pins) => { const a = []; for (let k = 0; k < pins.length; k += 2) a.push(pins[k]); return a; };
 
 // boksuttjevning (r celler, gjentatt) som hopper over land (NaN) – gir en myk flate til skyggeleggingen
 function blurNaN(a, N, r, reps) {
@@ -345,14 +354,17 @@ async function renderTile(z, x, y, palName, hd = false) {
   const k = hd ? 2 : 1, T = SIZE * k; // skarpe fliser på skjermer med høy oppløsning (512 px vist som 256)
   const pal = PAL[palName] || PAL.dag;
   const night = palName === 'natt';
-  const { base, u0, v0, scale: sc0 } = await baseFor(z, x, y);
+  const { base, u0, v0, scale: sc0, lz } = await baseFor(z, x, y);
   const scale = sc0 / k;
   const img = new ImageData(T, T);
   if (!base.dep) return createImageBitmap(img);
+  // fine fliser: tegnes fra en kopi uten spissen i loddskuddenes egne ruter (ellers en prikk i farge, kurver og,
+  // for forhåndsberegnede fliser, skygge). base.dep brukes uendret til alt annet.
+  const vis = lz ? (base.vis || (base.vis = despike(base.dep, base.N, base.cl, base.pk || null))) : base.dep;
   const S = T + 2, D = new Float32Array(S * S), DS = base.sh ? new Float32Array(S * S) : D, Wt = new Float32Array(S * S), FG = new Uint8Array(S * S);
   for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) {
     const u = u0 + (i - 0.5) * scale, v = v0 + (j - 0.5) * scale;
-    D[j * S + i] = bil(base.dep, base.N, base.m, u, v);
+    D[j * S + i] = bil(vis, base.N, base.m, u, v);
     if (base.sh) DS[j * S + i] = bil(base.sh, base.N, base.m, u, v);
     Wt[j * S + i] = bilU8(base.wet, base.N, base.m, u, v);
     if (base.flag) FG[j * S + i] = nearU8(base.flag, base.N, base.m, u, v);

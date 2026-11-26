@@ -234,6 +234,50 @@ export function diffuseWithin(depth, cls, W, H, intervals, iters, r = 2, pins = 
     if (pins) { if (pinR > 0) holdPins(depth, cls, W, H, lo, hi, pins, pinR); else for (let k = 0; k < pins.length; k += 2) depth[pins[k]] = pins[k + 1]; }
   }
 }
+/**
+ * Bare for tegningen av kartet. Et målt punkt (loddskudd eller grunne) holdes på målt dybde i sin egen rute, så det
+ * står som en liten spiss over rutene rundt, og skyggen tegnet den som en prikk. Her byttes en slik enkeltrute ut med
+ * snittet av de åtte naboene: ruta må avvike tydelig fra naboene, og mye mer enn naboene selv avviker fra sine naboer
+ * (så knekker langs kurvene og ekte former blir stående), og alle naboene må ligge i samme intervall som ruta. Dybden som brukes ellers (avlesning, profil, algoritme) er urørt.
+ */
+export function despike(a, N, cl = null, pins = null) {
+  const out = a.slice(), nb = [-N - 1, -N, -N + 1, -1, 1, N - 1, N, N + 1];
+  // kjente punkter (rutenes indeks): byttes ut direkte
+  if (pins) {
+    for (const p of pins) {
+      const i = p % N, j = (p / N) | 0; if (i < 1 || j < 1 || i >= N - 1 || j >= N - 1 || !(a[p] === a[p])) continue;
+      let s = 0, n = 0; for (const q of nb) { const w = a[p + q]; if (w === w) { s += w; n++; } }
+      if (n) out[p] = s / n;
+    }
+    return out;
+  }
+  // ellers (forhåndsberegnede fliser, der punktene ikke er lagret): finn enkeltruter som stikker ut
+  const lap = new Float32Array(N * N).fill(NaN);
+  for (let j = 1; j < N - 1; j++) for (let i = 1; i < N - 1; i++) {
+    const p = j * N + i, v = a[p]; if (!(v === v)) continue;
+    let s = 0, ok = true;
+    for (const q of nb) { const w = a[p + q]; if (!(w === w)) { ok = false; break; } s += w; }
+    if (ok) lap[p] = v - s / 8;
+  }
+  for (let j = 2; j < N - 2; j++) for (let i = 2; i < N - 2; i++) {
+    const p = j * N + i, L = lap[p]; if (!(L === L) || Math.abs(L) < 0.3) continue;
+    let s = 0, ok = true, same = 0, mn = Infinity, mx = -Infinity;
+    for (const q of nb) {
+      const w = lap[p + q]; if (!(w === w)) { ok = false; break; } s += Math.abs(w);
+      if (!cl || cl[p + q] === cl[p]) same++;
+      const d = a[p + q]; if (d < mn) mn = d; if (d > mx) mx = d;
+    }
+    if (!ok) continue;
+    const v = a[p];
+    // inne i ett intervall: ruta avviker mye mer enn naboene gjør
+    if (same === 8 && Math.abs(L) > 3 * (s / 8)) out[p] = v - L;
+    // ved en kurve: knekken langs kurva er ekte og skal stå, men en enkeltrute som stikker ut over (under) alle
+    // naboene er et punkt. En flekk med eget intervall (de fleste naboene i et annet) er en ekte grunne og står.
+    else if (same >= 5 && (v > mx + 0.3 || v < mn - 0.3)) out[p] = v - L;
+  }
+  return out;
+}
+
 function holdPins(depth, cls, W, H, lo, hi, pins, R) {
   const rad = Math.max(1, Math.round(R)), s2 = 2 * (rad / 2) ** 2;
   for (let k = 0; k < pins.length; k += 2) {
