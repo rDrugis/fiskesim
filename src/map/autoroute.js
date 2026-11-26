@@ -130,12 +130,11 @@ export async function autoRoute(nav, depthsAt, a, b, { minDepth = 2 } = {}) {
     const s = snap(F, ok, cellOf(F, ax, ay), Math.ceil(500 / (F.cell * sc))), t = snap(F, ok, cellOf(F, bx, by), Math.ceil(500 / (F.cell * sc)));
     if (s < 0) return { why: 'start-snap' };
     // hvilke grove celler som kan nås over vann fra start (i korridoren)
-    const reach = () => { const seen = new Uint8Array(F.W * F.H), st = [s], rc = new Set(); seen[s] = 1;
+    const reach = (from = s) => { const seen = new Uint8Array(F.W * F.H), st = [from], rc = new Set(); seen[from] = 1;
       while (st.length) { const k = st.pop(), x = k % F.W, y = (k / F.W) | 0; const [cx, cy] = centre(F, k); rc.add(cellOf(G, cx, cy));
         for (const [u, v] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + u, ny = y + v; if (nx < 0 || ny < 0 || nx >= F.W || ny >= F.H) continue; const j = ny * F.W + nx; if (ok[j] && !seen[j]) { seen[j] = 1; st.push(j); } } }
       return rc; };
-    // første grove celle langs ruten som ikke nås over vann, pluss hele «lommen» av grove celler bak den
-    // som heller ikke nås (innenfor korridoren), så en hel vik eller et sund stenges i én runde
+    // grove celler langs ruten der korridoren ikke henger sammen (hullet), til å stenges før neste runde
     const firstMissing = () => {
       const rc = reach(); let k0 = null; for (const k of pG) if (!rc.has(k)) { k0 = k; break; } if (k0 == null) return null;
       // bare grove celler som ligger (nesten) helt inne i korridoren er faktisk undersøkt; de andre stenges ikke
@@ -143,10 +142,11 @@ export async function autoRoute(nav, depthsAt, a, b, { minDepth = 2 } = {}) {
       const full = (G.cell / F.cell) ** 2 * 0.9, inBox = new Set(); for (const [c, n] of cnt) if (n >= full) inBox.add(c);
       if (!inBox.has(k0)) return null;
       { const [cx, cy] = centre(G, k0); lastK0 = [Math.round(ilon(cx) * 1e4) / 1e4, Math.round(ilat(cy) * 1e4) / 1e4]; }
-      // steng bare den sammenhengende biten av den grove ruten som ikke nås (fra k0 og videre langs ruten).
-      // Ikke hele lommen rundt: vann som ikke nås innenfor korridoren kan godt nås via vann utenfor den
-      const out = []; let started = false;
-      for (const k of pG) { if (k === k0) started = true; if (!started) continue; if (rc.has(k) || k === tG) break; if (inBox.has(k)) out.push(k); }
+      // steng bare hullet: de grove cellene langs ruten som verken nås fra start eller fra mål (innenfor korridoren).
+      // Vann som ikke nås innenfor korridoren kan godt nås via vann utenfor den, så hele lommer stenges ikke
+      const rt = t >= 0 ? reach(t) : new Set(), out = [];
+      for (const k of pG) if (!rc.has(k) && !rt.has(k) && k !== tG && inBox.has(k)) out.push(k);
+      if (!out.length) out.push(k0);
       return out;
     };
     if (t < 0) return { why: 't-snap', blockG: firstMissing() };
