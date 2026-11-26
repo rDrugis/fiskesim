@@ -78,9 +78,9 @@ export class Fuel {
     const el = this.panel.querySelector('.fuout'); if (!el) return;
     if (this.pts.length < 2) { el.innerHTML = `<p class="pmut">${this.pts.length ? 'Trykk neste punkt …' : 'Trykk startpunktet i kartet.'}</p>`; return; }
     const r = this.calc(), hh = Math.floor(r.h), mm = Math.round((r.h - hh) * 60);
-    const errs = this.o.auto ? this.legs.filter((l) => l && l.error).map((l) => l.error) : [];
+    const errs = this.o.auto ? this.legs.filter((l) => l && (l.error || l.warn)).map((l) => l.error ? l.error + ' – den etappen er regnet som rett linje' : l.warn) : [];
     const cell = this.o.auto ? Math.max(0, ...this.legs.filter((l) => l && l.cell).map((l) => l.cell)) : 0;
-    const note = this.busy ? '<p class="pmut">Beregner rute rundt land …</p>' : errs.length ? `<p class="pmut">${errs[0]} – den etappen er regnet som rett linje.</p>` : cell ? `<p class="pmut">Auto-rute, rutenett ca. ${cell} m.</p>` : '';
+    const note = this.busy ? '<p class="pmut">Beregner rute rundt land …</p>' : errs.length ? `<p class="pmut">${errs[0]}.</p>` : cell ? `<p class="pmut">Auto-rute, rutenett ca. ${cell} m.</p>` : '';
     el.innerHTML = `<div class="fubig"><div><b>${fmt(r.nm, 1)}</b> nm</div><div><b>${hh ? hh + ' t ' : ''}${mm} min</b></div><div><b>${fmt(r.l, 1)}</b> l</div><div><b>${fmt(r.kr)}</b> kr</div></div>
       ${note}<p class="pmut">Ha med minst <b>${fmt(r.lr, 0)} l</b> (med ${fmt(this.o.reserve)} % reserve) · ${fmt(r.lpn, 2)} l per nautisk mil</p>`;
   }

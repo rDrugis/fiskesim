@@ -73,11 +73,24 @@ export async function autoRoute(depthsAt, a, b, { minDepth = 2, maxCells = 16000
       for (let v = -rmax; v <= rmax; v++) for (let u = -rmax; u <= rmax; u++) { const x = cx + u, y = cy + v; if (x < 0 || y < 0 || x >= W || y >= H || !ok[y * W + x]) continue; const q = u * u + v * v; if (q < bd) { bd = q; best = y * W + x; } } return best; };
     const s = snap(toCell(ax, ay)), t = snap(toCell(bx, by));
     if (s < 0 || t < 0) return { error: 'Fant ikke vann nær ' + (s < 0 ? 'startpunktet' : 'målet') };
-    const p = smooth(ok, W, findPath(ok, W, H, s, t, pen));
-    if (p) {
-      const coords = p.map((k) => [ilon(x0 + ((k % W) + 0.5) * cell), ilat(y1 - (((k / W) | 0) + 0.5) * cell)]);
-      return { path: [a, ...coords, b], cell: Math.round(cell * sc) };
+    const at = (k) => [ilon(x0 + ((k % W) + 0.5) * cell), ilat(y1 - (((k / W) | 0) + 0.5) * cell)];
+    // det grove rutenettet kan se nes og skjær som vann: sjekk ruten mot fine dybder hvert ca. 15 m,
+    // steng cellene der den treffer land eller grunner, og regn på nytt (inntil 6 ganger)
+    let best = null;
+    for (let it = 0; it < 6; it++) {
+      const p = smooth(ok, W, findPath(ok, W, H, s, t, pen)); if (!p) break;
+      best = p; const samp = [], cellOf = [];
+      for (let k = 1; k < p.length; k++) {
+        const ax2 = x0 + ((p[k - 1] % W) + 0.5) * cell, ay2 = y1 - (((p[k - 1] / W) | 0) + 0.5) * cell, bx2 = x0 + ((p[k] % W) + 0.5) * cell, by2 = y1 - (((p[k] / W) | 0) + 0.5) * cell;
+        const n = Math.max(1, Math.ceil(Math.hypot(bx2 - ax2, by2 - ay2) * sc / 15));
+        for (let q = 0; q < n; q++) { const x = ax2 + (bx2 - ax2) * q / n, y = ay2 + (by2 - ay2) * q / n; samp.push([ilon(x), ilat(y)]); cellOf.push(toCell(x, y)); }
+      }
+      // de første og siste ca. 150 m (ved kai) sjekkes ikke
+      const skip = Math.ceil(150 / 15), fine = await depthsAt(samp, false); let bad = 0;
+      fine.forEach((d, q) => { if (q < skip || q >= fine.length - skip) return; if (!d || d.land || d.depth == null || d.depth < minDepth) { const c = cellOf[q]; if (c !== s && c !== t && ok[c]) { ok[c] = 0; bad++; } } });
+      if (!bad) return { path: [a, ...p.map(at), b], cell: Math.round(cell * sc) };
     }
+    if (best) return { path: [a, ...best.map(at), b], cell: Math.round(cell * sc), warn: 'Ruten kan gå over et nes eller grunne' };
   }
   return { error: 'Fant ingen vei over vann' };
 }
