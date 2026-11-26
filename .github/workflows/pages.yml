@@ -4,7 +4,7 @@ name: pages
 on:
   push: { branches: [main] }
   workflow_dispatch:
-permissions: { contents: read, pages: write, id-token: write }
+permissions: { contents: read, pages: write, id-token: write, actions: read }
 concurrency: { group: pages, cancel-in-progress: true }
 jobs:
   test:
@@ -28,5 +28,15 @@ jobs:
           echo "fliser: $(find _site/pre -name '*.bin.gz' | wc -l)"; du -sh _site
       - uses: actions/upload-pages-artifact@v4
         with: { path: _site }
+      # publiseringen fant flere ganger ikke pakken rett etter opplasting (stor pakke, ca. 800 MB): vent til GitHub viser den
+      - name: Vent til pakken er registrert
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          for i in $(seq 1 30); do
+            n=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" --jq '[.artifacts[] | select(.name == "github-pages")] | length' || echo 0)
+            if [ "$n" -ge 1 ]; then echo "pakken er registrert etter ${i}0 s"; sleep 15; exit 0; fi
+            sleep 10
+          done
+          echo "pakken er ikke synlig etter 5 min, prøver likevel"
       - id: d
         uses: actions/deploy-pages@v4
