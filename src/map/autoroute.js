@@ -91,12 +91,12 @@ export async function autoRoute(nav, depthsAt, a, b, { minDepth = 2 } = {}) {
     pG = findPath(okG, G.W, G.H, s, t, shorePen(G, okG)); if (pG) break;
   }
   if (!pG) return { error: 'Fant ingen vei over vann' };
-  const sG = pG[0], tG = pG[pG.length - 1], penG = shorePen(G, okG), t0 = Date.now(), dbg = [];
+  const sG = pG[0], tG = pG[pG.length - 1], penG = shorePen(G, okG), t0 = Date.now(), dbg = []; let lastK0 = null;
   // 2) korridor med fine celler rundt den grove ruten. Feiler den, var den grove ruten trolig over en smal landtange
   // (en grov celle med litt vann i seg): steng den første grove cellen som ikke kan nås over vann, og prøv igjen
   for (let round = 0; round < 40 && pG && Date.now() - t0 < 40000; round++) {
     const r = await corridor(pG, 1);
-    dbg.push({ round, pG: pG.length, path: !!r.path, why: r.why, block: r.blockG ? r.blockG.length : null, ms: Date.now() - t0 });
+    dbg.push({ round, pG: pG.length, path: !!r.path, why: r.why, block: r.blockG ? r.blockG.length : null, at: lastK0, ms: Date.now() - t0 });
     if (r.path) return { ...r, dbg };
     if (r.blockG == null) break;
     for (const k of r.blockG) okG[k] = 0; pG = findPath(okG, G.W, G.H, sG, tG, penG);
@@ -142,6 +142,7 @@ export async function autoRoute(nav, depthsAt, a, b, { minDepth = 2 } = {}) {
       const cnt = new Map(); for (let k = 0; k < F.W * F.H; k++) if (inC[k]) { const [cx, cy] = centre(F, k), c = cellOf(G, cx, cy); cnt.set(c, (cnt.get(c) || 0) + 1); }
       const full = (G.cell / F.cell) ** 2 * 0.9, inBox = new Set(); for (const [c, n] of cnt) if (n >= full) inBox.add(c);
       if (!inBox.has(k0)) return null;
+      { const [cx, cy] = centre(G, k0); lastK0 = [Math.round(ilon(cx) * 1e4) / 1e4, Math.round(ilat(cy) * 1e4) / 1e4]; }
       const out = [k0], seen = new Set([k0]), x0k = k0 % G.W, y0k = (k0 / G.W) | 0;
       for (let q = 0; q < out.length; q++) { const k = out[q], x = k % G.W, y = (k / G.W) | 0;
         for (const [u, v] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + u, ny = y + v; if (nx < 0 || ny < 0 || nx >= G.W || ny >= G.H) continue; const j = ny * G.W + nx;
