@@ -1,0 +1,47 @@
+# Tester Mac-appen på en Mac: nettsiden i WebKit (samme motor som appen) fra http://localhost:47815,
+# og skjermbilder av selve appen. Resultat i grenen apptest-results.
+name: apptest
+on: { workflow_dispatch: {} }
+permissions: { contents: write }
+jobs:
+  test:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci --no-audit --no-fund && npm install --no-save --no-audit --no-fund playwright@1.49.1 && npx playwright install webkit
+      - name: Bygg som i appen
+        env: { DATA_BASE: 'https://rdrugis.github.io/fiskesim/' }
+        run: node tools/build.mjs && mkdir -p /tmp/site && cp -r index.html assets LICENSE LICENSES /tmp/site/
+      - name: WebKit-test
+        run: |
+          (cd /tmp/site && python3 -m http.server 47815 >/dev/null 2>&1 &) ; sleep 2
+          node tests/app/webkit.mjs 2>&1 | tee tests/app/out-log.txt || true
+          pkill -f "http.server 47815" || true
+      - run: rustup target add aarch64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: 'app/src-tauri -> target' }
+      - name: Bygg appen (bare Apple Silicon, for test)
+        working-directory: app
+        run: |
+          mkdir -p dist && cp -r /tmp/site/* dist/
+          npx --yes @tauri-apps/cli@2 icon icon.png -o src-tauri/icons
+          npx --yes @tauri-apps/cli@2 build --bundles app
+      - name: Skjermbilder av appen
+        run: |
+          APP=$(find app/src-tauri/target/release/bundle/macos -maxdepth 1 -name '*.app' | head -1)
+          mkdir -p tests/app/out
+          for q in '?sted=60.52,5.27&z=13' '?sted=60.52,5.27&z=10' '?sted=60.6,5.2&z=8'; do
+            n=$(echo "$q" | tr -c 'a-z0-9' '_')
+            FISKESIM_START="$q" "$APP/Contents/MacOS/fiskesim" & P=$!
+            sleep 45; screencapture -x "tests/app/out/app$n.png" || true
+            kill $P; sleep 2
+          done
+      - name: Lagre resultat
+        if: always()
+        run: |
+          mkdir -p /tmp/res && cp -r tests/app/out/* /tmp/res/ 2>/dev/null; cp tests/app/out-log.txt /tmp/res/ 2>/dev/null || true
+          cd /tmp/res && git init -q && git checkout -q -b apptest-results && git config user.name t && git config user.email t@t
+          git add -A && git commit -q -m "apptest ${{ github.run_id }}" && git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" apptest-results
