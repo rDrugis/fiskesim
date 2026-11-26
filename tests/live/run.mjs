@@ -387,6 +387,25 @@ if (want('drivstoff')) {
   await ctx.close();
 }
 
+// ---------- Algoritmen med bunntype: toppforslag per art i faste områder (før/etter-sammenligning) ----------
+if (want('algobunn')) {
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } }), pg = await ctx.newPage(), out = {};
+  await pg.goto(BASE + '?sted=60.53,5.30&z=13', { waitUntil: 'load' });
+  await waitFor(pg, () => !!(window.fiskesim && window.fiskesim.ALGO), 30000);
+  const AREAS2 = [['osterfjorden', 60.53, 5.30], ['hjeltefjorden', 60.56, 4.97], ['floro', 61.60, 5.02], ['tysnes', 59.95, 5.55]];
+  const SP = ['sei', 'lyr', 'brosme', 'hyse', 'uer', 'kveite', 'lange', 'torsk', 'lysing'];
+  for (const [name, la, lo] of AREAS2) {
+    const r = await pg.evaluate(async ({ la, lo, SP }) => {
+      const A = window.fiskesim.ALGO, dLa = 0.025, dLo = 0.05, b = { s: la - dLa, n: la + dLa, w: lo - dLo, e: lo + dLo }, m = 10;
+      const res = {}; for (const sp of SP) { const o = await A.algoRun(b, m, [sp], () => {}); res[sp] = (o.res || []).filter((x) => x.sp === sp).slice(0, 5).map((x) => [Math.round(x.lat * 1e4) / 1e4, Math.round(x.lon * 1e4) / 1e4, Math.round((x.fe && x.fe.d0) || 0), (x.fe && x.fe.bt) || 0, Math.round((x.sc || 0) * 100) / 100]); }
+      let nD = 0, nB = 0; for (const [tx, ty] of A.viewTiles(b)) { const t = await A.atGet(tx, ty, m); if (t) { nD += t.nD || 0; nB += t.nB || 0; } }
+      return { res, nD, nB };
+    }, { la, lo, SP }).catch((e) => ({ err: String(e).slice(0, 200) }));
+    out[name] = r; log('algobunn', name, JSON.stringify(r));
+  }
+  report.algobunn = out; await ctx.close();
+}
+
 report.finished = new Date().toISOString();
 await writeFile(join(OUT, 'report.json'), JSON.stringify(report, null, 1));
 log('ferdig', report.errors.length ? 'feil: ' + report.errors.join('; ') : '');
