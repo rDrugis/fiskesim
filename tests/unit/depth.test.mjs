@@ -62,3 +62,20 @@ test('terrengmodellen: innenfor intervallene, rører ikke land-nære ruter, flyt
   // langt fra land og langt fra kurver: dratt mot 45 m, men holdt innenfor 30–50
   const k = j * N + N - 8; assert.ok(dep[k] >= base[k], `dratt dypere (${base[k]} → ${dep[k]})`);
 });
+
+test('despike: loddskuddets spiss tas bort i tegningen, resten er urørt', async () => {
+  const { despike } = await import('../../src/data/contourdepth.js');
+  const N = 20, a = new Float32Array(N * N), cl = new Uint8Array(N * N).fill(5);
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) a[j * N + i] = 60 + 0.5 * i + 0.3 * j;
+  const p = 10 * N + 10, before = a[p]; a[p] = before + 2;
+  // kjent punkt: byttes direkte
+  const o1 = despike(a, N, cl, [p]);
+  assert.ok(Math.abs(o1[p] - before) < 1e-4);
+  // uten kjente punkter: finnes av seg selv
+  const o2 = despike(a, N, cl);
+  assert.ok(Math.abs(o2[p] - before) < 1e-4);
+  for (let q = 0; q < N * N; q++) if (q !== p) assert.equal(o2[q], a[q]);
+  // en flekk med eget intervall (ekte grunne) står
+  const cl2 = cl.slice(); cl2[p] = 4;
+  assert.equal(despike(a, N, cl2)[p], a[p]);
+});
