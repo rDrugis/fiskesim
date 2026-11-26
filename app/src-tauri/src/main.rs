@@ -12,7 +12,9 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_localhost::Builder::new(PORT).build())
         .setup(|app| {
-            let url = format!("http://localhost:{}", PORT).parse().unwrap();
+            // FISKESIM_START (bare for testing): f.eks. «?sted=60.52,5.27&z=9»
+            let start = std::env::var("FISKESIM_START").unwrap_or_default();
+            let url = format!("http://localhost:{}/{}", PORT, start).parse().unwrap();
             WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url))
                 .title("Fiskesim")
                 .inner_size(1280.0, 860.0)
