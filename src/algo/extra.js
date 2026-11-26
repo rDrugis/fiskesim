@@ -1,5 +1,6 @@
 // Fiskesims tillegg til Fiskeguide-algoritmen. Alt annet er likt Fiskeguide (se core.js og fgdata.js).
-// Tilleggene: blåkjeft (ny art), hylle for kveite (gir bare høyere poeng der det finnes en hylle) og lysing på slak bakke 40–150 m.
+// Tilleggene: blåkjeft (ny art), hylle for kveite (gir bare høyere poeng der det finnes en hylle), lysing på slak bakke 40–150 m
+// og gjennomgangen av ventelisten 26.11.2026 (sund for sei og lyr, bunntype for brosme, hyse og uer, kveite dypere om høsten).
 
 export function applyExtra(D) {
   const SRC = D.src;
@@ -48,6 +49,33 @@ export function applyExtra(D) {
     D.algo.lysing.kilde = (D.algo.lysing.kilde || []).concat(['fiskeskolen_lysing']);
     D.algo.lysing.hvorfor = 'slakke bakker og flater med myk bunn på ca. 40–150 m nær dypere vann (Fiskeskolen: fine sedimenter i slak bakke, gjerne 40–100 m)';
   }
+  /* ---- Gjennomgang av ventelisten (26.11.2026) ----
+     Bare endringer med støtte i mer enn én kilde, eller som retter en for streng regel, er tatt med. Fangstloggen er tynn
+     (få fisk), så den brukes som pekepinn, ikke fasit. Ikke tatt med: uer-fredning (ikke bekreftet hos Fiskeridirektoratet),
+     dybde etter årstid for torsk og lange (allerede dekket av dagens måneder og ramme), lysing (allerede justert 22.11),
+     dyprenner inn fra havet (trenger et nytt terrengtrekk som ikke finnes i modellen). */
+  SRC.alvestad_sei = ['Asgeir Alvestad: tips og triks hvis du vil fiske sei (strøm, sund, topper av grunner, storsei nær bunnen også i dyprenner)', 'https://www.asgeiralvestad.no/tips-og-triks-hvis-du-vil-fiske-sei/'];
+  SRC.alvestad_blogg = ['Asgeir Alvestad (blogg): artsartikler om lyr, brosme, uer, hyse og lange', 'https://www.asgeiralvestad.no/'];
+  SRC.dintur_kveite = ['Dintur/Klikk: kveita trekker dypere fra slutten av oktober, mot gyteplasser på ca. 150–350 m i desember', 'https://www.klikk.no/friluftsliv/fiske/slik-fisker-du-kveite-7331575'];
+  const A = D.algo, add = (sp, k) => { if (A[sp]) A[sp].kilde = (A[sp].kilde || []).concat(k); };
+  // Sei: strøm og smale sund (Alvestad; vanlig erfaring), og storsei nær bunnen dypere om høsten (Alvestad; to av tre egne
+  // høstfangster på 112–143 m). Kjernedypet høst/vinter står (5–70 m), bare den ytre rammen strekkes til 220 m, så dype
+  // kanter og topper kan komme med uten å trumfe de grunne.
+  if (A.sei) { A.sei.range = [0, 220]; A.sei.w = Object.assign({}, A.sei.w, { sund: 0.4 });
+    if (A.sei.mnd && A.sei.mnd['4-8']) A.sei.mnd['4-8'].w = Object.assign({}, A.sei.mnd['4-8'].w, { sund: 0.4 });
+    add('sei', ['alvestad_sei']); }
+  // Lyr: odder og sund mot åpent vann der strømmen går (Alvestad; én egen fangst i smalt sund). Liten vekt.
+  if (A.lyr) { A.lyr.w = Object.assign({}, A.lyr.w, { sund: 0.3 }); add('lyr', ['alvestad_blogg']); }
+  // Brosme: står også på slake skråninger med bløt bunn (Alvestad), så slam skal ikke trekke ned (var −40 %).
+  if (A.brosme && A.brosme.bunn) { A.brosme.bunn = Object.assign({}, A.brosme.bunn, { pref: [5, 4], avoid: undefined, t: 'helst hardbunn, men også bløt bunn i skråninger' }); add('brosme', ['alvestad_blogg']); }
+  // Hyse: sand og mudder (Alvestad; HI omtaler hysa som bløtbunnsfisk). Sand gir nå også pluss.
+  if (A.hyse && A.hyse.bunn) { A.hyse.bunn = Object.assign({}, A.hyse.bunn, { pref: [1, 2], t: 'sand og mudder' }); add('hyse', ['alvestad_blogg']); }
+  // Uer: bratte bergvegger, topper og rygger (Alvestad) – hard bunn gir pluss der NGU har kartlagt. Ingen bunn trekker ned.
+  if (A.uer && !A.uer.bunn) { A.uer.bunn = { pref: [5, 4], t: 'hardbunn ved bratte vegger og rygger', s: ['alvestad_blogg'] }; add('uer', ['alvestad_blogg']); }
+  // Kveite: dypere fra november mot gytingen (Dintur/Klikk; HIs merkeforsøk viser at kveita står dypt store deler av året
+  // i Vestlandsfjordene). Fisket er stengt 20.12–20.4, så det gjelder i praksis november og starten av desember.
+  if (A.kveite) { A.kveite.mnd = Object.assign({}, A.kveite.mnd || {}, { '11-12': { core: [30, 150], range: [10, 300], w: A.kveite.w, hvorfor: 'om høsten trekker kveita dypere mot gyteplassene (ca. 150–350 m i desember), så kanter og topper ned mot 150 m kommer med' } });
+    add('kveite', ['dintur_kveite']); }
   D.art.blakjeft = { no: 'Blåkjeft', lat: 'Helicolenus dactylopterus', col: '#4f6fd8', kort: 'Dype fjorder, ca. 200–800 m', omr: null };
   D.algoUt = String(D.algoUt || '').replace('Flyndrer, blåkjeft og skjellbrosme er ikke med ennå', 'Flyndrer og skjellbrosme er ikke med ennå (blåkjeft er lagt til i Fiskesim)');
   return D;
