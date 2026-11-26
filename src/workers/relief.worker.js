@@ -10,10 +10,7 @@ import { UTM33 } from '../geo/proj.js';
 import { openBridges, openPontoons } from '../data/thinland.js';
 import { fetchCached, SRC } from '../data/sources.js';
 import { PAL, rgb } from '../map/palette.js';
-import { installFetch, OFF } from '../net/offline.js';
 import { NGU_CLS } from '../data/terrainbuild.js';
-
-installFetch(self); // nedlastede områder brukes før nettet
 
 const R = 6378137, ORIG = Math.PI * R;
 const tileMerc = (z, x, y) => { const s = (2 * ORIG) / 2 ** z; return [-ORIG + x * s, ORIG - (y + 1) * s, -ORIG + (x + 1) * s, ORIG - y * s]; };
@@ -215,11 +212,10 @@ function blurNaN(a, N, r, reps) {
 
 function computeCoarse(z, x, y) {
   const key = z + '/' + x + '/' + y;
-  // under nedlasting regnes alt på nytt fra nettet, så dataene havner i offline-lageret
-  if (coarse.has(key) && !OFF.rec) return coarse.get(key);
+  if (coarse.has(key)) return coarse.get(key);
   return lru(coarse, key, withLock('c' + key, async () => {
     if (z === CZ) { const pre = await loadPre(z, x, y); if (pre) return pre; }
-    if (!OFF.rec) { const hit = await idbGet('c' + key); if (hit) return hit; }
+    const hit = await idbGet('c' + key); if (hit) return hit;
     const [mx0, my0, mx1, my1] = tileMerc(z, x, y);
     const px = (mx1 - mx0) / SIZE, N = SIZE + 2 * MARG;
     const bb = [mx0 - MARG * px, my0 - MARG * px, mx1 + MARG * px, my1 + MARG * px];
@@ -282,10 +278,10 @@ async function loadPre(z, x, y) {
 function computeFine(z, x, y) { return computeOne(z, x, y); }
 function computeOne(z, x, y) {
   const key = z + '/' + x + '/' + y;
-  if (fine.has(key) && !OFF.rec) return fine.get(key);
+  if (fine.has(key)) return fine.get(key);
   return lru(fine, key, withLock('f' + key, async () => {
     const pre = await loadPre(z, x, y); if (pre) return pre;
-    if (!OFF.rec) { const hit = await idbGet('f' + key); if (hit) return hit; }
+    const hit = await idbGet('f' + key); if (hit) return hit;
     const k = z - CZ, ppx = x >> k, ppy = y >> k, f = 2 ** k;
     const parentP = computeCoarse(CZ, ppx, ppy).catch(() => null);
     const [mx0, my0, mx1, my1] = tileMerc(z, x, y);
@@ -469,9 +465,6 @@ async function depthAt(lon, lat, coarseOnly = false) {
 self.onmessage = async (ev) => {
   const { id, kind, z, x, y, pal, lon, lat } = ev.data; // hd: skarp flis
   try {
-    // nedlasting av et område: slå lagring av/på, og hent dataene for én flis
-    if (kind === 'rec') { OFF.rec = ev.data.area || null; const info = { bytes: OFF.bytes, n: OFF.n }; if (OFF.rec) { OFF.bytes = 0; OFF.n = 0; } self.postMessage({ id, info }); return; }
-    if (kind === 'prefetch') { if (z <= CZ) await computeCoarse(z, x, y); else await computeFine(Math.min(z, FZ), x, y); self.postMessage({ id, info: true }); return; }
     if (kind === 'stats') { self.postMessage({ id, info: { ...STATS, origin: Math.round(performance.timeOrigin) } }); return; }
     if (kind === 'depth') { self.postMessage({ id, info: await depthAt(lon, lat) }); return; }
     // mange punkter på én gang (dybdeprofil); grovt nivå for lange streker
