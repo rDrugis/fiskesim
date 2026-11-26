@@ -109,7 +109,7 @@ export async function autoRoute(nav, depthsAt, a, b, { minDepth = 2 } = {}) {
     let x0 = Math.min(ax, bx), x1 = Math.max(ax, bx), y0 = Math.min(ay, by), y1 = Math.max(ay, by);
     for (const k of pG) { const [x, y] = centre(G, k); x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
     x0 -= rad0; x1 += rad0; y0 -= rad0; y1 += rad0;
-    const F = mkGrid(x0, x1, y0, y1, Math.max(20 / sc, Math.sqrt((x1 - x0) * (y1 - y0) / 700000)));
+    const F = mkGrid(x0, x1, y0, y1, Math.max(20 / sc, Math.sqrt((x1 - x0) * (y1 - y0) / 4000000))); // alltid fine data i korridoren, så smale leier henger sammen
     // hvilke fine celler som ligger i korridoren, og hvilke z14-fliser de trenger
     const inC = new Uint8Array(F.W * F.H), tiles = new Set(), r2 = rad0 * rad0;
     const pts = [[ax, ay], ...pG.map((k) => centre(G, k)), [bx, by]];
