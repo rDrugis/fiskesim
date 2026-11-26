@@ -118,9 +118,11 @@ async function algoPick(b, m, list, K, alive) {
 
 /* Kjør for et kartutsnitt b = {s, w, n, e}. sel = valgte arter ([] = alle), m = måned 0–11. */
 let RUN = 0;
+// arter som ikke vises på siden (dataene ligger fortsatt i algoritmen): uer og blåkjeft (brukerens valg 26.11.2026)
+export const HIDDEN = ['uer', 'blakjeft'];
 export async function algoRun(b, m, sel, onNote = () => {}) {
   const run = ++RUN, alive = () => run === RUN;
-  const want = sel.filter((k) => R.algo[k]), list = want.length ? want : Object.keys(R.algo), K = want.length ? 6 : 2;
+  const want = sel.filter((k) => R.algo[k]), list = want.length ? want : Object.keys(R.algo).filter((k) => !HIDDEN.includes(k)), K = want.length ? 6 : 2;
   const tl = viewTiles(b);
   const need = []; for (const [tx, ty] of tl) { const k = tkey(tx, ty, m); if (!ATC.has(k)) need.push([tx, ty]); }
   if (need.length > AMAXT || tl.length > 3 * AMAXT) return { res: [], note: 'Zoom inn for å få fiskeplasser.', zoom: true };

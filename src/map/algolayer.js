@@ -1,6 +1,6 @@
 // Fiskeplasser fra algoritmen i kartet (av/på), med forklaring per art. Plasser du velger («Behold i kartet»)
 // blir liggende i kartet også når forslagene er slått av, til du fjerner dem.
-import { algoRun, ART, R, esc, km } from '../algo/index.js';
+import { algoRun, ART, R, esc, km, HIDDEN } from '../algo/index.js';
 
 const starBg = (cols) => cols.length > 1 ? 'conic-gradient(' + cols.map((c, i) => c + ' ' + Math.round(i * 100 / cols.length) + '% ' + Math.round((i + 1) * 100 / cols.length) + '%').join(',') + ')' : cols[0];
 const load = (k, d) => { try { const v = localStorage.getItem('fiskesim.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
@@ -9,7 +9,7 @@ const save = (k, v) => { try { localStorage.setItem('fiskesim.' + k, JSON.string
 export class AlgoLayer {
   constructor(api, { onNote = () => {}, onSaved = () => {} } = {}) {
     this.api = api; this.onNote = onNote; this.onSaved = onSaved;
-    this.on = load('algo', false); this.sel = load('algoSel', []); this.mon = load('algoMon', 'now');
+    this.on = load('algo', false); this.sel = load('algoSel', []).filter((k) => !HIDDEN.includes(k)); this.mon = load('algoMon', 'now');
     this.markers = []; this.saved = load('plasser', []); this.savedMarkers = [];
     this.timer = 0;
     api.map.on('moveend', () => this.schedule());
@@ -138,4 +138,4 @@ function depthLine(d, iv) {
   return `<div class="pdep">Dybde: <b>${d != null ? 'ca. ' + Math.round(d) + ' m' : ivs}</b>${d != null && iv ? ` <span class="pmut">(sjøkart ${ivs})</span>` : ''}</div>`;
 }
 
-export const SPECIES = () => Object.keys(R.algo).map((k) => ({ k, no: ART[k].no, col: ART[k].col }));
+export const SPECIES = () => Object.keys(R.algo).filter((k) => !HIDDEN.includes(k)).map((k) => ({ k, no: ART[k].no, col: ART[k].col }));
