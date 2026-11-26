@@ -98,7 +98,7 @@ export async function autoRoute(nav, depthsAt, a, b, { minDepth = 2 } = {}) {
     const r = await corridor(pG, 1);
     if (r.path) return r;
     if (r.blockG == null) break;
-    okG[r.blockG] = 0; pG = findPath(okG, G.W, G.H, sG, tG, penG);
+    for (const k of r.blockG) okG[k] = 0; pG = findPath(okG, G.W, G.H, sG, tG, penG);
   }
   if (!pG) return { error: 'Fant ingen vei over vann' };
   return { path: [a, ...smooth(okG, G.W, pG).map((k) => { const [x, y] = centre(G, k); return [ilon(x), ilat(y)]; }), b], cell: Math.round(G.cell * sc), warn: 'Grov rute – kan gå over nes eller grunner' };
@@ -133,7 +133,17 @@ export async function autoRoute(nav, depthsAt, a, b, { minDepth = 2 } = {}) {
       while (st.length) { const k = st.pop(), x = k % F.W, y = (k / F.W) | 0; const [cx, cy] = centre(F, k); rc.add(cellOf(G, cx, cy));
         for (const [u, v] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + u, ny = y + v; if (nx < 0 || ny < 0 || nx >= F.W || ny >= F.H) continue; const j = ny * F.W + nx; if (ok[j] && !seen[j]) { seen[j] = 1; st.push(j); } } }
       return rc; };
-    const firstMissing = () => { const rc = reach(); for (const k of pG) if (!rc.has(k)) return k; return null; };
+    // første grove celle langs ruten som ikke nås over vann, pluss hele «lommen» av grove celler bak den
+    // som heller ikke nås (innenfor korridoren), så en hel vik eller et sund stenges i én runde
+    const firstMissing = () => {
+      const rc = reach(); let k0 = null; for (const k of pG) if (!rc.has(k)) { k0 = k; break; } if (k0 == null) return null;
+      const inBox = new Set(); for (let k = 0; k < F.W * F.H; k++) if (inC[k]) { const [cx, cy] = centre(F, k); inBox.add(cellOf(G, cx, cy)); }
+      const out = [k0], seen = new Set([k0]);
+      for (let q = 0; q < out.length; q++) { const k = out[q], x = k % G.W, y = (k / G.W) | 0;
+        for (const [u, v] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + u, ny = y + v; if (nx < 0 || ny < 0 || nx >= G.W || ny >= G.H) continue; const j = ny * G.W + nx;
+          if (!seen.has(j) && okG[j] && inBox.has(j) && !rc.has(j) && j !== tG) { seen.add(j); out.push(j); } } }
+      return out;
+    };
     if (t < 0) return { blockG: firstMissing() };
     // 3) kontroll mot fine dybder; steng celler som treffer land/grunner og søk igjen
     let p = null, bad = 0;
