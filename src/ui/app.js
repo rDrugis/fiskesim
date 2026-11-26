@@ -129,7 +129,7 @@ export class App {
       this.api.setStyle(b.dataset.style);
       this.root.querySelector('.legend').classList.toggle('hidden', b.dataset.style !== 'fiskekart');
     }));
-    this.tide = new TidePanel(api, this.root.querySelector('[data-a="tide"]'), this.root.querySelector('.tidep'));
+    this.tide = new TidePanel(this.api, this.root.querySelector('[data-a="tide"]'), this.root.querySelector('.tidep'));
     this.root.querySelector('[data-a="3d"]').addEventListener('click', () => {
       const c = this.picked || [this.api.map.getCenter().lng, this.api.map.getCenter().lat];
       this.open3D(c[0], c[1]);
