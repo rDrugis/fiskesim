@@ -23,7 +23,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: node tools/build.mjs
       - name: Hent ferdig utregnet kartdata (bare for «pre»)
-        if: contains(github.event.inputs.only, 'pre') || contains(github.event.inputs.only, 'kanter') || contains(github.event.inputs.only, 'dyp') || contains(github.event.inputs.only, 'autorute')
+        if: contains(github.event.inputs.only, 'pre') || contains(github.event.inputs.only, 'kanter') || contains(github.event.inputs.only, 'dyp') || contains(github.event.inputs.only, 'autorute') || contains(github.event.inputs.only, 'radfjord')
         env: { GH_TOKEN: '${{ github.token }}' }
         run: mkdir -p pre && gh release download kartdata-vestland-v4 -p vestland.tar -D /tmp && tar -xf /tmp/vestland.tar -C pre && find pre -name '*.bin.gz' | wc -l
       - name: Kjør testene

@@ -417,6 +417,49 @@ if (want('autorute')) {
   report.autorute = { out, errs }; if (errs.length) log('autorute', 'feil', JSON.stringify(errs)); await ctx.close();
 }
 
+// ---------- Hvor stenges Radfjorden? Fint vann-kart i en korridor langs den første (grove) ruten ----------
+if (want('radfjord')) {
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } }), pg = await ctx.newPage();
+  await pg.goto(BASE + '?sted=60.6,5.15&z=11', { waitUntil: 'load' });
+  await waitFor(pg, () => !!(window.fiskesim && window.fiskesim.api && window.fiskesim.api.navGrid), 30000);
+  const LINE = [[5.27, 60.508], [5.272, 60.507], [5.228, 60.572], [5.217, 60.594], [5.169, 60.63], [5.11, 60.655], [5.092, 60.66], [5.074, 60.677], [5.008, 60.754], [4.942, 60.795], [4.942, 60.811], [4.993, 60.818], [5.037, 60.82]];
+  for (const minD of [2, 0.5]) {
+    const r = await pg.evaluate(async ({ LINE, minD }) => {
+      const R = 6378137, rad = Math.PI / 180, mx = (l) => l * rad * R, my = (b) => R * Math.log(Math.tan(Math.PI / 4 + b * rad / 2));
+      const ilon = (x) => x / R / rad, ilat = (y) => (2 * Math.atan(Math.exp(y / R)) - Math.PI / 2) / rad, sc = Math.cos(60.65 * rad);
+      const P = LINE.map(([lo, la]) => [mx(lo), my(la)]), rad0 = 700 / sc, cell = 12 / sc;
+      const x0 = Math.min(...P.map((p) => p[0])) - rad0, x1 = Math.max(...P.map((p) => p[0])) + rad0, y0 = Math.min(...P.map((p) => p[1])) - rad0, y1 = Math.max(...P.map((p) => p[1])) + rad0;
+      const g = { x0, y1, cell, W: Math.ceil((x1 - x0) / cell), H: Math.ceil((y1 - y0) / cell) };
+      const ORIG = Math.PI * R, SP = 2 * ORIG / 16384, tiles = new Set(), inC = new Uint8Array(g.W * g.H);
+      const cen = (k) => [g.x0 + ((k % g.W) + 0.5) * cell, g.y1 - (((k / g.W) | 0) + 0.5) * cell];
+      for (let k = 0; k < g.W * g.H; k++) { const [cx, cy] = cen(k); let best = Infinity;
+        for (let q = 1; q < P.length; q++) { const [px, py] = P[q - 1], [qx, qy] = P[q], vx = qx - px, vy = qy - py, t = Math.max(0, Math.min(1, ((cx - px) * vx + (cy - py) * vy) / (vx * vx + vy * vy))); best = Math.min(best, Math.hypot(px + t * vx - cx, py + t * vy - cy)); }
+        if (best <= rad0) { inC[k] = 1; tiles.add(Math.floor((cx + ORIG) / SP) + ',' + Math.floor((ORIG - cy) / SP)); } }
+      const nv = await window.fiskesim.api.navGrid(g, minD, true, tiles), ok = nv.map((v, k) => v & inC[k]);
+      const cOf = (x, y) => Math.floor((g.y1 - y) / cell) * g.W + Math.floor((x - g.x0) / cell);
+      // start: nærmeste farbare celle ved Salhus
+      let s = -1, bd = Infinity; const sc0 = cOf(P[0][0], P[0][1]), sx = sc0 % g.W, sy = (sc0 / g.W) | 0;
+      for (let v = -40; v <= 40; v++) for (let u = -40; u <= 40; u++) { const k = (sy + v) * g.W + sx + u; if (ok[k] && u * u + v * v < bd) { bd = u * u + v * v; s = k; } }
+      const seen = new Uint8Array(g.W * g.H), st = [s]; seen[s] = 1;
+      while (st.length) { const k = st.pop(), x = k % g.W, y = (k / g.W) | 0; for (const [u, v] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) { const nx = x + u, ny = y + v; if (nx < 0 || ny < 0 || nx >= g.W || ny >= g.H) continue; const j = ny * g.W + nx; if (ok[j] && !seen[j]) { seen[j] = 1; st.push(j); } } }
+      // gå langs linjen: første punkt der ingen celle innen 300 m er nådd
+      let km = 0, stopp = null; const rr = Math.ceil(300 / (cell * sc));
+      outer: for (let q = 1; q < P.length; q++) { const n = Math.ceil(Math.hypot(P[q][0] - P[q - 1][0], P[q][1] - P[q - 1][1]) * sc / 50);
+        for (let i = 0; i < n; i++) { const x = P[q - 1][0] + (P[q][0] - P[q - 1][0]) * i / n, y = P[q - 1][1] + (P[q][1] - P[q - 1][1]) * i / n, c = cOf(x, y), cx = c % g.W, cy = (c / g.W) | 0; let hit = false;
+          for (let v = -rr; v <= rr && !hit; v++) for (let u = -rr; u <= rr; u++) { const k = (cy + v) * g.W + cx + u; if (k >= 0 && k < seen.length && seen[k]) { hit = true; break; } }
+          if (!hit) { stopp = [Math.round(ilon(x) * 1e4) / 1e4, Math.round(ilat(y) * 1e4) / 1e4]; break outer; } km += 0.05; } }
+      // dybder rundt stoppestedet (fine), i et lite rutenett
+      let rundt = null;
+      if (stopp) { const pts = []; for (let v = -6; v <= 6; v++) for (let u = -6; u <= 6; u++) pts.push([stopp[0] + u * 0.0012, stopp[1] + v * 0.0006]);
+        const ds = await window.fiskesim.api.depthsAt(pts, false); rundt = []; for (let v = 6; v >= -6; v--) { let row = ''; for (let u = -6; u <= 6; u++) { const d = ds[(v + 6) * 13 + u + 6]; row += !d || d.land ? '  #' : (' ' + String(Math.min(99, Math.round(d.depth)))).padStart(3); } rundt.push(row); } }
+      return { minD, W: g.W, H: g.H, tiles: tiles.size, naadd: seen.reduce((a, b) => a + b, 0), km: Math.round(km * 10) / 10, stopp, rundt };
+    }, { LINE, minD }).catch((e) => ({ err: String(e).slice(0, 300) }));
+    log('radfjord', JSON.stringify({ ...r, rundt: undefined })); if (r.rundt) r.rundt.forEach((l) => log('radfjord |', l));
+    if (r.stopp) { await pg.evaluate((s) => window.fiskesim.api.map.jumpTo({ center: s, zoom: 15 }), r.stopp); await pg.waitForTimeout(8000); await pg.screenshot({ path: join(OUT, 'radfjord-' + minD + '.png') }); }
+  }
+  await ctx.close();
+}
+
 // ---------- Algoritmen med bunntype: toppforslag per art i faste områder (før/etter-sammenligning) ----------
 if (want('algobunn')) {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } }), pg = await ctx.newPage(), out = {};
