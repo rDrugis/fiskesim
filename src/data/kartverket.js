@@ -48,7 +48,7 @@ export async function wfsPoints(type, bbox) {
 
 // Tidevann (Kartverket): predikert vannstand over sjøkartnull, 10-minutters verdier
 export async function tideSeries(lat, lon, fromISO, toISO) {
-  const url = `${SRC.tide}?tide_request=locationdata&lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}&datatype=PRE&lang=nb&place=&dst=0&refcode=CD&fromtime=${fromISO}&totime=${toISO}&interval=10`;
+  const url = `${SRC.tide}?tide_request=locationdata&lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}&datatype=PRE&lang=nb&place=&dst=0&refcode=CD&fromtime=${encodeURIComponent(fromISO)}&totime=${encodeURIComponent(toISO)}&interval=10`;
   const txt = await fetchCached(url, { as: 'text', cache: false });
   const loc = txt.match(/<location name="([^"]*)"[^>]*descr="([^"]*)"/);
   const out = [];
