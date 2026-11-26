@@ -78,6 +78,24 @@ export async function reliefDepths(pts, coarse = false) {
   return out;
 }
 
+// farbart-rutenett til auto-ruten: g = { x0, y1, cell, W, H } i Web Mercator-meter. Gir Uint8Array (1 = farbart vann et sted i cellen)
+// only (valgfri, fine): z14-fliser som trengs, som «x,y»; andre fliser hoppes over (korridoren rundt ruten)
+export async function reliefNav(g, minD, fine = false, only = null) {
+  const ORIG = Math.PI * 6378137, span = 2 * ORIG / 4096, ok = new Uint8Array(g.W * g.H), jobs = [];
+  const tx0 = Math.floor((g.x0 + ORIG) / span), tx1 = Math.floor((g.x0 + g.W * g.cell + ORIG) / span);
+  const ty0 = Math.floor((ORIG - g.y1) / span), ty1 = Math.floor((ORIG - (g.y1 - g.H * g.cell)) / span);
+  for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) {
+    let sub = null;
+    if (fine && only) { sub = []; for (let y = ty * 4; y < ty * 4 + 4; y++) for (let x = tx * 4; x < tx * 4 + 4; x++) if (only.has(x + ',' + y)) sub.push([x, y]); if (!sub.length) continue; }
+    jobs.push(new Promise((res, rej) => {
+      const id = ++reqId; waiting.set(id, { res: (c) => { if (c) for (const k of c) ok[k] = 1; res(); }, rej });
+      reliefWorker(tx * 31 + ty * 17 + 12).postMessage({ id, kind: 'nav', tx, ty, fine, g, minD, sub });
+    }));
+  }
+  await Promise.all(jobs);
+  return ok;
+}
+
 function buildStyle(kind) {
   if (kind === 'dybdekart') return dybdekartStyle();
   const night = kind === 'natt';
@@ -226,6 +244,7 @@ export async function createMap(container, opts = {}) {
     depthAt: reliefDepth,
     reliefStats,
     depthsAt: reliefDepths,
+    navGrid: reliefNav,
   };
   return api;
 }

@@ -54,84 +54,84 @@ export function smooth(ok, W, path) {
 
 const mx = (lon) => lon * rad * R, my = (lat) => R * Math.log(Math.tan(Math.PI / 4 + lat * rad / 2));
 const ilon = (x) => x / R / rad, ilat = (y) => (2 * Math.atan(Math.exp(y / R)) - Math.PI / 2) / rad;
+const ORIG = Math.PI * R, SPAN14 = 2 * ORIG / 16384;
 
-// a, b: [lon, lat]. depthsAt: api.depthsAt. Gir { path: [[lon,lat]…], cell } eller { error }
-export async function autoRoute(depthsAt, a, b, { minDepth = 2, maxCells = 160000 } = {}) {
-  const ax = mx(a[0]), ay = my(a[1]), bx = mx(b[0]), by = my(b[1]), sc = Math.cos((a[1] + b[1]) / 2 * rad); // meter i kartet = meter på bakken / sc
-  let G = null;
-  for (const grow of [0.35, 1]) {
-    const dd = Math.hypot(bx - ax, by - ay), m = Math.max(2500 / sc, dd * grow);
-    const x0 = Math.min(ax, bx) - m, x1 = Math.max(ax, bx) + m, y0 = Math.min(ay, by) - m, y1 = Math.max(ay, by) + m;
-    const cell = Math.max(25 / sc, Math.sqrt((x1 - x0) * (y1 - y0) / maxCells)), W = Math.ceil((x1 - x0) / cell), H = Math.ceil((y1 - y0) / cell);
-    const pts = []; for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) pts.push([ilon(x0 + (i + 0.5) * cell), ilat(y1 - (j + 0.5) * cell)]);
-    const ds = await depthsAt(pts, cell * sc > 12);
-    const ok = new Uint8Array(W * H), wet = new Uint8Array(W * H);
-    ds.forEach((d, i) => { if (d && !d.land && d.depth != null) { wet[i] = 1; if (d.depth >= minDepth) ok[i] = 1; } });
-    // litt ekstra kostnad helt inntil land, så ruten ikke klistrer seg til land
-    const pen = new Float32Array(W * H);
-    for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) { const k = j * W + i; if (!ok[k]) continue; for (let v = -1; v <= 1; v++) for (let u = -1; u <= 1; u++) { const x = i + u, y = j + v; if (x >= 0 && y >= 0 && x < W && y < H && !wet[y * W + x]) pen[k] = 0.5; } }
-    const toCell = (x, y) => Math.min(H - 1, Math.max(0, Math.floor((y1 - y) / cell))) * W + Math.min(W - 1, Math.max(0, Math.floor((x - x0) / cell)));
-    // start og mål kan ligge ved kai/land: nærmeste farbare celle innen ca. 400 m
-    const snap = (c) => { if (ok[c]) return c; const cx = c % W, cy = (c / W) | 0, rmax = Math.ceil(400 / (cell * sc)); let best = -1, bd = Infinity;
-      for (let v = -rmax; v <= rmax; v++) for (let u = -rmax; u <= rmax; u++) { const x = cx + u, y = cy + v; if (x < 0 || y < 0 || x >= W || y >= H || !ok[y * W + x]) continue; const q = u * u + v * v; if (q < bd) { bd = q; best = y * W + x; } } return best; };
-    const s = snap(toCell(ax, ay)), t = snap(toCell(bx, by));
-    if (s < 0 || t < 0) return { error: 'Fant ikke vann nær ' + (s < 0 ? 'startpunktet' : 'målet') };
-    const at = (k) => [ilon(x0 + ((k % W) + 0.5) * cell), ilat(y1 - (((k / W) | 0) + 0.5) * cell)];
-    // det grove rutenettet kan se nes og skjær som vann: sjekk ruten mot fine dybder hvert ca. 15 m,
-    // steng cellene der den treffer land eller grunner, og regn på nytt (inntil 6 ganger)
-    let best = null;
-    for (let it = 0; it < 6; it++) {
-      const p = smooth(ok, W, findPath(ok, W, H, s, t, pen)); if (!p) break;
-      best = p; const samp = [], cellOf = [];
-      for (let k = 1; k < p.length; k++) {
-        const ax2 = x0 + ((p[k - 1] % W) + 0.5) * cell, ay2 = y1 - (((p[k - 1] / W) | 0) + 0.5) * cell, bx2 = x0 + ((p[k] % W) + 0.5) * cell, by2 = y1 - (((p[k] / W) | 0) + 0.5) * cell;
-        const n = Math.max(1, Math.ceil(Math.hypot(bx2 - ax2, by2 - ay2) * sc / 15));
-        for (let q = 0; q < n; q++) { const x = ax2 + (bx2 - ax2) * q / n, y = ay2 + (by2 - ay2) * q / n; samp.push([ilon(x), ilat(y)]); cellOf.push(toCell(x, y)); }
-      }
-      // de første og siste ca. 150 m (ved kai) sjekkes ikke
-      const skip = Math.ceil(150 / 15), fine = await depthsAt(samp, false); let bad = 0;
-      fine.forEach((d, q) => { if (q < skip || q >= fine.length - skip) return; if (!d || d.land || d.depth == null || d.depth < minDepth) { const c = cellOf[q]; if (c !== s && c !== t && ok[c]) { ok[c] = 0; bad++; } } });
-      if (!bad) return { path: [a, ...p.map(at), b], cell: Math.round(cell * sc) };
-    }
-    if (best) return { path: [a, ...best.map(at), b], cell: Math.round(cell * sc), warn: 'Ruten kan gå over et nes eller grunne' };
-    G = { ok, pen, W, H, s, t, x0, y1, cell, at };
-  }
-  // ingen vei på det grove rutenettet: trolig et smalt sund som forsvinner i grove celler.
-  // Finn den billigste veien der land får stor kostnad, og regn hvert «landstykke» på nytt med fint rutenett (ca. 10 m)
-  if (G) {
-    const { ok, W, H, s, t, x0, y1, cell, at } = G;
-    const no = new Uint8Array(W * H);
-    for (let tries = 0; tries < 5; tries++) {
-      const p = findPath(ok, W, H, s, t, no, 40); if (!p) break;
-      const out = [a]; let k = 0, failed = false;
-      while (k < p.length) {
-        if (ok[p[k]]) { out.push(at(p[k])); k++; continue; }
-        let e = k; while (e < p.length && !ok[p[e]]) e++;
-        const from = at(p[Math.max(0, k - 1)]), to = at(p[Math.min(p.length - 1, e)]);
-        const br = await bridge(depthsAt, from, to, minDepth);
-        if (!br) { for (let q = k; q < e; q++) { const c = p[q], cx = c % W, cy = (c / W) | 0; for (let v = -1; v <= 1; v++) for (let u = -1; u <= 1; u++) { const x = cx + u, y = cy + v; if (x >= 0 && y >= 0 && x < W && y < H && !ok[y * W + x]) no[y * W + x] = 1; } } failed = true; break; }
-        out.push(...br.slice(1, -1)); k = e;
-      }
-      if (!failed) { out.push(b); return { path: out, cell: Math.round(cell * sc), warn: 'Ruten går gjennom et smalt sund – sjekk at det er farbart' }; }
-    }
-    return { error: 'Fant ingen vei over vann' };
-  }
-  return { error: 'Fant ingen vei over vann' };
+// rutenett i Web Mercator-meter: g = { x0, y1, cell, W, H }
+const mkGrid = (x0, x1, y0, y1, cell) => ({ x0, y1, cell, W: Math.ceil((x1 - x0) / cell), H: Math.ceil((y1 - y0) / cell) });
+const cellOf = (g, x, y) => Math.min(g.H - 1, Math.max(0, Math.floor((g.y1 - y) / g.cell))) * g.W + Math.min(g.W - 1, Math.max(0, Math.floor((x - g.x0) / g.cell)));
+const centre = (g, k) => [g.x0 + ((k % g.W) + 0.5) * g.cell, g.y1 - (((k / g.W) | 0) + 0.5) * g.cell];
+function snap(g, ok, c, rCells) {
+  if (ok[c]) return c; const cx = c % g.W, cy = (c / g.W) | 0; let best = -1, bd = Infinity;
+  for (let v = -rCells; v <= rCells; v++) for (let u = -rCells; u <= rCells; u++) { const x = cx + u, y = cy + v; if (x < 0 || y < 0 || x >= g.W || y >= g.H || !ok[y * g.W + x]) continue; const q = u * u + v * v; if (q < bd) { bd = q; best = y * g.W + x; } }
+  return best;
+}
+// litt ekstra kostnad inntil celler som ikke er farbare, så ruten ikke klistrer seg til land
+function shorePen(g, ok) {
+  const pen = new Float32Array(g.W * g.H);
+  for (let j = 0; j < g.H; j++) for (let i = 0; i < g.W; i++) { const k = j * g.W + i; if (!ok[k]) continue;
+    for (let v = -1; v <= 1 && !pen[k]; v++) for (let u = -1; u <= 1; u++) { const x = i + u, y = j + v; if (x >= 0 && y >= 0 && x < g.W && y < g.H && !ok[y * g.W + x]) { pen[k] = 0.6; break; } } }
+  return pen;
 }
 
-// fint rutenett (10–15 m) rundt et kort stykke der det grove rutenettet ser land: gir punkter fra a til b over vann, eller null
-async function bridge(depthsAt, a, b, minDepth) {
-  const sc = Math.cos((a[1] + b[1]) / 2 * rad), ax = mx(a[0]), ay = my(a[1]), bx = mx(b[0]), by = my(b[1]);
-  const m = 400 / sc, x0 = Math.min(ax, bx) - m, x1 = Math.max(ax, bx) + m, y0 = Math.min(ay, by) - m, y1 = Math.max(ay, by) + m;
-  const cell = Math.max(10 / sc, Math.sqrt((x1 - x0) * (y1 - y0) / 90000)); if (cell * sc > 30) return null; // for langt stykke: ikke et sund
-  const W = Math.ceil((x1 - x0) / cell), H = Math.ceil((y1 - y0) / cell), pts = [];
-  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) pts.push([ilon(x0 + (i + 0.5) * cell), ilat(y1 - (j + 0.5) * cell)]);
-  const ds = await depthsAt(pts, false), ok = new Uint8Array(W * H);
-  ds.forEach((d, i) => { if (d && !d.land && d.depth != null && d.depth >= minDepth) ok[i] = 1; });
-  const toCell = (x, y) => Math.min(H - 1, Math.max(0, Math.floor((y1 - y) / cell))) * W + Math.min(W - 1, Math.max(0, Math.floor((x - x0) / cell)));
-  const snap = (c) => { if (ok[c]) return c; const cx = c % W, cy = (c / W) | 0, r = Math.ceil(200 / (cell * sc)); let best = -1, bd = Infinity;
-    for (let v = -r; v <= r; v++) for (let u = -r; u <= r; u++) { const x = cx + u, y = cy + v; if (x < 0 || y < 0 || x >= W || y >= H || !ok[y * W + x]) continue; const q = u * u + v * v; if (q < bd) { bd = q; best = y * W + x; } } return best; };
-  const s = snap(toCell(ax, ay)), t = snap(toCell(bx, by)); if (s < 0 || t < 0) return null;
-  const p = smooth(ok, W, findPath(ok, W, H, s, t)); if (!p) return null;
-  return [a, ...p.map((k) => [ilon(x0 + ((k % W) + 0.5) * cell), ilat(y1 - (((k / W) | 0) + 0.5) * cell)]), b];
+// Auto-rute (samme oppbygning som Det Store Blås «autonav», men på Kartverkets dybder):
+// 1) grovt søk (100 m eller grovere) i et vindu rundt start og mål, 2) fint søk (ca. 20 m) i en korridor rundt den grove ruten,
+// 3) kontroll mot fine dybder hvert ca. 15 m, der cellene som treffer land eller grunner stenges og korridoren søkes på nytt.
+// En celle er farbar hvis den har farbart vann et sted i seg (workerne leser flisene piksel for piksel), så smale sund holder seg åpne.
+// nav: api.navGrid, depthsAt: api.depthsAt. Gir { path, cell, warn? } eller { error }
+export async function autoRoute(nav, depthsAt, a, b, { minDepth = 2 } = {}) {
+  const ax = mx(a[0]), ay = my(a[1]), bx = mx(b[0]), by = my(b[1]), sc = Math.cos((a[1] + b[1]) / 2 * rad), dd = Math.hypot(bx - ax, by - ay);
+  // 1) grovt
+  let G = null, okG = null, pG = null;
+  for (const grow of [0.4, 1.2]) {
+    const m = Math.max(3000 / sc, dd * grow), x0 = Math.min(ax, bx) - m, x1 = Math.max(ax, bx) + m, y0 = Math.min(ay, by) - m, y1 = Math.max(ay, by) + m;
+    G = mkGrid(x0, x1, y0, y1, Math.max(100 / sc, Math.sqrt((x1 - x0) * (y1 - y0) / 120000)));
+    okG = await nav(G, minDepth, false);
+    const s = snap(G, okG, cellOf(G, ax, ay), Math.ceil(500 / (G.cell * sc))), t = snap(G, okG, cellOf(G, bx, by), Math.ceil(500 / (G.cell * sc)));
+    if (s < 0 || t < 0) return { error: 'Fant ikke vann nær ' + (s < 0 ? 'startpunktet' : 'målet') };
+    pG = findPath(okG, G.W, G.H, s, t, shorePen(G, okG)); if (pG) break;
+  }
+  if (!pG) return { error: 'Fant ingen vei over vann' };
+  // 2) korridor med fine celler rundt den grove ruten
+  for (const widen of [1, 3]) {
+    const rad0 = Math.max(400 / sc, G.cell * 2) * widen; // korridorens halve bredde
+    let x0 = Math.min(ax, bx), x1 = Math.max(ax, bx), y0 = Math.min(ay, by), y1 = Math.max(ay, by);
+    for (const k of pG) { const [x, y] = centre(G, k); x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+    x0 -= rad0; x1 += rad0; y0 -= rad0; y1 += rad0;
+    const F = mkGrid(x0, x1, y0, y1, Math.max(20 / sc, Math.sqrt((x1 - x0) * (y1 - y0) / 700000)));
+    // hvilke fine celler som ligger i korridoren, og hvilke z14-fliser de trenger
+    const inC = new Uint8Array(F.W * F.H), tiles = new Set(), r2 = rad0 * rad0;
+    const pts = [[ax, ay], ...pG.map((k) => centre(G, k)), [bx, by]];
+    for (let q = 1; q < pts.length; q++) {
+      const [px, py] = pts[q - 1], [qx, qy] = pts[q];
+      const i0 = Math.floor((Math.min(px, qx) - rad0 - F.x0) / F.cell), i1 = Math.ceil((Math.max(px, qx) + rad0 - F.x0) / F.cell);
+      const j0 = Math.floor((F.y1 - Math.max(py, qy) - rad0) / F.cell), j1 = Math.ceil((F.y1 - Math.min(py, qy) + rad0) / F.cell);
+      const vx = qx - px, vy = qy - py, L2 = vx * vx + vy * vy || 1;
+      for (let j = Math.max(0, j0); j <= Math.min(F.H - 1, j1); j++) for (let i = Math.max(0, i0); i <= Math.min(F.W - 1, i1); i++) {
+        const k = j * F.W + i; if (inC[k]) continue; const [cx, cy] = centre(F, k);
+        const tt = Math.max(0, Math.min(1, ((cx - px) * vx + (cy - py) * vy) / L2)), ex = px + tt * vx - cx, ey = py + tt * vy - cy;
+        if (ex * ex + ey * ey <= r2) { inC[k] = 1; tiles.add(Math.floor((cx + ORIG) / SPAN14) + ',' + Math.floor((ORIG - cy) / SPAN14)); }
+      }
+    }
+    const fine = F.cell * sc < 40, nv = await nav(F, minDepth, fine, fine ? tiles : null), ok = new Uint8Array(F.W * F.H);
+    for (let k = 0; k < ok.length; k++) ok[k] = nv[k] & inC[k];
+    const pen = shorePen(F, ok);
+    const s = snap(F, ok, cellOf(F, ax, ay), Math.ceil(500 / (F.cell * sc))), t = snap(F, ok, cellOf(F, bx, by), Math.ceil(500 / (F.cell * sc)));
+    if (s < 0 || t < 0) continue;
+    // 3) kontroll mot fine dybder; steng celler som treffer land/grunner og søk igjen
+    let p = null, bad = 0;
+    for (let it = 0; it < 10; it++) {
+      p = smooth(ok, F.W, findPath(ok, F.W, F.H, s, t, pen)); if (!p) break;
+      const samp = [], cells = [];
+      for (let q = 1; q < p.length; q++) {
+        const [px, py] = centre(F, p[q - 1]), [qx, qy] = centre(F, p[q]), n = Math.max(1, Math.ceil(Math.hypot(qx - px, qy - py) * sc / 15));
+        for (let r = 0; r < n; r++) { const x = px + (qx - px) * r / n, y = py + (qy - py) * r / n; samp.push([ilon(x), ilat(y)]); cells.push(cellOf(F, x, y)); }
+      }
+      const skip = 10, ds = samp.length ? await depthsAt(samp, false) : []; bad = 0;
+      ds.forEach((d, r) => { if (r < skip || r >= ds.length - skip) return; if (!d || d.land || d.depth == null || d.depth < minDepth) { const c = cells[r]; if (c !== s && c !== t && ok[c]) { ok[c] = 0; bad++; } } });
+      if (!bad) break;
+    }
+    if (p) return { path: [a, ...p.map((k) => { const [x, y] = centre(F, k); return [ilon(x), ilat(y)]; }), b], cell: Math.round(F.cell * sc), warn: bad ? 'Ruten kan gå over et nes eller grunne' : null };
+  }
+  // korridoren fant ingenting: bruk den grove ruten, men si fra
+  return { path: [a, ...smooth(okG, G.W, pG).map((k) => { const [x, y] = centre(G, k); return [ilon(x), ilat(y)]; }), b], cell: Math.round(G.cell * sc), warn: 'Grov rute – kan gå over nes eller grunner' };
 }

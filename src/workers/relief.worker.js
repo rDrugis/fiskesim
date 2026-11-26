@@ -474,10 +474,40 @@ async function depthAt(lon, lat, coarseOnly = false) {
   return d === d ? { depth: d, lo: iv ? iv[1] : null, hi: iv ? iv[2] : null, est: b.iv ? nearU8(b.flag, b.N, b.m, u, v) === 1 : c >= GEN0 } : { land: true };
 }
 
+// Auto-rute: hvilke celler i et rutenett (meter i Web Mercator) som har farbart vann et sted i seg.
+// En celle teller som farbar hvis minst ett pikselpunkt er vått og minst minD dypt, så smale sund ikke forsvinner i grove celler.
+async function navCells(tx, ty, fine, g, minD, sub = null) {
+  const hit = new Set();
+  const scan = (b, z, x, y) => {
+    if (!b || !b.dep) return;
+    const n = 2 ** z, span = 2 * ORIG / n, px = span / SIZE;
+    for (let v = 0; v < SIZE; v++) {
+      const my = ORIG - (y * span + (v + 0.5) * px), cj = Math.floor((g.y1 - my) / g.cell); if (cj < 0 || cj >= g.H) continue;
+      for (let u = 0; u < SIZE; u++) {
+        const mx = -ORIG + x * span + (u + 0.5) * px, ci = Math.floor((mx - g.x0) / g.cell); if (ci < 0 || ci >= g.W) continue;
+        const p = (v + b.m) * b.N + (u + b.m), d = b.dep[p];
+        if (b.wet[p] && d === d && d >= minD) hit.add(cj * g.W + ci);
+      }
+    }
+  };
+  if (!fine) scan(await computeCoarse(CZ, tx, ty), CZ, tx, ty);
+  else {
+    const n = 2 ** FZ, span = 2 * ORIG / n;
+    const list = sub || []; if (!sub) for (let y = ty * 4; y < ty * 4 + 4; y++) for (let x = tx * 4; x < tx * 4 + 4; x++) list.push([x, y]);
+    for (const [x, y] of list) {
+      const xa = -ORIG + x * span, yb = ORIG - (y + 1) * span; // vest- og sørkant
+      if (xa + span < g.x0 || xa > g.x0 + g.W * g.cell || yb > g.y1 || yb + span < g.y1 - g.H * g.cell) continue;
+      scan(await computeFine(FZ, x, y).catch(() => null), FZ, x, y);
+    }
+  }
+  return Int32Array.from(hit);
+}
+
 self.onmessage = async (ev) => {
   const { id, kind, z, x, y, pal, lon, lat } = ev.data; // hd: skarp flis
   try {
     if (kind === 'stats') { self.postMessage({ id, info: { ...STATS, origin: Math.round(performance.timeOrigin) } }); return; }
+    if (kind === 'nav') { const c = await navCells(ev.data.tx, ev.data.ty, ev.data.fine, ev.data.g, ev.data.minD, ev.data.sub); self.postMessage({ id, info: c }, [c.buffer]); return; }
     if (kind === 'depth') { self.postMessage({ id, info: await depthAt(lon, lat) }); return; }
     // mange punkter på én gang (dybdeprofil); grovt nivå for lange streker
     if (kind === 'depths') { const out = await Promise.all(ev.data.pts.map(([lo, la]) => depthAt(lo, la, !!ev.data.coarse).catch(() => null))); self.postMessage({ id, info: out }); return; }

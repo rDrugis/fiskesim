@@ -50,7 +50,7 @@ export class Fuel {
   line() { const out = [this.pts[0]]; for (let i = 1; i < this.pts.length; i++) { const l = this.legs[i]; if (l && l.path) out.push(...l.path.slice(1)); else out.push(this.pts[i]); } return out; }
   async routeLeg(i) {
     const a = this.pts[i - 1], b = this.pts[i], tag = { a, b, mind: this.o.mind }; this.legs[i] = { tag, busy: true }; this.busy++; this.renderOut();
-    let r; try { r = await autoRoute(this.api.depthsAt, a, b, { minDepth: this.o.mind }); } catch (e) { r = { error: 'Ruteberegning feilet' }; }
+    let r; try { r = await autoRoute(this.api.navGrid, this.api.depthsAt, a, b, { minDepth: this.o.mind }); } catch (e) { r = { error: 'Ruteberegning feilet' }; }
     this.busy--; if (this.legs[i] && this.legs[i].tag === tag) { this.legs[i] = { tag, ...r }; this.sync(); }
     this.renderOut();
   }
