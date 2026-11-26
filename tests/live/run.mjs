@@ -460,6 +460,24 @@ if (want('radfjord')) {
   await ctx.close();
 }
 
+// ---------- Vann-kartet (20 m) rundt et punkt som tekst ----------
+if (want('vannkart')) {
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } }), pg = await ctx.newPage();
+  await pg.goto(BASE + '?sted=60.65,5.11&z=12', { waitUntil: 'load' });
+  await waitFor(pg, () => !!(window.fiskesim && window.fiskesim.api && window.fiskesim.api.navGrid), 30000);
+  for (const [name, lo, la] of [['bakkoyna', 5.112, 60.657], ['flatoy-ost', 5.29, 60.545]]) {
+    const rows = await pg.evaluate(async ({ lo, la }) => {
+      const R = 6378137, rad = Math.PI / 180, sc = Math.cos(la * rad), cell = 20 / sc, half = 50;
+      const cx = lo * rad * R, cy = R * Math.log(Math.tan(Math.PI / 4 + la * rad / 2));
+      const g = { x0: cx - half * cell, y1: cy + half * cell, cell, W: 2 * half, H: 2 * half };
+      const ok = await window.fiskesim.api.navGrid(g, 2, true, null);
+      const out = []; for (let j = 0; j < g.H; j++) { let r = ''; for (let i = 0; i < g.W; i++) r += ok[j * g.W + i] ? '.' : '#'; out.push(r); } return out;
+    }, { lo, la }).catch((e) => ['FEIL ' + String(e).slice(0, 200)]);
+    log('vannkart', name, lo, la, '(20 m per tegn, nord opp, 2 km x 2 km)'); rows.forEach((r) => log('vannkart |', r));
+  }
+  await ctx.close();
+}
+
 // ---------- Algoritmen med bunntype: toppforslag per art i faste områder (før/etter-sammenligning) ----------
 if (want('algobunn')) {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } }), pg = await ctx.newPage(), out = {};
