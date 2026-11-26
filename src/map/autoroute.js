@@ -138,10 +138,10 @@ export async function autoRoute(nav, depthsAt, a, b, { minDepth = 2 } = {}) {
     const firstMissing = () => {
       const rc = reach(); let k0 = null; for (const k of pG) if (!rc.has(k)) { k0 = k; break; } if (k0 == null) return null;
       const inBox = new Set(); for (let k = 0; k < F.W * F.H; k++) if (inC[k]) { const [cx, cy] = centre(F, k); inBox.add(cellOf(G, cx, cy)); }
-      const out = [k0], seen = new Set([k0]);
+      const out = [k0], seen = new Set([k0]), x0k = k0 % G.W, y0k = (k0 / G.W) | 0;
       for (let q = 0; q < out.length; q++) { const k = out[q], x = k % G.W, y = (k / G.W) | 0;
         for (const [u, v] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + u, ny = y + v; if (nx < 0 || ny < 0 || nx >= G.W || ny >= G.H) continue; const j = ny * G.W + nx;
-          if (!seen.has(j) && okG[j] && inBox.has(j) && !rc.has(j) && j !== tG) { seen.add(j); out.push(j); } } }
+          if (!seen.has(j) && okG[j] && inBox.has(j) && !rc.has(j) && j !== tG && Math.hypot(nx - x0k, ny - y0k) * G.cell * sc <= 2000) { seen.add(j); out.push(j); } } }
       return out;
     };
     if (t < 0) return { blockG: firstMissing() };
