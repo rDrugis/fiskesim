@@ -367,3 +367,10 @@ a { color: #8fd0ec; }
 @media (max-width: 760px) { .fangst { left: 8px; right: 8px; max-height: 72vh; } .fa-stats b { font-size: 17px; } }
 
 .prep { display: flex; gap: 6px; margin-top: 0; }
+/* fangstlogg på mobil: bare rulling opp/ned. iPhone zoomer inn på felt med tekst under 16 px, og datofeltet er
+   bredere enn panelet om det ikke får lov å krympe */
+.fangst { overflow-x: hidden; overscroll-behavior: contain; touch-action: pan-y; }
+.fangst form, .fangst .fugrid, .fangst .fuin { min-width: 0; max-width: 100%; }
+.fangst .fuin input, .fangst .fuin select { min-width: 0; max-width: 100%; }
+.fangst input[type="datetime-local"] { -webkit-appearance: none; appearance: none; display: block; min-height: 36px; text-align: left; }
+@media (max-width: 760px) { .fangst .fuin input, .fangst .fuin select { font-size: 16px; } }
