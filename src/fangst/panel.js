@@ -46,7 +46,8 @@ export class FangstPanel {
   setPos(lon, lat, how) {
     this.pos = { lon, lat, how, depth: null }; this.renderPos();
     const s = this.api.map.getSource('fa-new'); if (s) s.setData({ type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [lon, lat] }, properties: {} }] });
-    this.api.depthsAt([[lon, lat]], false).then(([d]) => { if (this.pos && this.pos.lon === lon) { this.pos.depth = d && !d.land && d.depth != null ? Math.round(d.depth) : null; this.renderPos(); } }).catch(() => {});
+    const pos = this.pos;
+    pos.wait = this.api.depthsAt([[lon, lat]], false).then(([d]) => { pos.depth = d && !d.land && d.depth != null ? Math.round(d.depth) : null; if (this.pos === pos) this.renderPos(); }).catch(() => {});
   }
   renderPos() {
     const el = this.el.querySelector('.fa-pos'); if (!el || !this.pos) return;
@@ -115,10 +116,10 @@ export class FangstPanel {
         <label class="fuin">Tid<input name="t" type="datetime-local" value="${localInput(e.caught_at ? new Date(e.caught_at) : new Date())}" required></label>
         <label class="tog"><input type="checkbox" name="no_catch" ${nc ? 'checked' : ''}><span>Fisket uten å få noe</span></label>
         <div class="fa-catch${nc ? ' hidden' : ''}">
-          <div class="fugrid"><label class="fuin fa-wide">Art<select name="species">${opts}</select></label><label class="fuin">Antall<input name="count" inputmode="numeric" value="${e.count || 1}"></label><label class="fuin">Vekt <em>kg (største)</em><input name="weight_kg" inputmode="decimal" value="${e.weight_kg ?? ''}"></label><label class="fuin">Lengde <em>cm</em><input name="length_cm" inputmode="decimal" value="${e.length_cm ?? ''}"></label></div>
+          <div class="fugrid"><label class="fuin fa-wide">Art<select name="species">${opts}</select></label><label class="fuin">Antall<input name="count" inputmode="numeric" value="${e.count || 1}"></label><label class="fuin">Vekt, kg <em>(største)</em><input name="weight_kg" inputmode="decimal" value="${e.weight_kg ?? ''}"></label><label class="fuin">Lengde, cm<input name="length_cm" inputmode="decimal" value="${e.length_cm ?? ''}"></label></div>
           <label class="tog"><input type="checkbox" name="released" ${e.released ? 'checked' : ''}><span>Satt ut igjen</span></label>
         </div>
-        <div class="fugrid"><label class="fuin">Fisketid <em>min</em><input name="effort_min" inputmode="numeric" value="${e.effort_min ?? ''}"></label><label class="fuin fa-wide">Redskap<select name="gear"><option value=""></option>${GEAR.map((g) => `<option${e.gear === g ? ' selected' : ''}>${g}</option>`).join('')}</select></label><label class="fuin">Agn<input name="bait" value="${esc(e.bait || '')}"></label></div>
+        <div class="fugrid"><label class="fuin">Fisketid, min<input name="effort_min" inputmode="numeric" value="${e.effort_min ?? ''}"></label><label class="fuin fa-wide">Redskap<select name="gear"><option value=""></option>${GEAR.map((g) => `<option${e.gear === g ? ' selected' : ''}>${g}</option>`).join('')}</select></label><label class="fuin">Agn<input name="bait" value="${esc(e.bait || '')}"></label></div>
         <label class="fuin">Notat<input name="note" value="${esc(e.note || '')}"></label>
         <div class="furow"><button class="btn primary" type="submit">Lagre</button></div>
       </form>
@@ -155,9 +156,11 @@ export class FangstPanel {
     try { if (reg) await this.cloud.register(u, p); else await this.cloud.login(u, p); this.view = 'list'; this.render(); }
     catch (e) { err.textContent = e.message; err.classList.remove('hidden'); form.querySelectorAll('button').forEach((x) => { x.disabled = false; }); }
   }
-  onSubmit(form) {
+  async onSubmit(form) {
     if (form.classList.contains('fa-login')) return this.auth(form, false);
     if (!this.pos) return this.flash('Velg posisjon først');
+    // vent på dybden fra kartet (maks 4 s), så den kommer med i fangsten
+    if (this.pos.depth == null && this.pos.wait) await Promise.race([this.pos.wait, new Promise((r) => setTimeout(r, 4000))]);
     const g = (n) => form[n] && form[n].value, nc = form.no_catch.checked;
     const c = { caught_at: new Date(g('t')).toISOString(), no_catch: nc, species: nc ? null : g('species'), count: nc ? 0 : Math.max(1, Math.round(num(g('count')) || 1)), weight_kg: nc ? null : num(g('weight_kg')), length_cm: nc ? null : num(g('length_cm')), released: !nc && form.released.checked,
       effort_min: num(g('effort_min')), gear: g('gear') || null, bait: (g('bait') || '').trim() || null, note: (g('note') || '').trim() || null, lon: this.pos.lon, lat: this.pos.lat, depth_m: this.pos.depth };
