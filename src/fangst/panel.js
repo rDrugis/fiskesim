@@ -15,7 +15,8 @@ const num = (v) => { if (v === '' || v == null) return null; const n = +String(v
 export class FangstPanel {
   constructor(api, el, { onMode } = {}) {
     this.api = api; this.el = el; this.onMode = onMode || (() => {}); this.cloud = new Cloud(); this.view = 'list'; this.on = false; this.pickPos = false;
-    this.names = new Map([...SPECIES().map((s) => [s.k, s.no]), ...EXTRA]);
+    // pale (ung sei) rett etter sei i lista
+    this.names = new Map([...SPECIES().flatMap((s) => (s.k === 'sei' ? [[s.k, s.no], ['pale', 'Pale']] : [[s.k, s.no]])), ...EXTRA]);
     this.cloud.on(() => { if (this.on && (this.view === 'list' || this.view === 'konto')) this.render(); this.sync(); });
     el.addEventListener('click', (e) => this.onClick(e));
     el.addEventListener('submit', (e) => { e.preventDefault(); this.onSubmit(e.target); });
