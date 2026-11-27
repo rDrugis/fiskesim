@@ -493,8 +493,8 @@ if (want('fangst')) {
     await pg.selectOption('.fangst select[name="species"]', 'sei'); await pg.fill('.fangst input[name="count"]', '8'); await pg.fill('.fangst input[name="weight_kg"]', '1,5');
     await pg.selectOption('.fangst select[name="gear"]', 'Jukse/pilk'); r0.fisketidSynlig = await pg.isVisible('.fangst input[name="effort_min"]'); r0.satUt = await pg.$('.fangst input[name="released"]') !== null;
     await pg.screenshot({ path: join(OUT, `fangst-skjema-${tag}.png`) });
-    await pg.click('.fangst button[type="submit"]'); await pg.waitForTimeout(600);
-    await pg.click('.fangst [data-f="none"]'); await pg.waitForTimeout(1500); await pg.fill('.fangst input[name="effort_min"]', '45'); await pg.click('.fangst button[type="submit"]'); await pg.waitForTimeout(600);
+    await pg.click('.fangst button[type="submit"]'); await pg.waitForSelector('.fangst .fa-stats', { timeout: 8000 });
+    await pg.click('.fangst [data-f="none"]'); await pg.waitForTimeout(1500); await pg.fill('.fangst input[name="effort_min"]', '45'); await pg.click('.fangst button[type="submit"]'); await pg.waitForSelector('.fangst .fa-stats', { timeout: 8000 });
     await pg.screenshot({ path: join(OUT, `fangst-liste-${tag}.png`) });
     const r = await pg.evaluate(() => { const c = window.fiskesim.app.fangst.cloud; return { n: c.list().length, ls: JSON.parse(localStorage.getItem('fiskesim.fangst') || '[]').map((x) => ({ sp: x.species, n: x.count, kg: x.weight_kg, nc: x.no_catch, min: x.effort_min, d: x.depth_m, pos: [Math.round(x.lon * 1e3) / 1e3, Math.round(x.lat * 1e3) / 1e3] })), stats: document.querySelector('.fa-stats').textContent.replace(/\s+/g, ' ') }; });
     await pg.click('.fangst .fa-item'); await pg.waitForTimeout(300); await pg.screenshot({ path: join(OUT, `fangst-detalj-${tag}.png`) });
@@ -524,12 +524,12 @@ if (want('algofangst')) {
     await pg.click('.maplibregl-popup [data-a="fikk"]'); await pg.waitForTimeout(2500);
     r.skjema = await pg.evaluate(() => ({ art: document.querySelector('.fangst select[name="species"]')?.value, pos: document.querySelector('.fangst .fa-pos')?.textContent }));
     await pg.screenshot({ path: join(OUT, 'algofangst-skjema.png') });
-    await pg.click('.fangst button[type="submit"]'); await pg.waitForTimeout(800);
+    await pg.click('.fangst button[type="submit"]'); await pg.waitForSelector('.fangst .fa-stats', { timeout: 8000 });
     // og «Ingen fisk her»
     await pg.click('.fangst [data-f="close"]'); await pg.waitForTimeout(300);
     await pg.click('.algo-pt:not(.saved)'); await pg.waitForTimeout(500); await pg.click('.maplibregl-popup [data-a="ingen"]'); await pg.waitForTimeout(2000);
     r.ingenSkjema = await pg.evaluate(() => ({ nc: document.querySelector('.fangst input[name="no_catch"]')?.checked, tid: !document.querySelector('.fangst .fa-none').classList.contains('hidden') }));
-    await pg.fill('.fangst input[name="effort_min"]', '30'); await pg.click('.fangst button[type="submit"]'); await pg.waitForTimeout(800);
+    await pg.fill('.fangst input[name="effort_min"]', '30'); await pg.click('.fangst button[type="submit"]'); await pg.waitForSelector('.fangst .fa-stats', { timeout: 8000 });
     r.lagret = await pg.evaluate(() => window.fiskesim.app.fangst.cloud.list().map((c) => ({ sp: c.species, nc: c.no_catch, min: c.effort_min, algo: c.algo, d: c.depth_m })));
     await pg.screenshot({ path: join(OUT, 'algofangst-liste.png') });
   }
