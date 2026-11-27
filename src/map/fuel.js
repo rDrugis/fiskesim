@@ -62,11 +62,11 @@ export class Fuel {
     return { nm, h, l, lr, kr: l * o.pris, lpn: o.kn > 0 ? o.lph / o.kn : 0 };
   }
   render() {
-    const o = this.o, inp = (k, lab, unit, step) => `<label class="fuin"><span>${lab}</span><input type="number" inputmode="decimal" min="0" step="${step}" data-k="${k}" value="${o[k]}"><em>${unit}</em></label>`;
+    const o = this.o, inp = (k, lab, unit, step) => `<label class="fuin"><span>${lab}, ${unit}</span><input type="number" inputmode="decimal" min="0" step="${step}" data-k="${k}" value="${o[k]}"></label>`;
     this.panel.innerHTML = `
       <header><h2>Drivstoff</h2><span class="psp"></span><button class="iconbtn sm" data-f="close" aria-label="Lukk">✕</button></header>
       <div class="fuout"></div>
-      <div class="fugrid">${inp('kn', 'Fart', 'knop', 1)}${inp('lph', 'Forbruk', 'l/time', 1)}${inp('pris', 'Pris', 'kr/l', 0.5)}${inp('reserve', 'Reserve', '%', 5)}</div>
+      <div class="fugrid">${inp('kn', 'Fart', 'kn', 1)}${inp('lph', 'Forbruk', 'l/t', 1)}${inp('pris', 'Pris', 'kr/l', 0.5)}${inp('reserve', 'Reserve', '%', 5)}</div>
       <div class="futogs"><label class="tog"><input type="checkbox" data-k="retur" ${o.retur ? 'checked' : ''}><span>Tur-retur</span></label><label class="tog"><input type="checkbox" data-k="auto" ${o.auto ? 'checked' : ''}><span>Auto-rute</span></label><label class="fuin fuauto${o.auto ? '' : ' hidden'}"><span>Min. dybde, m</span><input type="number" inputmode="decimal" min="0" step="0.5" data-k="mind" value="${o.mind}"></label></div>
       <div class="furow"><button class="btn sm" data-f="undo" ${this.pts.length ? '' : 'disabled'}>Angre punkt</button><button class="btn sm" data-f="reset" ${this.pts.length ? '' : 'disabled'}>Ny rute</button></div>`;
     this.renderOut();
