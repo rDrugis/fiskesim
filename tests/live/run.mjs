@@ -570,6 +570,9 @@ if (want('bunnpkt')) {
   await pg.screenshot({ path: join(OUT, 'bunnpkt-dybdekart.png') });
   // algoritmen i Hjeltefjorden (NGU har ikke kartlagt bunnen der): hvor mange forslag får bunntype fra sjømåling?
   r.algo = await pg.evaluate(async () => { const x = await window.fiskesim.ALGO.algoRun({ w: 4.95, e: 5.1, s: 60.42, n: 60.5 }, 'now', ['lange', 'torsk', 'brosme']); return x ? { note: x.note, n: x.res.length, medBunn: x.res.filter((q) => q.fe && q.fe.bt).length, fraProve: x.res.filter((q) => q.fe && q.fe.bs).length } : null; });
+  // mekanismen: ruten rundt én prøve (Hjeltefjorden, 60.44829 N 4.97162 Ø, grov sand) skal få bunntype i cellene rundt
+  r.rute = await pg.evaluate(async () => { const A = window.fiskesim.ALGO; const [x, y] = [6378137 * 4.97162 * Math.PI / 180, 6378137 * Math.log(Math.tan(Math.PI / 4 + 60.44928 * Math.PI / 360))];
+    const t = await A.atGet(Math.floor(x / 6000), Math.floor(y / 6000), 'now'); return t ? { nD: t.nD, nB: t.nB } : null; }).catch((e) => String(e).slice(0, 200));
   r.errs = errs; log('bunnpkt', JSON.stringify(r)); await ctx.close();
 }
 
