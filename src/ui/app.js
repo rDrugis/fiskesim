@@ -3,6 +3,7 @@
 import { createMap, MAP_STYLES } from '../map/mapview.js';
 import { SeaMarks } from '../map/seamarks.js';
 import { Soundings } from '../map/soundings.js';
+import { BunnPkt } from '../map/bunnpkt.js';
 import { AlgoLayer, SPECIES } from '../map/algolayer.js';
 import { Profile, ICON_PROF } from '../map/profile.js';
 import { Drift, ICON_DRIFT } from '../map/drift.js';
@@ -88,6 +89,7 @@ export class App {
     map.on('moveend', () => { const c = map.getCenter(); try { localStorage.setItem('fiskesim.map', JSON.stringify({ c: [c.lng, c.lat], z: map.getZoom() })); } catch (e) { /* privat */ } });
     this.marks = new SeaMarks(api);
     this.soundings = new Soundings(api);
+    this.bunnpkt = new BunnPkt(api);
     this.algo = new AlgoLayer(api, { onNote: (t, busy) => this.note(t, busy), onSaved: () => this.renderLayers && this.renderLayers(), onReport: (info, caught) => this.reportAlgo(info, caught) });
     // dybdeprofil: knappen i høyre kant, panelet nederst
     const pbtn = this.root.querySelector('[data-a="prof"]'), ppanel = this.root.querySelector('.prof');
@@ -332,6 +334,7 @@ export class App {
         <li><b>Fiskekart:</b> dybden mellom Kartverkets dybdekurver er anslått ut fra avstanden til nærmeste grunnere og dypere kurve. Skravert = sjøkartet har bare et grovt intervall (f.eks. 0,5–100 m), og dybden er gjettet.</li>
         <li><b>Fiskeplasser:</b> samme algoritme som Fiskeguide (dybdekrav, bunnformer, bunntype, måned, fredning, oppdrett), pluss blåkjeft. Kildene står ved hvert forslag.</li>
         <li><b>3D:</b> bølger fra MET og Open-Meteo, justert for strøklengde og skjerming. Modell, ikke målt.</li>
+        <li><b>Dybdekart:</b> bokstavene (S, M, St …) er bunnprøver fra sjømåling, som i sjøkartet. Fiskeplasser bruker dem der NGU ikke har kartlagt bunnen.</li>
         <li>Ikke for navigasjon.</li>
       </ul>
       <h3>Kilder</h3><ul class="sources">${ATTRIB.map(([n, u, l]) => `<li><a href="${esc(u)}" target="_blank" rel="noopener">${esc(n)}</a> <span class="tag">${esc(l)}</span></li>`).join('')}

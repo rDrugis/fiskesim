@@ -1,5 +1,6 @@
 // Fiskeplassforslag i kartet: ruteberegning (i bakgrunnstråder), lagring, utvalg og forklaring.
 // Utvalget (algoPick) og forklaringene (algoLines/algoWhy) er de samme som i Fiskeguide.
+import { loadBunnPkt, BP_TYPES } from '../map/bunnpkt.js';
 import { R, ART, SRC, VERSION, ATILE, AMAXT, merc, unmerc, km, algoParams, depthFit, bunnNavn, tileGeom, rd } from './core.js';
 
 export { R, ART, SRC };
@@ -60,15 +61,22 @@ function worker(k) {
   }
   return pool[k % pool.length];
 }
+// bunnprøver fra sjømåling (algoritmen bruker dem bare der NGU ikke har bunnflater): [x, y, bunnklasse] i Web Mercator
+let BPM = null;
+async function bunnPktMerc() {
+  if (!BPM) BPM = loadBunnPkt(typeof location !== 'undefined' ? new URL('.', location.href).href : '').then((p) => p.map(([lo, la, c]) => { const [x, y] = merc(la, lo); return [x, y, BP_TYPES[c].k]; }));
+  return BPM;
+}
 async function atCompute(tx, ty, m, grid) {
   const { bx } = tileGeom(tx, ty);
+  const bpAll = await bunnPktMerc().catch(() => []), pad = 600, bp = bpAll.filter(([x, y]) => x > bx[0] - pad && x < bx[2] + pad && y > bx[1] - pad && y < bx[3] + pad);
   const sw = unmerc(bx[0], bx[1]), ne = unmerc(bx[2], bx[3]), lb = { s: sw[0], w: sw[1], n: ne[0], e: ne[1] };
   const wfs = (svc, typ) => wfsBounds(svc, typ, lb).catch(() => null);
   const [akF, akP, pasF] = await Promise.all([wfs('FiskeridirWFS_akva', 'Flate_ihht_Akvakulturregisteret'), wfs('FiskeridirWFS_akva', 'akvakultur_lokaliteter'), wfs('FiskeridirWFS_fiskeri', 'fiskeplasser_passive_redskap')]);
   // bare geometri og egenskapene algoritmen bruker sendes til tråden
   const slim = (fs) => fs && fs.map((f) => ({ geometry: f.geometry, properties: f.properties }));
   const id = ++wid;
-  const res = await new Promise((res, rej) => { wwait.set(id, { res, rej }); worker(tx * 7 + ty * 13).postMessage({ id, tx, ty, m, now: Date.now(), grid, wfs: { akF: slim(akF), akP: slim(akP), pasF: slim(pasF) } }); });
+  const res = await new Promise((res, rej) => { wwait.set(id, { res, rej }); worker(tx * 7 + ty * 13).postMessage({ id, tx, ty, m, now: Date.now(), grid, bp, wfs: { akF: slim(akF), akP: slim(akP), pasF: slim(pasF) } }); });
   return { k: tkey(tx, ty, m), ts: Date.now(), nD: res.nD, nB: res.nB, c: res.c, blocks: res.blocks };
 }
 /* testkrok: poeng per blokk på ca. 175 m for én art i én rute (brukes av live-testen, lagres ikke) */
@@ -175,7 +183,7 @@ export function algoLines(r) {
   if (fe.shore && (r.P.w.shore || 0) > 0) out.push(fe.shore === 1 ? 'Nær land (under ca. 100 m)' : 'Ca. 100–300 m fra land');
   const bu = R.algo[r.sp].bunn;
   if (fe.bt) { const ok = bu && (bu.pref.indexOf(fe.bt) >= 0 || (bu.overgang && fe.ov)), bad = bu && bu.avoid && bu.avoid.indexOf(fe.bt) >= 0;
-    out.push('Bunntype (NGU): ' + esc(bunnNavn(fe.bt).toLowerCase()) + (bu ? (ok ? ' – passer: ' : bad ? ' – passer dårlig: ' : ' – ') + esc(ART[r.sp].no.toLowerCase()) + ' liker ' + esc(bu.t) + src(bu.s) : '') + src(['ngu_sed'])); }
+    out.push('Bunntype (' + (fe.bs ? 'bunnprøve fra sjømåling innen ca. 250 m' : 'NGU') + '): ' + esc(bunnNavn(fe.bt).toLowerCase()) + (bu ? (ok ? ' – passer: ' : bad ? ' – passer dårlig: ' : ' – ') + esc(ART[r.sp].no.toLowerCase()) + ' liker ' + esc(bu.t) + src(bu.s) : '') + src(['ngu_sed'])); }
   if (r.fp) out.push('Ligger i en fiskeplass fiskerne har registrert for ' + esc(ART[r.sp].no.toLowerCase()) + ' denne måneden (' + esc(r.fp) + ')');
   if (r.P.varsel) out.push('<span class="warn">' + esc(r.P.varsel) + '</span>');
   return out;

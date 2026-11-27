@@ -559,6 +559,20 @@ if (want('rail')) {
   }
 }
 
+// ---------- Bunnprøver fra sjømåling: bokstaver i dybdekartet, og bunntype i algoritmen der NGU mangler ----------
+if (want('bunnpkt')) {
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } }), pg = await ctx.newPage(), errs = [];
+  pg.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));
+  await pg.addInitScript(() => { try { localStorage.setItem('fiskesim.kart', 'dybdekart'); } catch (e) {} });
+  await pg.goto(BASE + '?sted=60.48,5.02&z=13', { waitUntil: 'load' });
+  await waitFor(pg, () => !!(window.fiskesim && window.fiskesim.api), 30000); await pg.waitForTimeout(6000);
+  const r = await pg.evaluate(() => { const m = window.fiskesim.api.map; const f = m.getLayer('bp-txt') ? m.queryRenderedFeatures({ layers: ['bp-txt'] }) : []; return { lag: !!m.getLayer('bp-txt'), synlige: f.length, eks: [...new Set(f.map((x) => x.properties.a))].slice(0, 10) }; });
+  await pg.screenshot({ path: join(OUT, 'bunnpkt-dybdekart.png') });
+  // algoritmen i Hjeltefjorden (NGU har ikke kartlagt bunnen der): hvor mange forslag får bunntype fra sjømåling?
+  r.algo = await pg.evaluate(async () => { const x = await window.fiskesim.ALGO.algoRun({ w: 4.95, e: 5.1, s: 60.42, n: 60.5 }, 'now', ['lange', 'torsk', 'brosme']); return x ? { note: x.note, n: x.res.length, medBunn: x.res.filter((q) => q.fe && q.fe.bt).length, fraProve: x.res.filter((q) => q.fe && q.fe.bs).length } : null; });
+  r.errs = errs; log('bunnpkt', JSON.stringify(r)); await ctx.close();
+}
+
 // ---------- Algoritmen med bunntype: toppforslag per art i faste områder (før/etter-sammenligning) ----------
 if (want('algobunn')) {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } }), pg = await ctx.newPage(), out = {};
