@@ -32,9 +32,9 @@ export class BunnPkt {
     if (!map.getSource('bp')) map.addSource('bp', { type: 'geojson', data: this.data });
     // som i sjøkartet: liten kursiv forkortelse, fra zoom 12
     map.addLayer({ id: 'bp-txt', type: 'symbol', source: 'bp', minzoom: 12, layout: {
-      'text-field': ['get', 'a'], 'text-font': ['literal', ['Noto Sans Italic']], 'text-size': ['interpolate', ['linear'], ['zoom'], 12, 10.5, 16, 13],
-      'text-allow-overlap': false, 'text-padding': 2 },
-      paint: { 'text-color': '#5b2a6e', 'text-halo-color': 'rgba(255,255,255,.8)', 'text-halo-width': 1.2 } });
+      'text-field': ['get', 'a'], 'text-font': ['literal', ['Noto Sans Bold Italic']], 'text-size': ['interpolate', ['linear'], ['zoom'], 12, 13, 16, 16],
+      'text-allow-overlap': true, 'text-ignore-placement': true },
+      paint: { 'text-color': '#4a1466', 'text-halo-color': 'rgba(255,255,255,.95)', 'text-halo-width': 1.8 } });
     if (!this.wired) {
       this.wired = true;
       map.on('click', 'bp-txt', (e) => {
