@@ -21,7 +21,6 @@ export const ATTRIB = [
   ['MET Norway (vær, bølger, strøm, sjøtemperatur)', 'https://api.met.no', 'CC BY 4.0'],
   ['Open-Meteo (bølgeperiode)', 'https://open-meteo.com', 'CC BY 4.0, ikke-kommersiell'],
   ['NGU (bunnsedimenter)', 'https://www.ngu.no', 'Åpne data'],
-  ['Inneholder data under norsk lisens for offentlige data (NLOD) tilgjengeliggjort av Norges geologiske undersøkelse (NGU) – bunnprøver fra sjømåling', 'https://geo.ngu.no/download/order?dataset=709', 'NLOD'],
   ['OpenStreetMap via OpenFreeMap (bygninger, skog, stedsnavn i kartet)', 'https://openfreemap.org', 'ODbL'],
   ['Mapzen/Tilezen terrengfliser (høyde langt unna)', 'https://github.com/tilezen/joerd', 'CC BY 4.0 m.fl.'],
 ];

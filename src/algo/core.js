@@ -20,7 +20,7 @@ export const ART = DATA.art, SRC = DATA.src;
 /* terskler for bunnformene (meter, høydeforskjell innen ca. 120 m): kant 15–90 m, flat under 8 m (helt) til 48 m (ikke), slak bakke 5–60 m;
    topp, liten topp og grop måles mot bunnen ca. 400 m unna. */
 export const FCFG = { e0: 15, e1: 75, pk: 30, kn: 10, bs: 30, fo: 8, fl: 40, s0: 5, s1: 10, s2: 35, s3: 25 };
-export const ALV = 'a13', ACELL = 10, ATILE = 6000, AMAXT = 24, AKEEP = 8;
+export const ALV = 'a12', ACELL = 10, ATILE = 6000, AMAXT = 24, AKEEP = 8;
 export const VERSION = ALV + '+fs5'; // Fiskeguide-versjon + Fiskesims tillegg (endres når resultatet kan endre seg)
 
 export const clamp01 = (v) => v < 0 ? 0 : v > 1 ? 1 : v;
@@ -208,20 +208,6 @@ export async function computeTile(tx, ty, m, inp, { pause = null, now = new Date
   for (let c = 0; c < N; c++) { const k = c * 4;
     if (dd[k + 3] > 200) { const iv = depthOf(dd[k]); if (iv) { DA[c] = iv[0]; DB[c] = iv[1]; D[c] = (iv[0] + iv[1]) / 2; } } else LAND[c] = 1;
     if (bd && bd[k + 3] > 200 && !isNaN(D[c])) BT[c] = bunnOf(bd[k], bd[k + 1], bd[k + 2]); }
-  /* bunnprøver fra sjømåling (sjøkartets S, M, St …) der NGU ikke har bunnflater: nærmeste prøve innen ca. 250 m
-     gir bunntypen. Bare celler uten NGU-bunntype fylles; BSRC merker dem, så forklaringen kan si hvor bunntypen kom fra */
-  const BSRC = new Uint8Array(N);
-  if (inp.bp && inp.bp.length) {
-    const rC = Math.ceil(250 / cellM), BD = new Float32Array(N).fill(Infinity), x0b = bx[0], y1b = bx[3];
-    for (const [px, py, k] of inp.bp) {
-      const ci = Math.floor((px - x0b) / ACELL), cj = Math.floor((y1b - py) / ACELL);
-      for (let j = Math.max(0, cj - rC); j <= Math.min(H - 1, cj + rC); j++) for (let i = Math.max(0, ci - rC); i <= Math.min(W - 1, ci + rC); i++) {
-        const c = j * W + i; if (isNaN(D[c]) || (BT[c] && !BSRC[c])) continue;
-        const dd2 = (i - ci) * (i - ci) + (j - cj) * (j - cj); if (dd2 > rC * rC || dd2 >= BD[c]) continue;
-        BD[c] = dd2; BT[c] = k; BSRC[c] = 1;
-      }
-    }
-  }
   /* tomt i dybdekartet = land, men bare innen ca. 5 km fra Kartverkets landareal – ellers mangler det bare dybdedata.
      Landarealet er forenklet og mangler mange øyer, så selve kystlinjen kommer fra dybdekartet. */
   let LA = null, LND = null; const offL = mL * LC - mC * ACELL;
@@ -272,7 +258,7 @@ export async function computeTile(tx, ty, m, inp, { pause = null, now = new Date
           const s = wt * clamp01((deep - d - need) / 25); if (s > best) { best = s; bD = deep; } }
         fe.shelf = flatL * best; fe.shD = bD; }
     }
-    fe.ringMean = ringMean; fe.d0 = d; fe.bt = BT[c]; fe.bs = BSRC[c]; fe.ov = ov; return true;
+    fe.ringMean = ringMean; fe.d0 = d; fe.bt = BT[c]; fe.ov = ov; return true;
   }
   /* artene: dybdekrav og vekter for måneden; poeng per celle, beste celle i hver blokk på ca. 175 m */
   const sps = Object.keys(R.algo).map((sp) => { const P = algoParams(sp, m, latC, lonC, now); if (!P || P.skip) return null;
