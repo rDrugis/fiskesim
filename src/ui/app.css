@@ -365,3 +365,5 @@ a { color: #8fd0ec; }
 .fa-kv span { color: var(--text-3); }
 .fa-err { color: var(--alarm); }
 @media (max-width: 760px) { .fangst { left: 8px; right: 8px; max-height: 72vh; } .fa-stats b { font-size: 17px; } }
+
+.prep { display: flex; gap: 6px; margin-top: 0; }

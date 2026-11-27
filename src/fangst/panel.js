@@ -104,13 +104,21 @@ export class FangstPanel {
     const d = new Date(c.caught_at), row = (k, v) => (v || v === 0 ? `<div><span>${k}</span><b>${v}</b></div>` : '');
     return `${this.head(c.no_catch ? 'Ingen fangst' : `${c.count > 1 ? c.count + ' × ' : ''}${esc(this.name(c.species))}`, true)}
       <div class="fa-kv">${row('Tid', `${d.getDate()}. ${MND[d.getMonth()]} ${d.getFullYear()} kl. ${pad(d.getHours())}:${pad(d.getMinutes())}`)}${row('Posisjon', `<span class="num">${fmtLat(c.lat)} ${fmtLon(c.lon)}</span>`)}${row('Dybde', c.depth_m != null ? Math.round(c.depth_m) + ' m' : '')}
-      ${row('Total vekt', c.weight_kg ? fmt(c.weight_kg, 1) + ' kg' : '')}${row('Lengde', c.length_cm ? fmt(c.length_cm) + ' cm' : '')}${row('Fisketid', c.effort_min ? c.effort_min + ' min' : '')}${row('Redskap', esc(c.gear || ''))}${row('Agn', esc(c.bait || ''))}${row('Notat', esc(c.note || ''))}</div>
+      ${row('Total vekt', c.weight_kg ? fmt(c.weight_kg, 1) + ' kg' : '')}${row('Lengde', c.length_cm ? fmt(c.length_cm) + ' cm' : '')}${row('Fisketid', c.effort_min ? c.effort_min + ' min' : '')}${row('Redskap', esc(c.gear || ''))}${row('Agn', esc(c.bait || ''))}${row('Notat', esc(c.note || ''))}${c.algo ? row('Algoritmeforslag', esc(c.algo.sp.map((k, i) => this.name(k) + (c.algo.sc && c.algo.sc[i] != null ? ' ' + c.algo.sc[i] : '')).join(', '))) : ''}</div>
       <div class="furow"><button class="btn" data-f="show">Vis i kartet</button><button class="btn" data-f="edit">Endre</button><button class="btn" data-f="del">${this.delAsk ? 'Sikker? Slett' : 'Slett'}</button></div>`;
   }
-  form(c, noCatch) {
+  // fra et algoritmeforslag: plassen og arten fylles inn, og forslaget (art og poeng) lagres med fangsten
+  fromAlgo(info, caught) {
+    if (!this.on) this.open();
+    this.cur = null; this.algoInfo = info;
+    const sp = info.sp && info.sp[0];
+    this.form(caught ? { species: this.names.has(sp) ? sp : 'ukjent', count: 1 } : null, !caught, info);
+  }
+  form(c, noCatch, preset = null) {
+    if (!preset) this.algoInfo = null;
     this.view = 'form'; this.delAsk = false; const e = c || {}, opts = [...this.names].map(([k, n]) => `<option value="${k}"${e.species === k ? ' selected' : ''}>${esc(n)}</option>`).join('');
-    const nc = c ? !!c.no_catch : !!noCatch;
-    this.el.innerHTML = `${this.head(c ? 'Endre' : nc ? 'Fisket uten fangst' : 'Logg fangst', true)}
+    const nc = c && c.no_catch != null ? !!c.no_catch : !!noCatch;
+    this.el.innerHTML = `${this.head(c && c.client_id ? 'Endre' : nc ? 'Fisket uten fangst' : 'Logg fangst', true)}
       <form class="fa-form">
         <div class="fa-posrow"><div class="fa-pos pmut"></div><div class="furow"><button class="btn sm" type="button" data-f="gps">Min posisjon</button><button class="btn sm" type="button" data-f="pick">Velg i kartet</button></div></div>
         <label class="fuin">Tid<input name="t" type="datetime-local" value="${localInput(e.caught_at ? new Date(e.caught_at) : new Date())}" required></label>
@@ -124,7 +132,8 @@ export class FangstPanel {
         <div class="furow"><button class="btn primary" type="submit">Lagre</button></div>
       </form>
       <p class="pmut">Fangsten lagres${this.cloud.user ? ' på kontoen din' : ' på denne enheten (logg inn for å lagre på konto)'} og brukes til å forbedre algoritmen i Fiskesim.</p>`;
-    if (c) this.setPos(c.lon, c.lat, 'lagret posisjon');
+    if (preset) this.setPos(preset.lon, preset.lat, 'algoritmeforslaget');
+    else if (c && c.lon != null) this.setPos(c.lon, c.lat, 'lagret posisjon');
     else { const m = this.api.map.getCenter(); this.setPos(m.lng, m.lat, 'kartets midte'); this.gps(true); }
   }
   gps(quiet) {
@@ -164,6 +173,7 @@ export class FangstPanel {
     const g = (n) => form[n] && form[n].value, nc = form.no_catch.checked;
     const c = { caught_at: new Date(g('t')).toISOString(), no_catch: nc, species: nc ? null : g('species'), count: nc ? 0 : Math.max(1, Math.round(num(g('count')) || 1)), weight_kg: nc ? null : num(g('weight_kg')), length_cm: nc ? null : num(g('length_cm')), released: false,
       effort_min: nc ? num(g('effort_min')) : null, gear: g('gear') || null, bait: (g('bait') || '').trim() || null, note: (g('note') || '').trim() || null, lon: this.pos.lon, lat: this.pos.lat, depth_m: this.pos.depth };
+    if (this.algoInfo) { c.algo = this.algoInfo; this.algoInfo = null; }
     if (this.cur) this.cloud.update(this.cur, c); else this.cloud.add(c);
     this.api.map.getSource('fa-new')?.setData({ type: 'FeatureCollection', features: [] });
     this.view = this.cur ? 'detail' : 'list'; this.render(); this.sync();

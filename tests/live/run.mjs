@@ -507,6 +507,33 @@ if (want('fangst')) {
   }
 }
 
+// ---------- Fra algoritmeforslag til fangstlogg ----------
+if (want('algofangst')) {
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } }), pg = await ctx.newPage(), errs = [];
+  pg.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));
+  await pg.goto(BASE + '?sted=60.52,5.27&z=13', { waitUntil: 'load' });
+  await waitFor(pg, () => !!(window.fiskesim && window.fiskesim.app && window.fiskesim.app.fangst), 30000);
+  await pg.evaluate(() => window.fiskesim.algo.setOn(true));
+  let n = 0; for (let i = 0; i < 90 && !n; i++) { await pg.waitForTimeout(1000); n = await pg.evaluate(() => document.querySelectorAll('.algo-pt:not(.saved)').length); }
+  const r = { forslag: n };
+  if (n) {
+    await pg.click('.algo-pt:not(.saved)'); await pg.waitForTimeout(500);
+    r.knapper = await pg.evaluate(() => [...document.querySelectorAll('.maplibregl-popup [data-a="fikk"], .maplibregl-popup [data-a="ingen"]')].map((b) => b.textContent));
+    await pg.screenshot({ path: join(OUT, 'algofangst-boble.png') });
+    await pg.click('.maplibregl-popup [data-a="fikk"]'); await pg.waitForTimeout(2500);
+    r.skjema = await pg.evaluate(() => ({ art: document.querySelector('.fangst select[name="species"]')?.value, pos: document.querySelector('.fangst .fa-pos')?.textContent }));
+    await pg.screenshot({ path: join(OUT, 'algofangst-skjema.png') });
+    await pg.click('.fangst button[type="submit"]'); await pg.waitForTimeout(800);
+    // og «Ingen fisk her»
+    await pg.click('.algo-pt:not(.saved)'); await pg.waitForTimeout(500); await pg.click('.maplibregl-popup [data-a="ingen"]'); await pg.waitForTimeout(2000);
+    r.ingenSkjema = await pg.evaluate(() => ({ nc: document.querySelector('.fangst input[name="no_catch"]')?.checked, tid: !document.querySelector('.fangst .fa-none').classList.contains('hidden') }));
+    await pg.fill('.fangst input[name="effort_min"]', '30'); await pg.click('.fangst button[type="submit"]'); await pg.waitForTimeout(800);
+    r.lagret = await pg.evaluate(() => window.fiskesim.app.fangst.cloud.list().map((c) => ({ sp: c.species, nc: c.no_catch, min: c.effort_min, algo: c.algo, d: c.depth_m })));
+    await pg.screenshot({ path: join(OUT, 'algofangst-liste.png') });
+  }
+  r.errs = errs; log('algofangst', JSON.stringify(r)); await ctx.close();
+}
+
 // ---------- Algoritmen med bunntype: toppforslag per art i faste områder (før/etter-sammenligning) ----------
 if (want('algobunn')) {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } }), pg = await ctx.newPage(), out = {};

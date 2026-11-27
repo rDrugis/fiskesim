@@ -43,3 +43,5 @@ create policy "endre egne" on public.catches for update to authenticated using (
 create policy "slett egne" on public.catches for delete to authenticated using (user_id = auth.uid());
 grant select on public.profiles to authenticated;
 grant select, insert, update, delete on public.catches to authenticated;
+-- Algoritmeforslaget fangsten ble logget fra (art, poeng, måned)
+alter table public.catches add column algo jsonb;

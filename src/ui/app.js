@@ -66,6 +66,13 @@ export class App {
     this.init();
   }
 
+  // fra et algoritmeforslag: åpne fangstloggen med plassen og arten fylt inn
+  reportAlgo(info, caught) {
+    if (!this.fangst) return;
+    this.profile.clear(); this.drift.clear(); if (this.fuel.active) this.fuel.clear(); this.closeInfo(); this.root.querySelector('.layers').classList.add('hidden');
+    this.fangst.fromAlgo(info, caught);
+  }
+
   async init() {
     let saved = null; try { saved = JSON.parse(localStorage.getItem('fiskesim.map') || 'null'); } catch (e) { /* tom */ }
     const p = new URLSearchParams(location.search), at = p.get('sted');
@@ -76,7 +83,7 @@ export class App {
     map.on('moveend', () => { const c = map.getCenter(); try { localStorage.setItem('fiskesim.map', JSON.stringify({ c: [c.lng, c.lat], z: map.getZoom() })); } catch (e) { /* privat */ } });
     this.marks = new SeaMarks(api);
     this.soundings = new Soundings(api);
-    this.algo = new AlgoLayer(api, { onNote: (t, busy) => this.note(t, busy), onSaved: () => this.renderLayers && this.renderLayers() });
+    this.algo = new AlgoLayer(api, { onNote: (t, busy) => this.note(t, busy), onSaved: () => this.renderLayers && this.renderLayers(), onReport: (info, caught) => this.reportAlgo(info, caught) });
     // dybdeprofil: knappen i høyre kant, panelet nederst
     const pbtn = this.root.querySelector('[data-a="prof"]'), ppanel = this.root.querySelector('.prof');
     this.profile = new Profile(api, ppanel, { getPos: () => (this.lastPos && Date.now() - this.lastPos[3] < 30 * 60e3 ? this.lastPos : null), onMode: (on) => { pbtn.setAttribute('aria-pressed', String(on)); this.root.querySelector('.xhair').classList.toggle('hidden', !on); } });

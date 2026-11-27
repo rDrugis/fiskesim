@@ -7,8 +7,8 @@ const load = (k, d) => { try { const v = localStorage.getItem('fiskesim.' + k); 
 const save = (k, v) => { try { localStorage.setItem('fiskesim.' + k, JSON.stringify(v)); } catch (e) { /* privat modus */ } };
 
 export class AlgoLayer {
-  constructor(api, { onNote = () => {}, onSaved = () => {} } = {}) {
-    this.api = api; this.onNote = onNote; this.onSaved = onSaved;
+  constructor(api, { onNote = () => {}, onSaved = () => {}, onReport = null } = {}) {
+    this.api = api; this.onNote = onNote; this.onSaved = onSaved; this.onReport = onReport;
     this.on = load('algo', false); this.sel = load('algoSel', []).filter((k) => !HIDDEN.includes(k)); this.mon = load('algoMon', 'now');
     this.markers = []; this.saved = load('plasser', []); this.savedMarkers = [];
     this.timer = 0;
@@ -80,11 +80,19 @@ export class AlgoLayer {
   popupHTML(grp) {
     const r = grp[0], on = this.savedAt(r.lat, r.lon);
     return `<div class="pal">${grp.map(spLine).join('')}${depthLine(r.fe && r.fe.d0, r.ver ? [r.dA, r.dB] : null)}` +
-      `<div class="pfoot"><button class="btn sm${on ? '' : ' primary'}" data-a="save">${on ? 'Fjern fra kartet' : '★ Behold i kartet'}</button></div></div>`;
+      `<div class="pfoot"><button class="btn sm${on ? '' : ' primary'}" data-a="save">${on ? 'Fjern fra kartet' : '★ Behold i kartet'}</button></div>${REP}</div>`;
   }
   wirePopup(pop, grp) {
     const el = pop.getElement(); if (!el) return;
+    this.wireReport(el, pop, { lon: r0(grp[0].lon), lat: r0(grp[0].lat), sp: grp.map((x) => x.sp), sc: grp.map((x) => pct(x)), mon: this.mon });
     el.querySelector('[data-a="save"]')?.addEventListener('click', () => { const was = this.savedAt(grp[0].lat, grp[0].lon); this.toggleSaved(grp); if (!was) { pop.remove(); this.draw(); } else { pop.setHTML(this.popupHTML(grp)); this.wirePopup(pop, grp); } });
+  }
+
+  // «Fikk fisk her» / «Ingen fisk her»: åpner fangstloggen med forslaget fylt inn
+  wireReport(el, pop, info) {
+    if (!el || !this.onReport) return;
+    el.querySelector('[data-a="fikk"]')?.addEventListener('click', () => { pop.remove(); this.onReport(info, true); });
+    el.querySelector('[data-a="ingen"]')?.addEventListener('click', () => { pop.remove(); this.onReport(info, false); });
   }
 
   /* lagrede plasser (fra algoritmeforslag) */
@@ -113,9 +121,9 @@ export class AlgoLayer {
       el.setAttribute('aria-label', 'Lagret fiskeplass: ' + s.sp.map((k) => ART[k]?.no || k).join(', '));
       el.innerHTML = `<span style="background:${starBg(s.sp.map((k) => ART[k]?.col || '#9fb3c2'))}">★</span>`;
       const html = `<div class="pal">` + s.sp.map((k, i) => spLine({ sp: k, pct: s.sc ? s.sc[i] : null, P: { fredet: s.fr ? s.fr[i] : '' } })).join('') + depthLine(s.d, s.iv) +
-        `<div class="pmut">Lagret ${new Date(s.t).toLocaleDateString('nb-NO')}</div><div class="pfoot"><button class="btn sm" data-a="del">Fjern fra kartet</button></div></div>`;
+        `<div class="pmut">Lagret ${new Date(s.t).toLocaleDateString('nb-NO')}</div><div class="pfoot"><button class="btn sm" data-a="del">Fjern fra kartet</button></div>${REP}</div>`;
       const pop = new ml.Popup({ maxWidth: '340px', className: 'pop algo', offset: 14 }).setHTML(html);
-      pop.on('open', () => pop.getElement()?.querySelector('[data-a="del"]')?.addEventListener('click', () => { pop.remove(); this.remove(s.id); }));
+      pop.on('open', () => { const pe = pop.getElement(); pe?.querySelector('[data-a="del"]')?.addEventListener('click', () => { pop.remove(); this.remove(s.id); }); this.wireReport(pe, pop, { lon: s.lon, lat: s.lat, sp: s.sp, sc: s.sc || [], mon: this.mon, lagret: true }); });
       const mk = new ml.Marker({ element: el }).setLngLat([s.lon, s.lat]).setPopup(pop).addTo(this.api.map);
       el.addEventListener('click', (e) => { e.stopPropagation(); this.toggle(mk); });
       this.savedMarkers.push(mk);
@@ -123,6 +131,8 @@ export class AlgoLayer {
   }
 }
 
+const REP = '<div class="pfoot prep"><button class="btn sm" data-a="fikk">Fikk fisk her</button><button class="btn sm" data-a="ingen">Ingen fisk her</button></div>';
+const r0 = (v) => +(+v).toFixed(5);
 // poeng: algoritmens poeng × 100 uten tak (før ble alt over 100 kuttet til 100, så de beste plassene så like ut)
 const score = (sc) => Math.round(Math.max(0, Math.min(1, sc || 0)) * 100);
 const pct = (r) => r.raw != null ? Math.round(Math.max(0, r.raw) * 100) : score(r.sc);
