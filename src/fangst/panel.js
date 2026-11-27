@@ -19,7 +19,7 @@ export class FangstPanel {
     this.cloud.on(() => { if (this.on && (this.view === 'list' || this.view === 'konto')) this.render(); this.sync(); });
     el.addEventListener('click', (e) => this.onClick(e));
     el.addEventListener('submit', (e) => { e.preventDefault(); this.onSubmit(e.target); });
-    el.addEventListener('change', (e) => { if (e.target.name === 'no_catch') this.el.querySelector('.fa-catch').classList.toggle('hidden', e.target.checked); });
+    el.addEventListener('change', (e) => { if (e.target.name === 'no_catch') { this.el.querySelector('.fa-catch').classList.toggle('hidden', e.target.checked); this.el.querySelector('.fa-none').classList.toggle('hidden', !e.target.checked); } });
     if (this.cloud.user) this.cloud.sync().catch(() => {});
     window.addEventListener('online', () => this.cloud.sync().catch(() => {}));
   }
@@ -69,7 +69,7 @@ export class FangstPanel {
   htmlList() {
     const L = this.cloud.list(), y = new Date().getFullYear(), yr = L.filter((c) => new Date(c.caught_at).getFullYear() === y && !c.no_catch);
     const fish = yr.reduce((s, c) => s + (c.count || 1), 0), arter = new Set(yr.map((c) => c.species).filter((s) => s && s !== 'ukjent')).size;
-    const max = yr.reduce((m, c) => Math.max(m, c.weight_kg || 0), 0), turer = L.filter((c) => c.no_catch && new Date(c.caught_at).getFullYear() === y).length;
+    const max = yr.reduce((m, c) => m + (c.weight_kg || 0), 0), turer = L.filter((c) => c.no_catch && new Date(c.caught_at).getFullYear() === y).length;
     let rows = '', mon = '';
     for (const c of L) {
       const d = new Date(c.caught_at), k = MND[d.getMonth()] + ' ' + d.getFullYear();
@@ -80,7 +80,7 @@ export class FangstPanel {
     }
     return `${this.head('Fangstlogg')}
       ${this.htmlAcct()}
-      <div class="fa-stats"><div><b class="num">${fish}</b><span>fisk i ${y}</span></div><div><b class="num">${arter}</b><span>arter</span></div><div><b class="num">${max ? fmt(max, max < 10 ? 1 : 0) + ' kg' : '–'}</b><span>største</span></div><div><b class="num">${turer}</b><span>uten fangst</span></div></div>
+      <div class="fa-stats"><div><b class="num">${fish}</b><span>fisk i ${y}</span></div><div><b class="num">${arter}</b><span>arter</span></div><div><b class="num">${max ? fmt(max, max < 10 ? 1 : 0) + ' kg' : '–'}</b><span>total vekt</span></div><div><b class="num">${turer}</b><span>uten fangst</span></div></div>
       <div class="furow"><button class="btn primary" data-f="new">+ Logg fangst</button><button class="btn" data-f="none">Fisket uten fangst</button></div>
       ${L.length ? `<ul class="fa-list">${rows}</ul>` : '<p class="pmut">Ingen fangster ennå. Logg både fangst og turer uten fangst – begge deler gjør algoritmen bedre.</p>'}
       <p class="pmut">Fangstene brukes til å forbedre algoritmen i Fiskesim. Bare du og den som drifter siden kan se dem.</p>`;
@@ -104,7 +104,7 @@ export class FangstPanel {
     const d = new Date(c.caught_at), row = (k, v) => (v || v === 0 ? `<div><span>${k}</span><b>${v}</b></div>` : '');
     return `${this.head(c.no_catch ? 'Ingen fangst' : `${c.count > 1 ? c.count + ' × ' : ''}${esc(this.name(c.species))}`, true)}
       <div class="fa-kv">${row('Tid', `${d.getDate()}. ${MND[d.getMonth()]} ${d.getFullYear()} kl. ${pad(d.getHours())}:${pad(d.getMinutes())}`)}${row('Posisjon', `<span class="num">${fmtLat(c.lat)} ${fmtLon(c.lon)}</span>`)}${row('Dybde', c.depth_m != null ? Math.round(c.depth_m) + ' m' : '')}
-      ${row('Vekt', c.weight_kg ? fmt(c.weight_kg, 1) + ' kg' : '')}${row('Lengde', c.length_cm ? fmt(c.length_cm) + ' cm' : '')}${row('Satt ut igjen', c.released ? 'ja' : '')}${row('Fisketid', c.effort_min ? c.effort_min + ' min' : '')}${row('Redskap', esc(c.gear || ''))}${row('Agn', esc(c.bait || ''))}${row('Notat', esc(c.note || ''))}</div>
+      ${row('Total vekt', c.weight_kg ? fmt(c.weight_kg, 1) + ' kg' : '')}${row('Lengde', c.length_cm ? fmt(c.length_cm) + ' cm' : '')}${row('Fisketid', c.effort_min ? c.effort_min + ' min' : '')}${row('Redskap', esc(c.gear || ''))}${row('Agn', esc(c.bait || ''))}${row('Notat', esc(c.note || ''))}</div>
       <div class="furow"><button class="btn" data-f="show">Vis i kartet</button><button class="btn" data-f="edit">Endre</button><button class="btn" data-f="del">${this.delAsk ? 'Sikker? Slett' : 'Slett'}</button></div>`;
   }
   form(c, noCatch) {
@@ -116,10 +116,10 @@ export class FangstPanel {
         <label class="fuin">Tid<input name="t" type="datetime-local" value="${localInput(e.caught_at ? new Date(e.caught_at) : new Date())}" required></label>
         <label class="tog"><input type="checkbox" name="no_catch" ${nc ? 'checked' : ''}><span>Fisket uten å få noe</span></label>
         <div class="fa-catch${nc ? ' hidden' : ''}">
-          <div class="fugrid"><label class="fuin fa-wide">Art<select name="species">${opts}</select></label><label class="fuin">Antall<input name="count" inputmode="numeric" value="${e.count || 1}"></label><label class="fuin">Vekt, kg <em>(største)</em><input name="weight_kg" inputmode="decimal" value="${e.weight_kg ?? ''}"></label><label class="fuin">Lengde, cm<input name="length_cm" inputmode="decimal" value="${e.length_cm ?? ''}"></label></div>
-          <label class="tog"><input type="checkbox" name="released" ${e.released ? 'checked' : ''}><span>Satt ut igjen</span></label>
+          <div class="fugrid"><label class="fuin fa-wide">Art<select name="species">${opts}</select></label><label class="fuin">Antall<input name="count" inputmode="numeric" value="${e.count || 1}"></label><label class="fuin">Vekt, kg <em>(totalt)</em><input name="weight_kg" inputmode="decimal" value="${e.weight_kg ?? ''}"></label><label class="fuin">Lengde, cm<input name="length_cm" inputmode="decimal" value="${e.length_cm ?? ''}"></label></div>
         </div>
-        <div class="fugrid"><label class="fuin">Fisketid, min<input name="effort_min" inputmode="numeric" value="${e.effort_min ?? ''}"></label><label class="fuin fa-wide">Redskap<select name="gear"><option value=""></option>${GEAR.map((g) => `<option${e.gear === g ? ' selected' : ''}>${g}</option>`).join('')}</select></label><label class="fuin">Agn<input name="bait" value="${esc(e.bait || '')}"></label></div>
+        <div class="fa-none${nc ? '' : ' hidden'}"><label class="fuin">Hvor lenge du fisket, min<input name="effort_min" inputmode="numeric" value="${e.effort_min ?? ''}"></label></div>
+        <div class="fugrid"><label class="fuin fa-wide">Redskap<select name="gear"><option value=""></option>${GEAR.map((g) => `<option${e.gear === g ? ' selected' : ''}>${g}</option>`).join('')}</select></label><label class="fuin">Agn<input name="bait" value="${esc(e.bait || '')}"></label></div>
         <label class="fuin">Notat<input name="note" value="${esc(e.note || '')}"></label>
         <div class="furow"><button class="btn primary" type="submit">Lagre</button></div>
       </form>
@@ -162,8 +162,8 @@ export class FangstPanel {
     // vent på dybden fra kartet (maks 4 s), så den kommer med i fangsten
     if (this.pos.depth == null && this.pos.wait) await Promise.race([this.pos.wait, new Promise((r) => setTimeout(r, 4000))]);
     const g = (n) => form[n] && form[n].value, nc = form.no_catch.checked;
-    const c = { caught_at: new Date(g('t')).toISOString(), no_catch: nc, species: nc ? null : g('species'), count: nc ? 0 : Math.max(1, Math.round(num(g('count')) || 1)), weight_kg: nc ? null : num(g('weight_kg')), length_cm: nc ? null : num(g('length_cm')), released: !nc && form.released.checked,
-      effort_min: num(g('effort_min')), gear: g('gear') || null, bait: (g('bait') || '').trim() || null, note: (g('note') || '').trim() || null, lon: this.pos.lon, lat: this.pos.lat, depth_m: this.pos.depth };
+    const c = { caught_at: new Date(g('t')).toISOString(), no_catch: nc, species: nc ? null : g('species'), count: nc ? 0 : Math.max(1, Math.round(num(g('count')) || 1)), weight_kg: nc ? null : num(g('weight_kg')), length_cm: nc ? null : num(g('length_cm')), released: false,
+      effort_min: nc ? num(g('effort_min')) : null, gear: g('gear') || null, bait: (g('bait') || '').trim() || null, note: (g('note') || '').trim() || null, lon: this.pos.lon, lat: this.pos.lat, depth_m: this.pos.depth };
     if (this.cur) this.cloud.update(this.cur, c); else this.cloud.add(c);
     this.api.map.getSource('fa-new')?.setData({ type: 'FeatureCollection', features: [] });
     this.view = this.cur ? 'detail' : 'list'; this.render(); this.sync();

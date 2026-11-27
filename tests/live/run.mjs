@@ -485,11 +485,12 @@ if (want('fangst')) {
     pg.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));
     await pg.goto(BASE + '?sted=60.52,5.27&z=13', { waitUntil: 'load' });
     await waitFor(pg, () => !!(window.fiskesim && window.fiskesim.app && window.fiskesim.app.fangst), 30000);
+    const r0 = {};
     await pg.click('[data-a="fangst"]'); await pg.waitForTimeout(500);
     await pg.screenshot({ path: join(OUT, `fangst-tom-${tag}.png`) });
     await pg.click('.fangst [data-f="new"]'); await pg.waitForTimeout(2500);
     await pg.selectOption('.fangst select[name="species"]', 'sei'); await pg.fill('.fangst input[name="count"]', '8'); await pg.fill('.fangst input[name="weight_kg"]', '1,5');
-    await pg.selectOption('.fangst select[name="gear"]', 'Jukse/pilk'); await pg.fill('.fangst input[name="effort_min"]', '90');
+    await pg.selectOption('.fangst select[name="gear"]', 'Jukse/pilk'); r0.fisketidSynlig = await pg.isVisible('.fangst input[name="effort_min"]'); r0.satUt = await pg.$('.fangst input[name="released"]') !== null;
     await pg.screenshot({ path: join(OUT, `fangst-skjema-${tag}.png`) });
     await pg.click('.fangst button[type="submit"]'); await pg.waitForTimeout(600);
     await pg.click('.fangst [data-f="none"]'); await pg.waitForTimeout(1500); await pg.fill('.fangst input[name="effort_min"]', '45'); await pg.click('.fangst button[type="submit"]'); await pg.waitForTimeout(600);
@@ -502,7 +503,7 @@ if (want('fangst')) {
     // lagret lokalt: overlever omlasting
     await pg.reload({ waitUntil: 'load' }); await waitFor(pg, () => !!(window.fiskesim && window.fiskesim.app && window.fiskesim.app.fangst), 30000);
     r.etterOmlasting = await pg.evaluate(() => window.fiskesim.app.fangst.cloud.list().length);
-    r.errs = errs; log('fangst', tag, JSON.stringify(r)); await ctx.close();
+    Object.assign(r, r0); r.errs = errs; log('fangst', tag, JSON.stringify(r)); await ctx.close();
   }
 }
 
