@@ -8,6 +8,7 @@ import { Profile, ICON_PROF } from '../map/profile.js';
 import { Drift, ICON_DRIFT } from '../map/drift.js';
 import { Fuel, ICON_FUEL } from '../map/fuel.js';
 import { TidePanel } from '../map/tidepanel.js';
+import { FangstPanel, ICON_FANGST } from '../fangst/panel.js';
 import * as ALGO from '../algo/index.js';
 import { PAL, rgb } from '../map/palette.js';
 import { SRC, ATTRIB } from '../data/sources.js';
@@ -43,6 +44,7 @@ export class App {
         <button class="iconbtn" data-a="prof" aria-label="Dybdeprofil langs en strek" aria-pressed="false" title="Dybdeprofil: trykk to punkter i kartet">${ICON_PROF}</button>
         <button class="iconbtn" data-a="drift" aria-label="Drift med strøm og vind" aria-pressed="false" title="Drift: trykk der du vil fiske">${ICON_DRIFT}</button>
         <button class="iconbtn" data-a="fuel" aria-label="Drivstoffkalkulator" aria-pressed="false" title="Drivstoff: trykk punkter for ruten">${ICON_FUEL}</button>
+        <button class="iconbtn fa-btn" data-a="fangst" aria-label="Fangstlogg" aria-pressed="false" title="Fangstlogg">${ICON_FANGST}</button>
         <button class="iconbtn" data-a="about" aria-label="Om kartet og kilder">${ICON.info}</button>
       </div>
       <div class="status hidden" aria-live="polite"></div>
@@ -52,6 +54,7 @@ export class App {
       <section class="sheet-p prof hidden" aria-label="Dybdeprofil"></section>
       <section class="sheet-p drift hidden" aria-label="Drift"></section>
       <section class="sheet-p fuel hidden" aria-label="Drivstoff"></section>
+      <section class="sheet-p fangst hidden" aria-label="Fangstlogg"></section>
       <section class="sheet-p tidep hidden" aria-label="Tidevann"></section>
       <div class="xhair hidden" aria-hidden="true"></div>
       <div class="legend${style === 'fiskekart' ? '' : ' hidden'}" aria-hidden="true"><div class="bar"></div><div class="ticks num"><span>0</span><span>20</span><span>50</span><span>100</span><span>250</span><span>1000 m</span></div></div>`;
@@ -102,6 +105,16 @@ export class App {
       if (this.fuel.active) { this.fuel.clear(); return; }
       this.profile.clear(); this.drift.clear(); this.closeInfo(); this.root.querySelector('.layers').classList.add('hidden'); this.fuel.start();
     });
+    // fangstlogg: logg fangst / tur uten fangst, loggbok og konto
+    const gbtn = this.root.querySelector('[data-a="fangst"]');
+    this.fangst = new FangstPanel(api, this.root.querySelector('.fangst'), { onMode: (on) => gbtn.setAttribute('aria-pressed', String(on)) });
+    gbtn.addEventListener('click', () => {
+      if (this.fangst.active) { this.fangst.clear(); return; }
+      this.profile.clear(); this.drift.clear(); if (this.fuel.active) this.fuel.clear(); this.closeInfo(); this.root.querySelector('.layers').classList.add('hidden'); this.fangst.open();
+    });
+    fbtn.addEventListener('click', () => this.fangst.active && this.fangst.clear());
+    pbtn.addEventListener('click', () => this.fangst.active && this.fangst.clear());
+    dbtn.addEventListener('click', () => this.fangst.active && this.fangst.clear());
     pbtn.addEventListener('click', () => this.fuel.active && this.fuel.clear());
     dbtn.addEventListener('click', () => this.fuel.active && this.fuel.clear());
     this.initGPS();
@@ -109,7 +122,7 @@ export class App {
     this.initSearch();
     this.initLayers();
     if (!this.mobile) this.initCursorDepth(map);
-    api.onClick((ll, e) => { if (this.fuel.click(ll.lng, ll.lat)) return; if (this.profile.click(ll.lng, ll.lat)) return; if (this.drift.click(ll.lng, ll.lat)) return; if (e && this.marks.click(e)) return; this.pick(ll.lng, ll.lat); });
+    api.onClick((ll, e) => { if (this.fangst.click(ll.lng, ll.lat)) return; if (this.fuel.click(ll.lng, ll.lat)) return; if (this.profile.click(ll.lng, ll.lat)) return; if (this.drift.click(ll.lng, ll.lat)) return; if (e && this.marks.click(e)) return; this.pick(ll.lng, ll.lat); });
     this.root.querySelector('[data-a="about"]').addEventListener('click', () => this.about());
     window.fiskesim = { app: this, api, algo: this.algo, ALGO }; // for feilsøking og tester
     if (p.get('vis') === '3d') this.open3D(center[0], center[1]);

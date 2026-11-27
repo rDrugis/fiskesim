@@ -335,3 +335,33 @@ a { color: #8fd0ec; }
 .tgraph .nw { stroke: var(--buoy); stroke-width: 1.5; stroke-dasharray: 3 3; }
 .tgraph .nd { fill: var(--buoy); stroke: #10202a; stroke-width: 1.5; }
 @media (max-width: 760px) { .tidep { left: 8px; right: 8px; width: auto; top: calc(118px + var(--safe-t)); } }
+
+/* fangstlogg */
+.fangst { left: 12px; right: 66px; bottom: calc(14px + var(--safe-b)); max-width: 520px; max-height: 78vh; overflow: auto; }
+.fangst header { justify-content: flex-start; gap: 8px; }
+.fangst header .psp { flex: 1; }
+.fa-acct { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-s); font-size: 13px; color: var(--text-2); }
+.fa-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 8px 0; }
+.fa-stats div { display: flex; flex-direction: column; padding: 8px 6px; background: var(--hull-2); border-radius: var(--r-s); text-align: center; }
+.fa-stats b { font-size: 20px; font-weight: 600; }
+.fa-stats span { font-size: 11.5px; color: var(--text-3); }
+.fa-list { list-style: none; margin: 6px 0; padding: 0; }
+.fa-mon { margin: 12px 2px 4px; font-size: 12px; font-weight: 600; color: var(--text-3); }
+.fa-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 6px; background: none; border: 0; border-bottom: 1px solid var(--line); color: var(--text); text-align: left; cursor: pointer; font: inherit; }
+.fa-item:hover { background: var(--hull-2); }
+.fa-ic { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: rgba(255, 106, 19, .14); color: var(--buoy); }
+.fa-item.none .fa-ic { background: var(--hull-2); color: var(--text-3); }
+.fa-t { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.fa-t em { font-style: normal; font-size: 12.5px; color: var(--text-3); }
+.fa-go { color: var(--text-3); font-size: 18px; }
+.fa-form, .fa-login { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.fa-form .fugrid { margin: 2px 0; }
+.fa-wide { grid-column: span 2; }
+.fuin select { width: 100%; box-sizing: border-box; background: var(--hull-2); border: 1px solid var(--line-2); color: var(--text); border-radius: var(--r-s); padding: 6px 8px; font-size: 15px; }
+.fa-posrow { display: flex; flex-direction: column; gap: 2px; }
+.fa-pos em { font-style: normal; }
+.fa-kv { display: flex; flex-direction: column; margin: 8px 0; }
+.fa-kv div { display: flex; justify-content: space-between; gap: 12px; padding: 7px 2px; border-bottom: 1px solid var(--line); font-size: 14px; }
+.fa-kv span { color: var(--text-3); }
+.fa-err { color: var(--alarm); }
+@media (max-width: 760px) { .fangst { left: 8px; right: 8px; max-height: 72vh; } .fa-stats b { font-size: 17px; } }

@@ -478,6 +478,34 @@ if (want('vannkart')) {
   await ctx.close();
 }
 
+// ---------- Fangstlogg uten innlogging: logg fangst og tur uten fangst, loggbok, detalj, slett ----------
+if (want('fangst')) {
+  for (const [vw, vh, tag] of [[1280, 800, 'pc'], [390, 844, 'mobil']]) {
+    const ctx = await browser.newContext({ viewport: { width: vw, height: vh }, geolocation: { latitude: 60.512, longitude: 5.262 }, permissions: ['geolocation'] }), pg = await ctx.newPage(), errs = [];
+    pg.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));
+    await pg.goto(BASE + '?sted=60.52,5.27&z=13', { waitUntil: 'load' });
+    await waitFor(pg, () => !!(window.fiskesim && window.fiskesim.app && window.fiskesim.app.fangst), 30000);
+    await pg.click('[data-a="fangst"]'); await pg.waitForTimeout(500);
+    await pg.screenshot({ path: join(OUT, `fangst-tom-${tag}.png`) });
+    await pg.click('.fangst [data-f="new"]'); await pg.waitForTimeout(2500);
+    await pg.selectOption('.fangst select[name="species"]', 'sei'); await pg.fill('.fangst input[name="count"]', '8'); await pg.fill('.fangst input[name="weight_kg"]', '1,5');
+    await pg.selectOption('.fangst select[name="gear"]', 'Jukse/pilk'); await pg.fill('.fangst input[name="effort_min"]', '90');
+    await pg.screenshot({ path: join(OUT, `fangst-skjema-${tag}.png`) });
+    await pg.click('.fangst button[type="submit"]'); await pg.waitForTimeout(600);
+    await pg.click('.fangst [data-f="none"]'); await pg.waitForTimeout(1500); await pg.fill('.fangst input[name="effort_min"]', '45'); await pg.click('.fangst button[type="submit"]'); await pg.waitForTimeout(600);
+    await pg.screenshot({ path: join(OUT, `fangst-liste-${tag}.png`) });
+    const r = await pg.evaluate(() => { const c = window.fiskesim.app.fangst.cloud; return { n: c.list().length, ls: JSON.parse(localStorage.getItem('fiskesim.fangst') || '[]').map((x) => ({ sp: x.species, n: x.count, kg: x.weight_kg, nc: x.no_catch, min: x.effort_min, d: x.depth_m, pos: [Math.round(x.lon * 1e3) / 1e3, Math.round(x.lat * 1e3) / 1e3] })), stats: document.querySelector('.fa-stats').textContent.replace(/\s+/g, ' ') }; });
+    await pg.click('.fangst .fa-item'); await pg.waitForTimeout(300); await pg.screenshot({ path: join(OUT, `fangst-detalj-${tag}.png`) });
+    await pg.click('.fangst [data-f="del"]'); await pg.click('.fangst [data-f="del"]'); await pg.waitForTimeout(300);
+    r.etterSletting = await pg.evaluate(() => window.fiskesim.app.fangst.cloud.list().length);
+    await pg.click('.fangst [data-f="konto"]'); await pg.waitForTimeout(300); await pg.screenshot({ path: join(OUT, `fangst-konto-${tag}.png`) });
+    // lagret lokalt: overlever omlasting
+    await pg.reload({ waitUntil: 'load' }); await waitFor(pg, () => !!(window.fiskesim && window.fiskesim.app && window.fiskesim.app.fangst), 30000);
+    r.etterOmlasting = await pg.evaluate(() => window.fiskesim.app.fangst.cloud.list().length);
+    r.errs = errs; log('fangst', tag, JSON.stringify(r)); await ctx.close();
+  }
+}
+
 // ---------- Algoritmen med bunntype: toppforslag per art i faste områder (før/etter-sammenligning) ----------
 if (want('algobunn')) {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } }), pg = await ctx.newPage(), out = {};
