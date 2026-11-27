@@ -45,3 +45,18 @@ grant select on public.profiles to authenticated;
 grant select, insert, update, delete on public.catches to authenticated;
 -- Algoritmeforslaget fangsten ble logget fra (art, poeng, måned)
 alter table public.catches add column algo jsonb;
+-- Toppliste mellom alle med konto: bare tall per bruker, ingen posisjoner (kjørt 28.11.2026)
+create or replace function public.toppliste(fra timestamptz, til timestamptz)
+returns table (username text, fisk bigint, kg numeric, arter bigint, uten_fangst bigint)
+language sql stable security definer set search_path = public as $$
+  select p.username,
+         coalesce(sum(c.count) filter (where not c.no_catch), 0),
+         coalesce(sum(c.weight_kg) filter (where not c.no_catch), 0),
+         count(distinct c.species) filter (where not c.no_catch and c.species is not null and c.species <> 'ukjent'),
+         count(*) filter (where c.no_catch)
+  from public.profiles p
+  left join public.catches c on c.user_id = p.id and c.caught_at >= fra and c.caught_at < til
+  group by p.username
+$$;
+revoke all on function public.toppliste(timestamptz, timestamptz) from public, anon;
+grant execute on function public.toppliste(timestamptz, timestamptz) to authenticated;

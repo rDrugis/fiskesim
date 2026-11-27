@@ -559,6 +559,26 @@ if (want('rail')) {
   }
 }
 
+// ---------- Toppliste (med falsk innlogging og falske tall – databasen brukes ikke) ----------
+if (want('topp2')) {
+  for (const [vw, vh, tag] of [[1280, 800, 'pc'], [390, 844, 'mobil']]) {
+    const ctx = await browser.newContext({ viewport: { width: vw, height: vh } }), pg = await ctx.newPage(), errs = [];
+    pg.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));
+    await pg.goto(BASE + '?sted=60.52,5.27&z=12', { waitUntil: 'load' });
+    await waitFor(pg, () => !!(window.fiskesim && window.fiskesim.app && window.fiskesim.app.fangst), 30000);
+    await pg.evaluate(() => { const c = window.fiskesim.app.fangst.cloud; c.s = { username: 'sigurd', access_token: 'x', expires_at: 9e9 }; c.sync = async () => {};
+      c.topp = async (fra) => (fra.getMonth() === 0 && fra.getDate() === 1 && new Date().getMonth() !== 0 ? [{ username: 'nikolai', fisk: 41, kg: 38.5, arter: 6, uten_fangst: 3 }, { username: 'sigurd', fisk: 30, kg: 52, arter: 6, uten_fangst: 2 }] : [{ username: 'sigurd', fisk: 9, kg: 11.2, arter: 3, uten_fangst: 1 }, { username: 'nikolai', fisk: 3, kg: 4.5, arter: 2, uten_fangst: 0 }, { username: 'ola', fisk: 0, kg: 0, arter: 0, uten_fangst: 2 }]); });
+    await pg.click('[data-a="fangst"]'); await pg.waitForTimeout(600);
+    const r = { mnd: await pg.evaluate(() => document.querySelector('.fa-top')?.innerText.replace(/\s+/g, ' ').slice(0, 300)) };
+    await pg.screenshot({ path: join(OUT, `topp-mnd-${tag}.png`) });
+    await pg.click('.fa-top [data-v="aar"]'); await pg.waitForTimeout(300); await pg.click('.fa-top [data-v="kg"]'); await pg.waitForTimeout(300);
+    r.aarKg = await pg.evaluate(() => document.querySelector('.fa-top')?.innerText.replace(/\s+/g, ' ').slice(0, 300));
+    await pg.screenshot({ path: join(OUT, `topp-aar-kg-${tag}.png`) });
+    r.sidelengs = await pg.evaluate(() => { const e = document.querySelector('.fangst'); return e.scrollWidth - e.clientWidth; });
+    r.errs = errs; log('topp2', tag, JSON.stringify(r)); await ctx.close();
+  }
+}
+
 // ---------- Algoritmen med bunntype: toppforslag per art i faste områder (før/etter-sammenligning) ----------
 if (want('algobunn')) {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } }), pg = await ctx.newPage(), out = {};

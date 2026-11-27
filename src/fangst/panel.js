@@ -59,6 +59,25 @@ export class FangstPanel {
   render() {
     if (this.view === 'form') return; // skjemaet tegnes bare én gang (ellers mistes det som er skrevet)
     this.el.innerHTML = this.view === 'konto' ? this.htmlKonto() : this.view === 'detail' ? this.htmlDetail() : this.htmlList();
+    if (this.view === 'list') this.loadTopp();
+  }
+  // toppliste: måned eller år, sortert på antall fisk eller vekt
+  async loadTopp() {
+    const el = this.el.querySelector('.fa-top'); if (!el) return;
+    const per = this.tPer || 'mnd', sort = this.tSort || 'fisk', now = new Date();
+    const fra = per === 'mnd' ? new Date(now.getFullYear(), now.getMonth(), 1) : new Date(now.getFullYear(), 0, 1), til = new Date(now.getTime() + 864e5);
+    const key = per + sort + fra.toISOString();
+    const draw = (rows, err) => {
+      const r = (rows || []).slice().sort((a, b) => (sort === 'kg' ? (+b.kg - +a.kg) || (b.fisk - a.fisk) : (b.fisk - a.fisk) || (+b.kg - +a.kg)));
+      const me = this.cloud.user, lead = r.length > 1 && r[0].username === me && (sort === 'kg' ? +r[0].kg : r[0].fisk) > 0;
+      const tab = (k, v, cur, lab) => `<button class="chip sm${cur === v ? ' on' : ''}" data-f="${k}" data-v="${v}">${lab}</button>`;
+      const mnd = MND[now.getMonth()];
+      el.innerHTML = `<div class="fa-tophead"><h3>Toppliste</h3><span class="psp"></span>${tab('tper', 'mnd', per, mnd[0].toUpperCase() + mnd.slice(1))}${tab('tper', 'aar', per, String(now.getFullYear()))}<span class="fa-sep"></span>${tab('tsort', 'fisk', sort, 'Antall')}${tab('tsort', 'kg', sort, 'Vekt')}</div>` +
+        (err ? `<p class="pmut">${esc(err)}</p>` : !r.length ? '' : `${lead ? `<p class="fa-lead">Du leder ${per === 'mnd' ? mnd : String(now.getFullYear())}!</p>` : ''}<ol class="fa-toplist">${r.map((x, i) => `<li class="${x.username === me ? 'me' : ''}"><span class="num">${i + 1}</span><b>${esc(x.username)}</b><span class="num">${x.fisk} fisk</span><span class="num">${fmt(+x.kg, +x.kg < 10 ? 1 : 0)} kg</span><span class="num">${x.arter} arter</span></li>`).join('')}</ol>`);
+    };
+    if (this.topCache && this.topCache.key === key) { draw(this.topCache.rows); }
+    try { const rows = await this.cloud.topp(fra, til); this.topCache = { key, rows }; if (this.el.contains(el)) draw(rows); }
+    catch (e) { if (this.el.contains(el)) draw(null, /toppliste|PGRST202|function/i.test(e.message) ? 'Topplisten er ikke satt opp i databasen ennå.' : 'Fikk ikke hentet topplisten.'); }
   }
   head(title, back) { return `<header>${back ? '<button class="iconbtn sm" data-f="back" aria-label="Tilbake">‹</button>' : ''}<h2>${title}</h2><span class="psp"></span><button class="iconbtn sm" data-f="close" aria-label="Lukk">✕</button></header>`; }
   htmlAcct() {
@@ -83,6 +102,7 @@ export class FangstPanel {
       ${this.htmlAcct()}
       <div class="fa-stats"><div><b class="num">${fish}</b><span>fisk i ${y}</span></div><div><b class="num">${arter}</b><span>arter</span></div><div><b class="num">${max ? fmt(max, max < 10 ? 1 : 0) + ' kg' : '–'}</b><span>total vekt</span></div><div><b class="num">${turer}</b><span>uten fangst</span></div></div>
       <div class="furow"><button class="btn primary" data-f="new">+ Logg fangst</button><button class="btn" data-f="none">Fisket uten fangst</button></div>
+      ${this.cloud.user ? '<div class="fa-top"></div>' : ''}
       ${L.length ? `<ul class="fa-list">${rows}</ul>` : ''}`;
   }
   htmlKonto() {
@@ -145,6 +165,7 @@ export class FangstPanel {
   async onClick(e) {
     const b = e.target.closest('[data-f]'); if (!b) return; const f = b.dataset.f;
     if (f === 'close') return this.clear();
+    if (f === 'tper' || f === 'tsort') { if (f === 'tper') this.tPer = b.dataset.v; else this.tSort = b.dataset.v; return this.loadTopp(); }
     if (f === 'back') { this.view = this.view === 'form' && this.cur ? 'detail' : 'list'; this.pickPos = false; this.api.map.getSource('fa-new')?.setData({ type: 'FeatureCollection', features: [] }); return this.render(); }
     if (f === 'new') { this.cur = null; return this.form(null, false); }
     if (f === 'none') { this.cur = null; return this.form(null, true); }

@@ -87,6 +87,11 @@ export class Cloud {
       this.sort(); ls.set(LS_LOG, this.log); this.lastSync = Date.now(); this.err = null;
     } catch (e) { this.err = norErr(e); throw e; } finally { this.syncing = false; this.emit(); }
   }
+  // toppliste mellom alle med konto: bare tall per bruker (ingen posisjoner), fra databasefunksjonen public.toppliste
+  async topp(fra, til) {
+    const s = await this.session(); if (!s) return null;
+    return call('/rest/v1/rpc/toppliste', { method: 'POST', token: s.access_token, body: { fra: fra.toISOString(), til: til.toISOString() } });
+  }
   get pending() { return this.log.filter((c) => c.dirty).length; }
 }
 

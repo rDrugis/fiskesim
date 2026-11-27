@@ -397,3 +397,19 @@ a { color: #8fd0ec; }
 .fuel .fugrid { margin: 6px 0 2px; }
 .fuel .furow { margin: 4px 0 0; }
 @media (max-width: 760px) { .fuel .fugrid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; } .fuel .fuin span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .fuel .fuin input { font-size: 16px; padding: 5px 6px; } }
+
+/* toppliste i fangstloggen */
+.fa-top { margin: 10px 0 4px; }
+.fa-tophead { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.fa-tophead h3 { margin: 0; font-size: 13px; font-weight: 600; color: var(--text-2); }
+.fa-tophead .psp { flex: 1; }
+.fa-sep { width: 6px; }
+.chip.sm { padding: 3px 9px; font-size: 12px; }
+.fa-lead { margin: 6px 0 2px; color: var(--buoy); font-weight: 600; font-size: 13.5px; }
+.fa-toplist { list-style: none; margin: 6px 0 0; padding: 0; }
+.fa-toplist li { display: grid; grid-template-columns: 22px 1fr auto auto auto; gap: 10px; align-items: baseline; padding: 6px 4px; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+.fa-toplist li.me { background: rgba(255, 106, 19, .08); }
+.fa-toplist li span { color: var(--text-2); text-align: right; }
+.fa-toplist li span:first-child { color: var(--text-3); text-align: left; }
+@media (max-width: 760px) { .fa-toplist li { grid-template-columns: 18px 1fr auto auto; } .fa-toplist li span:last-child { display: none; } }
+.fa-tophead .chip.on { border-color: var(--buoy); color: var(--text); }
