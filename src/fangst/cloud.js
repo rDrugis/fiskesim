@@ -91,5 +91,5 @@ export class Cloud {
 }
 
 const COLS = ['client_id', 'caught_at', 'species', 'count', 'weight_kg', 'length_cm', 'released', 'no_catch', 'effort_min', 'lon', 'lat', 'depth_m', 'gear', 'bait', 'note'];
-function toRow(c) { const r = {}; for (const k of COLS) r[k] = c[k] === '' || c[k] === undefined ? null : c[k]; r.algo = c.algo || null; // alle rader må ha samme felter når de sendes samlet r.count = c.no_catch ? 0 : (c.count || 1); r.released = !!c.released; r.no_catch = !!c.no_catch; r.updated_at = new Date().toISOString(); return r; }
+function toRow(c) { const r = {}; for (const k of COLS) r[k] = c[k] === '' || c[k] === undefined ? null : c[k]; r.algo = c.algo || null; /* alle rader må ha samme felter når de sendes samlet */ r.count = c.no_catch ? 0 : (c.count || 1); r.released = !!c.released; r.no_catch = !!c.no_catch; r.updated_at = new Date().toISOString(); return r; }
 function fromRow(r) { const c = {}; for (const k of COLS) c[k] = r[k]; if (r.algo) c.algo = r.algo; c.weight_kg = r.weight_kg == null ? null : +r.weight_kg; c.length_cm = r.length_cm == null ? null : +r.length_cm; c.depth_m = r.depth_m == null ? null : +r.depth_m; c.dirty = false; return c; }
