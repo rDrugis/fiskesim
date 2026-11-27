@@ -135,7 +135,7 @@ if (want('drift')) {
     pg.on('pageerror', (e) => errs.push(String(e.message || e).slice(0, 200)));
     await pg.goto(BASE + '?sted=60.5415,5.3409&z=14', { waitUntil: 'load' });
     await waitFor(pg, () => !!(window.fiskesim && window.fiskesim.app && window.fiskesim.app.drift), 30000);
-    await pg.click('[data-a="drift"]'); await pg.waitForTimeout(300); await pg.click('[data-d="here"]');
+    await pg.click('[data-a="tools"]').then(() => pg.click('[data-a="drift"]')); await pg.waitForTimeout(300); await pg.click('[data-d="here"]');
     await pg.waitForFunction(() => document.querySelector('.drbig') || document.querySelector('.drift .warn'), null, { timeout: 30000 }).catch(() => {});
     await pg.waitForTimeout(1500);
     report.drift = { text: await pg.evaluate(() => document.querySelector('.drift')?.innerText.slice(0, 500)), errs };
@@ -319,7 +319,7 @@ if (want('shots')) {
   // dybdeprofil over Salhusfjorden (A ved Frekhaug, B ved Klauvaneset)
   const prof = async (pg) => {
     const mob = (pg.viewportSize()?.width || 1000) < 500, tap = (x, y) => (mob ? pg.touchscreen.tap(x, y) : pg.mouse.click(x, y));
-    if (mob) await pg.tap('[data-a="prof"]'); else await pg.click('[data-a="prof"]');
+    if (mob) await pg.tap('[data-a="prof"]'); else await pg.click('[data-a="tools"]').then(() => pg.click('[data-a="prof"]'));
     const p2px = (lon, lat) => pg.evaluate(([lo, la]) => { const p = window.fiskesim.api.map.project([lo, la]); return [p.x, p.y]; }, [lon, lat]);
     const a = await p2px(5.2505, 60.5185), b = await p2px(5.2700, 60.5165);
     if (mob) {
@@ -376,7 +376,7 @@ if (want('drivstoff')) {
   await pg.goto(BASE + '?sted=60.52,5.27&z=12', { waitUntil: 'load' });
   await waitFor(pg, () => !!(window.fiskesim && window.fiskesim.api), 30000);
   await pg.waitForTimeout(3000);
-  await pg.click('[data-a="fuel"]');
+  await pg.click('[data-a="tools"]').then(() => pg.click('[data-a="fuel"]'));
   for (const [x, y] of [[400, 400], [800, 300], [900, 600]]) { await pg.mouse.click(x, y); await pg.waitForTimeout(400); }
   const txt1 = await pg.textContent('.fuel .fuout');
   await pg.fill('.fuel input[data-k="kn"]', '10'); await pg.check('.fuel input[data-k="retur"]'); await pg.waitForTimeout(300);
@@ -393,7 +393,7 @@ if (want('autorute')) {
   pg.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));
   await pg.goto(BASE + '?sted=60.52,5.27&z=12', { waitUntil: 'load' });
   await waitFor(pg, () => !!(window.fiskesim && window.fiskesim.api), 30000);
-  await pg.waitForTimeout(2000); await pg.click('[data-a="fuel"]'); await pg.check('.fuel input[data-k="auto"]');
+  await pg.waitForTimeout(2000); await pg.click('[data-a="tools"]').then(() => pg.click('[data-a="fuel"]')); await pg.check('.fuel input[data-k="auto"]');
   const CASES = [['salhus-knarvik', [5.2655, 60.5096], [5.284, 60.546]], ['salhus-kleppesto', [5.2655, 60.5096], [5.226, 60.405]], ['salhus-vagen', [5.2655, 60.5096], [5.322, 60.398]], ['salhus-nordost', [5.2704, 60.5081], [5.418, 60.7004]]];
   for (const [name, a, b] of CASES) {
     const t0 = Date.now();
@@ -534,6 +534,29 @@ if (want('algofangst')) {
     await pg.screenshot({ path: join(OUT, 'algofangst-liste.png') });
   }
   r.errs = errs; log('algofangst', JSON.stringify(r)); await ctx.close();
+}
+
+// ---------- Høyrekanten: kartlag, verktøymeny og fangst ----------
+if (want('rail')) {
+  for (const [vw, vh, tag] of [[1280, 800, 'pc'], [390, 844, 'mobil']]) {
+    const ctx = await browser.newContext({ viewport: { width: vw, height: vh } }), pg = await ctx.newPage(), errs = [];
+    pg.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));
+    await pg.goto(BASE + '?sted=60.52,5.27&z=12', { waitUntil: 'load' });
+    await waitFor(pg, () => !!(window.fiskesim && window.fiskesim.app && window.fiskesim.app.fangst), 30000); await pg.waitForTimeout(1500);
+    const r = { knapper: await pg.evaluate(() => [...document.querySelectorAll('.rail > button, .rail > .tools > button')].map((b) => b.getAttribute('aria-label'))) };
+    r.railHoyde = await pg.evaluate(() => Math.round(document.querySelector('.rail').getBoundingClientRect().height));
+    await pg.screenshot({ path: join(OUT, `rail-${tag}.png`) });
+    await pg.click('[data-a="tools"]'); await pg.waitForTimeout(300); await pg.screenshot({ path: join(OUT, `rail-meny-${tag}.png`) });
+    r.menyApen = await pg.isVisible('.toolmenu');
+    await pg.click('[data-a="fuel"]'); await pg.waitForTimeout(400);
+    r.etterValg = await pg.evaluate(() => ({ menyLukket: document.querySelector('.toolmenu').classList.contains('hidden'), verktoyLyser: document.querySelector('[data-a="tools"]').classList.contains('on'), drivstoffApent: !document.querySelector('.fuel').classList.contains('hidden') }));
+    await pg.screenshot({ path: join(OUT, `rail-drivstoff-${tag}.png`) });
+    await pg.click('[data-a="tools"]'); await pg.click('[data-a="fuel"]'); await pg.waitForTimeout(300);
+    r.avIgjen = await pg.evaluate(() => !document.querySelector('[data-a="tools"]').classList.contains('on'));
+    await pg.click('[data-a="layers"]'); await pg.waitForTimeout(300); await pg.click('.layers [data-a="about"]'); await pg.waitForTimeout(300);
+    r.omApner = await pg.evaluate(() => !!document.querySelector('.modal'));
+    r.errs = errs; log('rail', tag, JSON.stringify(r)); await ctx.close();
+  }
 }
 
 // ---------- Algoritmen med bunntype: toppforslag per art i faste områder (før/etter-sammenligning) ----------

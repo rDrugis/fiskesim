@@ -374,3 +374,17 @@ a { color: #8fd0ec; }
 .fangst .fuin input, .fangst .fuin select { min-width: 0; max-width: 100%; }
 .fangst input[type="datetime-local"] { -webkit-appearance: none; appearance: none; display: block; min-height: 36px; text-align: left; }
 @media (max-width: 760px) { .fangst .fuin input, .fangst .fuin select { font-size: 16px; } }
+
+/* høyrekanten: kartlag, verktøy (meny) og fangst */
+.tools { position: relative; }
+.toolmenu { position: absolute; right: calc(100% + 8px); top: 0; z-index: 8; min-width: 230px; display: flex; flex-direction: column; padding: 6px; background: var(--hull); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid var(--line); border-radius: var(--r-m); box-shadow: var(--shadow); }
+.titem { display: flex; align-items: center; gap: 12px; padding: 9px 10px; background: none; border: 0; border-radius: var(--r-s); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.titem:hover { background: var(--hull-2); }
+.titem span { display: flex; flex-direction: column; font-weight: 500; }
+.titem em { font-style: normal; font-size: 12px; color: var(--text-3); font-weight: 400; }
+.titem[aria-pressed="true"] { background: rgba(255, 106, 19, .14); color: var(--buoy); }
+.iconbtn[data-a="tools"].on { color: var(--buoy); border-color: var(--buoy); }
+.fa-btn { background: var(--buoy); border-color: var(--buoy); color: #1b0d04; }
+.fa-btn:hover { background: var(--buoy-2); }
+.fa-btn[aria-pressed="true"] { box-shadow: 0 0 0 3px rgba(255, 106, 19, .35); }
+.linkbtn { display: block; margin: 14px 0 2px; padding: 0; background: none; border: 0; color: var(--text-2); font: inherit; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }

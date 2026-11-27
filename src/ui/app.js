@@ -9,6 +9,7 @@ import { Drift, ICON_DRIFT } from '../map/drift.js';
 import { Fuel, ICON_FUEL } from '../map/fuel.js';
 import { TidePanel } from '../map/tidepanel.js';
 import { FangstPanel, ICON_FANGST } from '../fangst/panel.js';
+const ICON_TOOLS = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3.5 17.5a1.4 1.4 0 0 0 2 2l5.8-5.8a4 4 0 0 0 5.4-5.4l-2.5 2.5-2-.5-.5-2z"/></svg>';
 import * as ALGO from '../algo/index.js';
 import { PAL, rgb } from '../map/palette.js';
 import { SRC, ATTRIB } from '../data/sources.js';
@@ -41,11 +42,15 @@ export class App {
       </header>
       <div class="rail">
         <button class="iconbtn" data-a="layers" aria-label="Kartlag" aria-expanded="false">${ICON.layers}</button>
-        <button class="iconbtn" data-a="prof" aria-label="Dybdeprofil langs en strek" aria-pressed="false" title="Dybdeprofil: trykk to punkter i kartet">${ICON_PROF}</button>
-        <button class="iconbtn" data-a="drift" aria-label="Drift med strøm og vind" aria-pressed="false" title="Drift: trykk der du vil fiske">${ICON_DRIFT}</button>
-        <button class="iconbtn" data-a="fuel" aria-label="Drivstoffkalkulator" aria-pressed="false" title="Drivstoff: trykk punkter for ruten">${ICON_FUEL}</button>
+        <div class="tools">
+          <button class="iconbtn" data-a="tools" aria-label="Verktøy" aria-expanded="false" title="Verktøy">${ICON_TOOLS}</button>
+          <div class="toolmenu hidden" role="menu">
+            <button class="titem" role="menuitem" data-a="prof" aria-pressed="false">${ICON_PROF}<span>Dybdeprofil<em>trykk to punkter i kartet</em></span></button>
+            <button class="titem" role="menuitem" data-a="drift" aria-pressed="false">${ICON_DRIFT}<span>Drift<em>med strøm og vind</em></span></button>
+            <button class="titem" role="menuitem" data-a="fuel" aria-pressed="false">${ICON_FUEL}<span>Drivstoff<em>distanse, tid og forbruk</em></span></button>
+          </div>
+        </div>
         <button class="iconbtn fa-btn" data-a="fangst" aria-label="Fangstlogg" aria-pressed="false" title="Fangstlogg">${ICON_FANGST}</button>
-        <button class="iconbtn" data-a="about" aria-label="Om kartet og kilder">${ICON.info}</button>
       </div>
       <div class="status hidden" aria-live="polite"></div>
       <div class="gpsinfo hidden num" aria-live="polite"></div>
@@ -130,7 +135,14 @@ export class App {
     this.initLayers();
     if (!this.mobile) this.initCursorDepth(map);
     api.onClick((ll, e) => { if (this.fangst.click(ll.lng, ll.lat)) return; if (this.fuel.click(ll.lng, ll.lat)) return; if (this.profile.click(ll.lng, ll.lat)) return; if (this.drift.click(ll.lng, ll.lat)) return; if (e && this.marks.click(e)) return; this.pick(ll.lng, ll.lat); });
-    this.root.querySelector('[data-a="about"]').addEventListener('click', () => this.about());
+    // verktøymenyen: dybdeprofil, drift og drivstoff i én knapp; knappen lyser mens et av dem er i bruk
+    const tbtn = this.root.querySelector('[data-a="tools"]'), tmenu = this.root.querySelector('.toolmenu');
+    const tmOpen = (v) => { tmenu.classList.toggle('hidden', !v); tbtn.setAttribute('aria-expanded', String(v)); };
+    tbtn.addEventListener('click', (e) => { e.stopPropagation(); tmOpen(tmenu.classList.contains('hidden')); });
+    tmenu.addEventListener('click', () => tmOpen(false));
+    document.addEventListener('click', (e) => { if (!e.target.closest('.tools')) tmOpen(false); });
+    const tsync = () => tbtn.classList.toggle('on', [...tmenu.querySelectorAll('[aria-pressed="true"]')].length > 0);
+    new MutationObserver(tsync).observe(tmenu, { attributes: true, subtree: true, attributeFilter: ['aria-pressed'] });
     window.fiskesim = { app: this, api, algo: this.algo, ALGO }; // for feilsøking og tester
     if (p.get('vis') === '3d') this.open3D(center[0], center[1]);
   }
@@ -204,7 +216,8 @@ export class App {
           ${a.saved.length ? `<ul>${a.saved.slice().sort((x, y) => y.t - x.t).map((p) => `<li><button class="go" data-go="${p.id}"><span class="dot" style="background:${p.sp.map((k) => SPECIES().find((x) => x.k === k)?.col || '#9fb3c2')[0]}"></span>${esc(p.sp.map((k) => SPECIES().find((x) => x.k === k)?.no || k).join(', '))}<small>${new Date(p.t).toLocaleDateString('nb-NO')}</small></button><button class="iconbtn sm" data-del="${p.id}" aria-label="Fjern plassen">✕</button></li>`).join('')}</ul>
             <button class="btn sm" data-a="delall">${this.delAll ? 'Sikker? Fjern alle' : 'Fjern alle'}</button>`
           : '<p class="hint">Trykk på et forslag og «Behold i kartet». Plassene blir liggende i kartet også når forslagene er slått av, til du fjerner dem.</p>'}
-        </div>`;
+        </div>
+        <button class="linkbtn" data-a="about">Om kartet og kilder</button>`;
     };
     this.renderLayers = () => { if (!panel.classList.contains('hidden')) render(); };
     render();
@@ -212,6 +225,7 @@ export class App {
     btn.addEventListener('click', () => { if (panel.classList.contains('hidden')) render(); open(panel.classList.contains('hidden')); });
     panel.addEventListener('click', (e) => {
       if (e.target.closest('[data-a="lclose"]')) { open(false); return; }
+      if (e.target.closest('[data-a="about"]')) { open(false); this.about(); return; }
       if (e.target.closest('[data-a="keepall"]')) { const n = this.algo.keepAll(); this.note(n ? `${n} plasser beholdt i kartet` : 'Alle forslagene er allerede beholdt'); render(); return; }
       const go = e.target.closest('[data-go]'); if (go) { this.algo.flyTo(go.dataset.go); if (this.mobile) open(false); return; }
       const del = e.target.closest('[data-del]'); if (del) { this.algo.remove(del.dataset.del); render(); return; }
