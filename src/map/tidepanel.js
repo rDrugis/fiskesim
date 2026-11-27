@@ -75,7 +75,6 @@ export class TidePanel {
     const nx = now >= ta && now <= tb ? `<line x1="${X(now).toFixed(1)}" x2="${X(now).toFixed(1)}" y1="${T}" y2="${H - B}" class="nw"/><circle cx="${X(now).toFixed(1)}" cy="${Y(cur.v).toFixed(1)}" r="4.5" class="nd"/>` : '';
     this.panel.innerHTML = `<header><h2>Tidevann</h2><span class="pmut">${r.descr ? r.descr : r.station} · cm over sjøkartnull</span><span class="psp"></span><button class="iconbtn sm" data-t="close" aria-label="Lukk">✕</button></header>
       <p class="tnow"><b>${cm(cur.v)} cm</b> nå, ${rising ? 'stigende ↑' : 'synkende ↓'}${next ? ` · ${next.typ} kl. ${hm(next.t)} (${cm(next.v)} cm)` : ''}</p>
-      <svg class="tgraph" viewBox="0 0 ${W} ${H}" role="img" aria-label="Tidevann to døgn">${yt}${grid}<path d="${area}" class="ta"/><path d="${path}" class="tp"/>${marks}${nx}</svg>
-      <p class="pmut">Predikert vannstand fra Kartverket for kartmidten (ikke vind- og lufttrykkseffekter). Flytt kartet for et annet sted.</p>`;
+      <svg class="tgraph" viewBox="0 0 ${W} ${H}" role="img" aria-label="Tidevann to døgn">${yt}${grid}<path d="${area}" class="ta"/><path d="${path}" class="tp"/>${marks}${nx}</svg>`;
   }
 }

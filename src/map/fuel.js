@@ -64,24 +64,21 @@ export class Fuel {
   render() {
     const o = this.o, inp = (k, lab, unit, step) => `<label class="fuin"><span>${lab}</span><input type="number" inputmode="decimal" min="0" step="${step}" data-k="${k}" value="${o[k]}"><em>${unit}</em></label>`;
     this.panel.innerHTML = `
-      <header><h2>Drivstoff</h2><span class="pmut">trykk punkter i kartet for ruten</span><span class="psp"></span><button class="iconbtn sm" data-f="close" aria-label="Lukk">✕</button></header>
+      <header><h2>Drivstoff</h2><span class="psp"></span><button class="iconbtn sm" data-f="close" aria-label="Lukk">✕</button></header>
       <div class="fuout"></div>
       <div class="fugrid">${inp('kn', 'Fart', 'knop', 1)}${inp('lph', 'Forbruk', 'l/time', 1)}${inp('pris', 'Pris', 'kr/l', 0.5)}${inp('reserve', 'Reserve', '%', 5)}</div>
-      <label class="tog"><input type="checkbox" data-k="retur" ${o.retur ? 'checked' : ''}><span>Tur-retur</span></label>
-      <label class="tog"><input type="checkbox" data-k="auto" ${o.auto ? 'checked' : ''}><span>Auto-rute rundt land og grunner</span></label>
-      <div class="fugrid fuauto${o.auto ? '' : ' hidden'}">${inp('mind', 'Min. dybde', 'm', 0.5)}</div>
-      <div class="furow"><button class="btn sm" data-f="undo" ${this.pts.length ? '' : 'disabled'}>Angre punkt</button><button class="btn sm" data-f="reset" ${this.pts.length ? '' : 'disabled'}>Ny rute</button></div>
-      <p class="pmut">Forbruket varierer mye med båt, last, sjø og motor – sjekk motorens forbrukstabell. ${o.auto ? 'Auto-ruten er bare for å anslå distanse, <b>ikke til navigasjon</b>: rutenettet er grovt, og små skjær kan mangle.' : 'Rett linje mellom punktene, uten strøm og vind.'}</p>`;
+      <div class="futogs"><label class="tog"><input type="checkbox" data-k="retur" ${o.retur ? 'checked' : ''}><span>Tur-retur</span></label><label class="tog"><input type="checkbox" data-k="auto" ${o.auto ? 'checked' : ''}><span>Auto-rute</span></label><label class="fuin fuauto${o.auto ? '' : ' hidden'}"><span>Min. dybde, m</span><input type="number" inputmode="decimal" min="0" step="0.5" data-k="mind" value="${o.mind}"></label></div>
+      <div class="furow"><button class="btn sm" data-f="undo" ${this.pts.length ? '' : 'disabled'}>Angre punkt</button><button class="btn sm" data-f="reset" ${this.pts.length ? '' : 'disabled'}>Ny rute</button></div>`;
     this.renderOut();
   }
   renderOut() {
     const el = this.panel.querySelector('.fuout'); if (!el) return;
-    if (this.pts.length < 2) { el.innerHTML = `<p class="pmut">${this.pts.length ? 'Trykk neste punkt …' : 'Trykk startpunktet i kartet.'}</p>`; return; }
+    if (this.pts.length < 2) { el.innerHTML = ''; return; }
     const r = this.calc(), hh = Math.floor(r.h), mm = Math.round((r.h - hh) * 60);
     const errs = this.o.auto ? this.legs.filter((l) => l && (l.error || l.warn)).map((l) => l.error ? l.error + ' – den etappen er regnet som rett linje' : l.warn) : [];
     const cell = this.o.auto ? Math.max(0, ...this.legs.filter((l) => l && l.cell).map((l) => l.cell)) : 0;
-    const note = this.busy ? '<p class="pmut">Beregner rute rundt land …</p>' : errs.length ? `<p class="pmut">${errs[0]}.</p>` : cell ? `<p class="pmut">Auto-rute, rutenett ca. ${cell} m.</p>` : '';
+    const note = this.busy ? '<p class="pmut">Beregner rute …</p>' : errs.length ? `<p class="pmut">${errs[0]}.</p>` : '';
     el.innerHTML = `<div class="fubig"><div><b>${fmt(r.nm, 1)}</b> nm</div><div><b>${hh ? hh + ' t ' : ''}${mm} min</b></div><div><b>${fmt(r.l, 1)}</b> l</div><div><b>${fmt(r.kr)}</b> kr</div></div>
-      ${note}<p class="pmut">Ha med minst <b>${fmt(r.lr, 0)} l</b> (med ${fmt(this.o.reserve)} % reserve) · ${fmt(r.lpn, 2)} l per nautisk mil</p>`;
+      ${note}<p class="pmut">Ha med minst <b>${fmt(r.lr, 0)} l</b></p>`;
   }
 }

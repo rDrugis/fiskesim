@@ -83,8 +83,7 @@ export class FangstPanel {
       ${this.htmlAcct()}
       <div class="fa-stats"><div><b class="num">${fish}</b><span>fisk i ${y}</span></div><div><b class="num">${arter}</b><span>arter</span></div><div><b class="num">${max ? fmt(max, max < 10 ? 1 : 0) + ' kg' : '–'}</b><span>total vekt</span></div><div><b class="num">${turer}</b><span>uten fangst</span></div></div>
       <div class="furow"><button class="btn primary" data-f="new">+ Logg fangst</button><button class="btn" data-f="none">Fisket uten fangst</button></div>
-      ${L.length ? `<ul class="fa-list">${rows}</ul>` : '<p class="pmut">Ingen fangster ennå. Logg både fangst og turer uten fangst – begge deler gjør algoritmen bedre.</p>'}
-      <p class="pmut">Fangstene brukes til å forbedre algoritmen i Fiskesim. Bare du og den som drifter siden kan se dem.</p>`;
+      ${L.length ? `<ul class="fa-list">${rows}</ul>` : ''}`;
   }
   htmlKonto() {
     const c = this.cloud;
@@ -98,7 +97,7 @@ export class FangstPanel {
         <p class="fa-err pmut hidden"></p>
         <div class="furow"><button class="btn primary" type="submit" data-f="login">Logg inn</button><button class="btn" type="button" data-f="register">Lag ny konto</button></div>
       </form>
-      <p class="pmut">Med konto følger fangstene med deg mellom telefon og PC og forsvinner ikke om nettleseren tømmes. Fangstene lagres og brukes til å forbedre algoritmen i Fiskesim. Bare du og den som drifter siden kan se dem.</p>`;
+      <p class="pmut">Fangstene lagres på kontoen og brukes til å forbedre algoritmen i Fiskesim.</p>`;
   }
   htmlDetail() {
     const c = this.cloud.list().find((x) => x.client_id === this.cur); if (!c) { this.view = 'list'; return this.htmlList(); }
@@ -132,7 +131,7 @@ export class FangstPanel {
         <label class="fuin">Notat<input name="note" value="${esc(e.note || '')}"></label>
         <div class="furow"><button class="btn primary" type="submit">Lagre</button></div>
       </form>
-      <p class="pmut">Fangsten lagres${this.cloud.user ? ' på kontoen din' : ' på denne enheten (logg inn for å lagre på konto)'} og brukes til å forbedre algoritmen i Fiskesim.</p>`;
+`;
     if (preset) this.setPos(preset.lon, preset.lat, 'algoritmeforslaget');
     else if (c && c.lon != null) this.setPos(c.lon, c.lat, 'lagret posisjon');
     else { const m = this.api.map.getCenter(); this.setPos(m.lng, m.lat, 'kartets midte'); this.gps(true); }

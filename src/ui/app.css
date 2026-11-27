@@ -388,3 +388,11 @@ a { color: #8fd0ec; }
 .fa-btn:hover { background: var(--buoy-2); }
 .fa-btn[aria-pressed="true"] { box-shadow: 0 0 0 3px rgba(255, 106, 19, .35); }
 .linkbtn { display: block; margin: 14px 0 2px; padding: 0; background: none; border: 0; color: var(--text-2); font: inherit; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+
+/* drivstoff: lavere panel – avkrysning og min. dybde på én linje */
+.futogs { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 2px 0; }
+.futogs .tog { border-bottom: 0; padding: 4px 0; }
+.futogs .fuin { flex-direction: row; align-items: center; gap: 6px; }
+.futogs .fuin input { width: 64px; padding: 4px 6px; }
+.fuel .fugrid { margin: 6px 0 2px; }
+.fuel .furow { margin: 4px 0 0; }

@@ -140,7 +140,7 @@ export class Drift {
     this.clear(true); this.onOpen();
     this.picking = true; this.onMode(true);
     this.api.map.getCanvas().style.cursor = 'crosshair';
-    this.show(`<header><h2>Drift</h2><span class="pmut">Trykk der du vil fiske – du får se hvor du skal stoppe motoren</span><span class="psp"></span>
+    this.show(`<header><h2>Drift</h2><span class="psp"></span>
       <button class="btn sm primary" data-d="here">Bruk krysset</button><button class="btn sm" data-d="clear">Avbryt</button></header>`);
   }
   click(lng, lat) {
