@@ -491,7 +491,7 @@ if (want('fangst')) {
     await pg.click('.fangst [data-f="new"]'); await pg.waitForTimeout(2500);
     r0.sidelengs = await pg.evaluate(() => { const e = document.querySelector('.fangst'); return e.scrollWidth - e.clientWidth; }); r0.pale = await pg.evaluate(() => [...document.querySelectorAll('.fangst select[name="species"] option')].map((o) => o.value).slice(0, 4).join(','));
     await pg.selectOption('.fangst select[name="species"]', 'sei'); await pg.fill('.fangst input[name="count"]', '8'); await pg.fill('.fangst input[name="weight_kg"]', '1,5');
-    await pg.selectOption('.fangst select[name="gear"]', 'Jukse/pilk'); r0.fisketidSynlig = await pg.isVisible('.fangst input[name="effort_min"]'); r0.satUt = await pg.$('.fangst input[name="released"]') !== null;
+    await pg.selectOption('.fangst select[name="gear"]', 'Pilk og opphenger'); r0.fisketidSynlig = await pg.isVisible('.fangst input[name="effort_min"]'); r0.satUt = await pg.$('.fangst input[name="released"]') !== null;
     await pg.screenshot({ path: join(OUT, `fangst-skjema-${tag}.png`) });
     await pg.click('.fangst button[type="submit"]'); await pg.waitForSelector('.fangst .fa-stats', { timeout: 8000 });
     await pg.click('.fangst [data-f="none"]'); await pg.waitForTimeout(1500); await pg.fill('.fangst input[name="effort_min"]', '45'); await pg.click('.fangst button[type="submit"]'); await pg.waitForSelector('.fangst .fa-stats', { timeout: 8000 });
