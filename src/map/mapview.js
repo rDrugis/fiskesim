@@ -18,7 +18,6 @@ export const MAP_STYLES = [
   { id: 'fiskekart', label: 'Fiskekart', short: 'Fisk' },
   { id: 'dybdekart', label: 'Dybdekart', short: 'Dybde' },
   { id: 'sjokart', label: 'Sjøkart', short: 'Sjø' },
-  { id: 'natt', label: 'Natt', short: 'Natt' },
   { id: 'bunn', label: 'Bunntype', short: 'Bunn' },
 ];
 
