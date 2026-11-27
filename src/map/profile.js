@@ -232,7 +232,6 @@ export class Profile {
       <g class="phov" visibility="hidden"><line x1="0" x2="0" y1="${t}" y2="${t}"/><circle cx="0" cy="0" r="4.5"/></g></svg>
       <p class="phovt num"></p>
       <div class="pstat">${meTxt}<span>Grunnest <b>${(shal.est ? 'ca. ' : '') + dep(shal.z)}</b> (${fmtD(shal.d)} fra A)</span><span>Dypest <b>${(deep.est ? 'ca. ' : '') + dep(deep.z)}</b> (${fmtD(deep.d)} fra A)</span>
-      ${st && st.sl > 0.05 ? `<span>Brattest: ${angle(st.sl)}° (${dep(st.from.z)} → ${dep(st.to.z)} på ${fmt(st.to.d - st.from.d)} m), ${fmtD(st.at)} fra A</span>` : '<span>Ingen bratte kanter langs streken</span>'}</div>
-      <p class="hint">Kurven: anslått dybde mellom sjøkartets dybdekurver, lest i ${S.length} punkter${this.coarse ? ' (grovere oppløsning på så lang strek)' : ''}. Lyst bånd: intervallet i sjøkartet. Stiplet: bare grovt intervall i sjøkartet.${this.snd && this.snd.length ? ` Ringer: loddskudd innen 40 m fra streken; loddskudd innen 90 m retter kurven.` : ''} Kilde: Kartverket.</p>`;
+      ${st && st.sl > 0.05 ? `<span>Brattest: ${angle(st.sl)}° (${dep(st.from.z)} → ${dep(st.to.z)} på ${fmt(st.to.d - st.from.d)} m), ${fmtD(st.at)} fra A</span>` : '<span>Ingen bratte kanter langs streken</span>'}</div>`;
   }
 }
