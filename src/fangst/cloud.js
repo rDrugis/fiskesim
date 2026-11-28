@@ -8,6 +8,10 @@ const LS_SESSION = 'fiskesim.konto', LS_LOG = 'fiskesim.fangst';
 export const userEmail = (u) => `${u}@brukere.fiskesim.app`;
 export const cleanUser = (u) => String(u || '').trim().toLowerCase();
 export const validUser = (u) => /^[a-z0-9_.-]{2,24}$/.test(u);
+// banneord og skjellsord i brukernavn (norsk og engelsk). Tall som ligner bokstaver og skilletegn regnes med,
+// så «f4en» og «f.a.e.n» også stoppes. Samme liste ligger som regel i databasen (supabase/schema.sql)
+export const BAD = ['faen', 'fanden', 'helvete', 'jaevel', 'jaevl', 'javel', 'javl', 'satan', 'dritt', 'fitte', 'fitta', 'kuk', 'pikk', 'hore', 'horunge', 'rasshol', 'raevhol', 'neger', 'nigg', 'fuck', 'fck', 'shit', 'bitch', 'cunt', 'dick', 'cock', 'pussy', 'whore', 'slut', 'faggot', 'voldt', 'rape', 'retard', 'nazi', 'hitler', 'mongo', 'porn', 'sex'];
+export const badUser = (u) => { const n = String(u).toLowerCase().replace(/[0]/g, 'o').replace(/[1!|]/g, 'i').replace(/3/g, 'e').replace(/4|@/g, 'a').replace(/5|\$/g, 's').replace(/7/g, 't').replace(/[^a-z]/g, ''); return BAD.some((w) => n.includes(w)); };
 
 const ls = { get: (k, d) => { try { return JSON.parse(localStorage.getItem(k) || 'null') ?? d; } catch (e) { return d; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* privat modus */ } } };
 
@@ -26,6 +30,7 @@ const norErr = (e) => {
   if (/invalid login|invalid_grant|Invalid login credentials/i.test(m)) return 'Feil brukernavn eller passord';
   if (/already registered|already exists|User already/i.test(m)) return 'Brukernavnet er tatt';
   if (/password.*(6|short|least)/i.test(m)) return 'Passordet må ha minst 6 tegn';
+  if (/profiles_username_ok|Database error saving new user/i.test(m)) return 'Velg et annet brukernavn';
   if (/email.*not confirmed/i.test(m)) return 'Kontoen er ikke bekreftet (e-postbekreftelse er slått på i Supabase)';
   if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return 'Ingen nettforbindelse – fangsten er lagret på enheten og sendes senere';
   return m;
@@ -57,6 +62,7 @@ export class Cloud {
   }
   async register(u, pw) {
     u = cleanUser(u); if (!validUser(u)) throw new Error('Brukernavn: 2–24 tegn, bare a–z, 0–9, punktum, bindestrek og understrek');
+    if (badUser(u)) throw new Error('Velg et annet brukernavn');
     if (String(pw).length < 6) throw new Error('Passordet må ha minst 6 tegn');
     let j; try { j = await call('/auth/v1/signup', { method: 'POST', body: { email: userEmail(u), password: pw, data: { username: u } } }); }
     catch (e) { throw new Error(norErr(e)); }

@@ -63,3 +63,8 @@ language sql stable security definer set search_path = public as $$
 $$;
 revoke all on function public.toppliste(timestamptz, timestamptz) from public, anon;
 grant execute on function public.toppliste(timestamptz, timestamptz) to authenticated;
+-- Ingen banneord i brukernavn (samme liste som badUser i src/fangst/cloud.js), 28.11.2026
+alter table public.profiles add constraint profiles_username_ok check (
+  regexp_replace(translate(lower(username), '013457@$!|', 'oieastasii'), '[^a-z]', '', 'g')
+  !~ '(faen|fanden|helvete|jaevel|jaevl|javel|javl|satan|dritt|fitte|fitta|kuk|pikk|hore|horunge|rasshol|raevhol|neger|nigg|fuck|fck|shit|bitch|cunt|dick|cock|pussy|whore|slut|faggot|voldt|rape|retard|nazi|hitler|mongo|porn|sex)'
+);
