@@ -186,6 +186,8 @@ export class SeaMarks {
   click(e) {
     if (!this.on) return false;
     const map = this.api.map;
+    // trykk på en fangstnål åpner fangsten, ikke sjømerket under
+    if (map.getLayer('fa-pt') && map.getLayoutProperty('fa-pt', 'visibility') !== 'none' && map.queryRenderedFeatures([[e.point.x - 8, e.point.y - 30], [e.point.x + 8, e.point.y + 4]], { layers: ['fa-pt'] }).length) return false;
     const f = map.queryRenderedFeatures(e.point, { layers: ['sm-sym', 'sm-skjaer', 'sm-grunne'].filter((l) => map.getLayer(l)) })[0];
     if (!f) return false;
     e.handled = true;
