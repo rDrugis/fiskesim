@@ -8,7 +8,7 @@ import { envAt, dirName } from './env.js';
 import { htmlStats } from './stats.js';
 
 export const ICON_FANGST = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12c3-4 8-5 12-2l4-3-1 5 1 5-4-3c-4 3-9 2-12-2z"/><circle cx="8" cy="11" r=".9" fill="currentColor"/></svg>';
-const EXTRA = [['makrell', 'Makrell'], ['sjoorret', 'Sjøørret'], ['laks', 'Laks'], ['flyndre', 'Flyndre'], ['breiflabb', 'Breiflabb'], ['uer', 'Uer'], ['ukjent', 'Ukjent fisk']];
+const EXTRA = [['makrell', 'Makrell'], ['sjoorret', 'Sjøørret'], ['laks', 'Laks'], ['flyndre', 'Flyndre'], ['breiflabb', 'Breiflabb'], ['uer', 'Uer'], ['pigghaa', 'Pigghå'], ['ukjent', 'Ukjent fisk']];
 const GEAR = ['Pilk', 'Pilk og opphenger', 'Slep', 'Sluk', 'Agnfiske', 'Dorging', 'Line', 'Teine', 'Annet'];
 const MND = ['januar', 'februar', 'mars', 'april', 'mai', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'desember'];
 const pad = (n) => String(n).padStart(2, '0');
