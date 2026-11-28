@@ -21,7 +21,7 @@ export const ART = DATA.art, SRC = DATA.src;
    topp, liten topp og grop måles mot bunnen ca. 400 m unna. */
 export const FCFG = { e0: 15, e1: 75, pk: 30, kn: 10, bs: 30, fo: 8, fl: 40, s0: 5, s1: 10, s2: 35, s3: 25 };
 export const ALV = 'a12', ACELL = 10, ATILE = 6000, AMAXT = 24, AKEEP = 8;
-export const VERSION = ALV + '+fs5'; // Fiskeguide-versjon + Fiskesims tillegg (endres når resultatet kan endre seg)
+export const VERSION = ALV + '+fs6'; // Fiskeguide-versjon + Fiskesims tillegg (endres når resultatet kan endre seg)
 
 export const clamp01 = (v) => v < 0 ? 0 : v > 1 ? 1 : v;
 export const RM = 6378137, D2R = Math.PI / 180;
@@ -300,5 +300,11 @@ export async function computeTile(tx, ty, m, inp, { pause = null, now = new Date
       if (hit && distToGeom(r.lat, r.lon, f.geometry) === 0) { r.fp = (f.properties.stedsnavn || '').trim() || 'uten navn'; r.sc = rd(Math.min(1, r.sc * 1.25), 3); if (r.raw != null) r.raw = rd(r.raw * 1.25, 4); break; } } });
     if (picked.length) out[X.sp] = picked;
   });
-  return { nD, nB, c: out };
+  /* fargekartet: beste poeng i hver blokk på ca. 175 m per art, 0–250 (0 = ingenting / for svakt / innen ca. 120 m fra oppdrett) */
+  const HMIN = 0.25, h = { nb, bs: BS, sp: {} }, nearAk = new Map();
+  const akBlock = (b, c) => { if (!ak.length) return false; if (!nearAk.has(b)) { const [la, lo] = ll(c); nearAk.set(b, ak.some((f) => f.geometry && distToGeom(la, lo, f.geometry) < 120)); } return nearAk.get(b); };
+  sps.forEach((X, s) => { const a = new Array(nb * nb).fill(0); let any = false;
+    for (let b = 0; b < nb * nb; b++) { const v = bestS[s][b]; if (v >= HMIN && !akBlock(b, bestC[s][b])) { a[b] = Math.max(1, Math.round(Math.min(1, v) * 250)); any = true; } }
+    if (any) h.sp[X.sp] = a; });
+  return { nD, nB, c: out, h };
 }

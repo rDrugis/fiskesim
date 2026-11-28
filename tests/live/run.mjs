@@ -606,6 +606,26 @@ if (want('mydata')) {
   }
 }
 
+// ---------- Fargekart for algoritmen (Kartlag → Fiskeplasser → Fargekart) ----------
+if (want('heat')) {
+  for (const [vw, vh, tag, sel] of [[1280, 800, 'pc', ['lange']], [390, 844, 'mobil', []]]) {
+    const ctx = await browser.newContext({ viewport: { width: vw, height: vh } }), pg = await ctx.newPage(), errs = [];
+    pg.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));
+    await pg.addInitScript((sel) => { try { localStorage.setItem('fiskesim.algo', 'true'); localStorage.setItem('fiskesim.algoHeat', 'true'); localStorage.setItem('fiskesim.algoSel', JSON.stringify(sel)); } catch (e) {} }, sel);
+    const t0 = Date.now();
+    await pg.goto(BASE + '?sted=60.52,5.27&z=12.3', { waitUntil: 'load' });
+    await waitFor(pg, () => !!(window.fiskesim && window.fiskesim.app && window.fiskesim.app.algo), 30000);
+    const ok = await waitFor(pg, () => { const a = window.fiskesim.app.algo; return a.res && a.heatIds && a.heatIds.size ? a.heatIds.size : null; }, 400000, 2000);
+    await pg.waitForTimeout(1500);
+    const r = { ruter: ok, s: Math.round((Date.now() - t0) / 1000), forslag: await pg.evaluate(() => (window.fiskesim.app.algo.res || []).length), errs };
+    await pg.screenshot({ path: join(OUT, `heat-${tag}.png`) });
+    await pg.evaluate(() => window.fiskesim.app.api.map.jumpTo({ zoom: 14, center: [5.268, 60.52] })); await pg.waitForTimeout(2500);
+    await pg.screenshot({ path: join(OUT, `heat-z14-${tag}.png`) });
+    await pg.evaluate(() => window.fiskesim.app.algo.setHeat(false)); await pg.waitForTimeout(500); r.avIgjen = await pg.evaluate(() => window.fiskesim.app.algo.heatIds.size);
+    log('heat', tag, JSON.stringify(r)); await ctx.close();
+  }
+}
+
 // ---------- Mine punkter: lagre rødt punkt med notat (innlogget, simulert økt), trykk for å se/endre/slette ----------
 if (want('punkter')) {
   for (const [vw, vh, tag] of [[1280, 800, 'pc'], [390, 844, 'mobil']]) {

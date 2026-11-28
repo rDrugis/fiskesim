@@ -1,6 +1,7 @@
 // Fiskeplasser fra algoritmen i kartet (av/på), med forklaring per art. Plasser du velger («Behold i kartet»)
 // blir liggende i kartet også når forslagene er slått av, til du fjerner dem.
-import { algoRun, ART, R, esc, km, HIDDEN } from '../algo/index.js';
+import { algoRun, heatTiles, ATILE, ART, R, esc, km, HIDDEN } from '../algo/index.js';
+import { unmerc } from '../algo/core.js';
 
 const starBg = (cols) => cols.length > 1 ? 'conic-gradient(' + cols.map((c, i) => c + ' ' + Math.round(i * 100 / cols.length) + '% ' + Math.round((i + 1) * 100 / cols.length) + '%').join(',') + ')' : cols[0];
 const load = (k, d) => { try { const v = localStorage.getItem('fiskesim.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
@@ -11,15 +12,17 @@ export class AlgoLayer {
     this.api = api; this.onNote = onNote; this.onSaved = onSaved; this.onReport = onReport;
     this.on = load('algo', false); this.sel = load('algoSel', []).filter((k) => !HIDDEN.includes(k)); this.mon = load('algoMon', 'now');
     this.markers = []; this.saved = load('plasser', []); this.savedMarkers = [];
-    this.timer = 0;
+    this.timer = 0; this.heat = load('algoHeat', false); this.heatIds = new Set();
     api.map.on('moveend', () => this.schedule());
+    api.onStyle(() => { this.heatIds.clear(); this.drawHeat(); });
     this.drawSaved();
     if (this.on) this.schedule(50);
   }
   month() { return this.mon === 'now' ? new Date().getMonth() : +this.mon; }
-  setOn(on) { this.on = on; save('algo', on); if (on) this.schedule(10); else { this.clear(); this.onNote(''); } }
-  setSel(sel) { this.sel = sel; save('algoSel', sel); this.schedule(10); }
-  setMonth(m) { this.mon = m; save('algoMon', m); this.schedule(10); }
+  setOn(on) { this.on = on; save('algo', on); if (on) this.schedule(10); else { this.clear(); this.clearHeat(); this.onNote(''); } }
+  setHeat(on) { this.heat = on; save('algoHeat', on); if (on) { this.drawHeat(); this.schedule(10); } else this.clearHeat(); }
+  setSel(sel) { this.sel = sel; save('algoSel', sel); this.drawHeat(); this.schedule(10); }
+  setMonth(m) { this.mon = m; save('algoMon', m); this.drawHeat(); this.schedule(10); }
   schedule(ms = 350) { clearTimeout(this.timer); if (!this.on) return; this.timer = setTimeout(() => this.run(), ms); }
 
   async run() {
@@ -31,8 +34,52 @@ export class AlgoLayer {
     try { out = await algoRun(bb, this.month(), this.sel, (t) => this.onNote(t + ' …', true)); }
     catch (e) { this.onNote('Fikk ikke beregnet fiskeplasser: ' + (e.message || e)); return; }
     if (!out || !this.on) return;
-    this.res = out.res; this.draw(); this.onNote(out.note); this.onSaved();
+    this.res = out.res; this.draw(); this.drawHeat(); this.onNote(out.note); this.onSaved();
   }
+
+  /* fargekartet: alle ferdige ruter i utsnittet settes sammen til ett bilde (myk overgang, ingen skjøter).
+     Fargen er relativ til utsnittet: rødt = de beste ca. 5 % av sjøen her, oransje = neste 10 %, gult = neste 15 %.
+     Svakere enn det vises ikke. Poengene er de samme som algoritmen bruker for forslagene. */
+  drawHeat() {
+    const map = this.api.map;
+    if (!this.on || !this.heat || map.getZoom() < 10.5) { this.clearHeat(); return; }
+    const b = map.getBounds(), tiles = heatTiles({ s: b.getSouth(), w: b.getWest(), n: b.getNorth(), e: b.getEast() }, this.month(), this.sel);
+    if (!tiles.length) { this.clearHeat(); return; }
+    const T = new Map(tiles.map((t) => [t.tx + '|' + t.ty, t]));
+    const X0 = Math.min(...tiles.map((t) => t.tx)) * ATILE, X1 = (Math.max(...tiles.map((t) => t.tx)) + 1) * ATILE;
+    const Y0 = Math.min(...tiles.map((t) => t.ty)) * ATILE, Y1 = (Math.max(...tiles.map((t) => t.ty)) + 1) * ATILE;
+    const P = 60, W = Math.round((X1 - X0) / P), H = Math.round((Y1 - Y0) / P), val = new Uint8Array(W * H);
+    for (let j = 0; j < H; j++) { const y = Y1 - (j + 0.5) * P, ty = Math.floor(y / ATILE);
+      for (let i = 0; i < W; i++) { const x = X0 + (i + 0.5) * P, t = T.get(Math.floor(x / ATILE) + '|' + ty); if (!t) continue;
+        const B = t.bs * 10, bi = Math.floor((x - t.x0) / B), bj = Math.floor((t.y1 - y) / B);
+        if (bi >= 0 && bj >= 0 && bi < t.nb && bj < t.nb) val[j * W + i] = t.v[bj * t.nb + bi]; } }
+    // myk overgang: glatt verdiene (to runder boksfilter, ca. én blokk) – sjø uten poeng drar ned mot kanten
+    const sea = new Uint8Array(W * H); for (let k = 0; k < W * H; k++) sea[k] = val[k] ? 1 : 0;
+    let f = Float32Array.from(val); const tmp = new Float32Array(W * H), R2 = 4;
+    for (let pass = 0; pass < 2; pass++) {
+      for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) { let a = 0, n = 0; for (let d = -R2; d <= R2; d++) { const x = i + d; if (x < 0 || x >= W) continue; a += f[j * W + x]; n++; } tmp[j * W + i] = a / n; }
+      for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) { let a = 0, n = 0; for (let d = -R2; d <= R2; d++) { const y = j + d; if (y < 0 || y >= H) continue; a += tmp[y * W + i]; n++; } f[j * W + i] = a / n; }
+    }
+    for (let k = 0; k < W * H; k++) val[k] = sea[k] ? Math.max(1, Math.round(f[k])) : 0;
+    // terskler fra fordelingen i utsnittet
+    const vals = []; for (const v of val) if (v) vals.push(v); vals.sort((a, c) => c - a);
+    const q = (f) => vals[Math.min(vals.length - 1, Math.floor(vals.length * f))] || 255;
+    const t1 = q(0.05), t2 = q(0.15), t3 = q(0.30);
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d'), im = g.createImageData(W, H);
+    for (let k = 0; k < W * H; k++) { const v = val[k]; if (!v || v < t3) continue;
+      const c = v >= t1 ? [214, 38, 38, 190] : v >= t2 ? [242, 128, 32, 165] : [245, 205, 60, 130];
+      im.data.set(c, k * 4); }
+    g.putImageData(im, 0, 0);
+    const ll = (x, y) => { const [la, lo] = unmerc(x, y); return [lo, la]; };
+    const coordinates = [ll(X0, Y1), ll(X1, Y1), ll(X1, Y0), ll(X0, Y0)], url = cv.toDataURL();
+    if (map.getSource('heat')) map.getSource('heat').updateImage({ url, coordinates });
+    else { map.addSource('heat', { type: 'image', url, coordinates });
+      const before = ['fa-pt', 'pt', 'fa-kl'].find((l) => map.getLayer(l));
+      map.addLayer({ id: 'heat', type: 'raster', source: 'heat', paint: { 'raster-opacity': 0.85, 'raster-resampling': 'linear', 'raster-fade-duration': 0 } }, before); }
+    this.heatIds.add('heat');
+  }
+  removeHeat(id) { const map = this.api.map; if (map.getLayer(id)) map.removeLayer(id); if (map.getSource(id)) map.removeSource(id); this.heatIds.delete(id); }
+  clearHeat() { for (const id of [...this.heatIds]) this.removeHeat(id); }
 
   clear() { this.markers.forEach((m) => m.remove()); this.markers = []; }
 
@@ -149,3 +196,4 @@ function depthLine(d, iv) {
 }
 
 export const SPECIES = () => Object.keys(R.algo).filter((k) => !HIDDEN.includes(k)).map((k) => ({ k, no: ART[k].no, col: ART[k].col }));
+

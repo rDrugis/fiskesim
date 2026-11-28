@@ -217,6 +217,7 @@ export class App {
         <div class="algo-opts${a.on ? '' : ' hidden'}">
           <div class="chips" role="group" aria-label="Arter">${sp.map((s) => `<button class="chip${a.sel.includes(s.k) ? ' on' : ''}" data-sp="${s.k}" style="--c:${s.col}" aria-pressed="${a.sel.includes(s.k)}"><i></i>${esc(s.no)}</button>`).join('')}</div>
           <label class="sel"><span>Måned</span><select data-k="mon"><option value="now" ${mon === 'now' ? 'selected' : ''}>Nå (${MONTHS[new Date().getMonth()]})</option>${MONTHS.map((m, i) => `<option value="${i}" ${String(mon) === String(i) ? 'selected' : ''}>${m[0].toUpperCase() + m.slice(1)}</option>`).join('')}</select></label>
+          <label class="tog"><input type="checkbox" data-k="heat" ${a.heat ? 'checked' : ''}><span>Fargekart <em class="pmut">(gul → rød = passer best)</em></span></label>
           <p class="hint">Ingen art valgt = de to beste for hver art. Med art valgt: inntil seks, nummerert fra best.</p>
           ${a.res && a.res.length ? '<button class="btn sm" data-a="keepall">★ Behold alle forslagene i utsnittet</button>' : ''}
         </div>
@@ -252,6 +253,7 @@ export class App {
       if (k === 'fangstalle') { this.fangst.setAll(e.target.checked); if (e.target.checked && !this.fangst.showMap) { this.fangst.setMap(true); render(); } }
       if (k === 'algo') { this.algo.setOn(e.target.checked); render(); }
       else if (k === 'mon') this.algo.setMonth(e.target.value);
+      else if (k === 'heat') this.algo.setHeat(e.target.checked);
     });
   }
 

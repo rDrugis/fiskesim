@@ -69,7 +69,7 @@ async function atCompute(tx, ty, m, grid) {
   const slim = (fs) => fs && fs.map((f) => ({ geometry: f.geometry, properties: f.properties }));
   const id = ++wid;
   const res = await new Promise((res, rej) => { wwait.set(id, { res, rej }); worker(tx * 7 + ty * 13).postMessage({ id, tx, ty, m, now: Date.now(), grid, wfs: { akF: slim(akF), akP: slim(akP), pasF: slim(pasF) } }); });
-  return { k: tkey(tx, ty, m), ts: Date.now(), nD: res.nD, nB: res.nB, c: res.c, blocks: res.blocks };
+  return { k: tkey(tx, ty, m), ts: Date.now(), nD: res.nD, nB: res.nB, c: res.c, h: res.h, blocks: res.blocks };
 }
 /* testkrok: poeng per blokk på ca. 175 m for én art i én rute (brukes av live-testen, lagres ikke) */
 export const atGrid = (tx, ty, m, sp) => atCompute(tx, ty, m, sp);
@@ -114,6 +114,22 @@ async function algoPick(b, m, list, K, alive) {
         res.push(o); got++; } }
   }
   return { res: res.sort((a, b2) => b2.sc - a.sc), feil };
+}
+
+/* fargekartet: ferdig beregnede ruter i utsnittet med poeng per blokk for valgte arter (høyeste av artene).
+   Rutene settes sammen til ett bilde i kartlaget (algolayer.js). */
+export { ATILE };
+export function heatTiles(b, m, sel) {
+  const want = sel.filter((k) => R.algo[k]), list = want.length ? want : Object.keys(R.algo).filter((k) => !HIDDEN.includes(k)), out = [];
+  for (const [tx, ty] of viewTiles(b)) {
+    const t = ATC.get(tkey(tx, ty, m)); if (!t || !t.h) continue;
+    const { nb, bs } = t.h, v = new Uint8Array(nb * nb); let any = false;
+    for (const sp of list) { const a = t.h.sp[sp]; if (!a) continue; for (let i = 0; i < a.length; i++) if (a[i] > v[i]) { v[i] = a[i]; any = true; } }
+    if (!any) continue;
+    const { x0, y1 } = tileGeom(tx, ty);
+    out.push({ tx, ty, x0, y1, nb, bs, v });
+  }
+  return out;
 }
 
 /* Kjør for et kartutsnitt b = {s, w, n, e}. sel = valgte arter ([] = alle), m = måned 0–11. */
