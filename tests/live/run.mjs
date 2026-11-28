@@ -615,7 +615,7 @@ if (want('punkter')) {
     await pg.goto(BASE + '?sted=60.52,5.27&z=13', { waitUntil: 'load' });
     await waitFor(pg, () => !!(window.fiskesim && window.fiskesim.app && window.fiskesim.app.punkter), 30000); await pg.waitForTimeout(2500);
     const r = {}, cx = vw / 2, cy = vh / 2;
-    await pg.mouse.click(cx, cy); await pg.waitForTimeout(2500);
+    await pg.mouse.click(cx, cy); await pg.waitForSelector('.info [data-a="i3d"]', { timeout: 25000 }).catch(() => {});
     r.knapp = await pg.isVisible('.info [data-a="ipt"]');
     if (r.knapp) { await pg.click('.info [data-a="ipt"]'); await pg.fill('.info .pt-note', 'God lange-plass\nprøv ved fjære'); await pg.click('.info [data-a="psave"]'); await pg.waitForTimeout(800); }
     r.kort = await pg.evaluate(() => document.querySelector('.info')?.innerText.replace(/\s+/g, ' '));
