@@ -79,6 +79,15 @@ export class Cloud {
   list() { return this.log.filter((c) => !c.deleted); }
 
   // send det som ikke er sendt, og hent det som ligger på kontoen (annen enhet)
+  // admin: profiles.is_admin for innlogget bruker
+  async isAdmin() { const s = await this.session(); if (!s) return false; const r = await call(`/rest/v1/profiles?select=is_admin&id=eq.${s.uid}`, { token: s.access_token }); return !!(r && r[0] && r[0].is_admin); }
+  // admin: alle andre brukeres fangster, med brukernavn (RLS slipper bare admin gjennom)
+  async everyone() {
+    const s = await this.session(); if (!s) return [];
+    const [rows, profs] = await Promise.all([call(`/rest/v1/catches?select=*&user_id=neq.${s.uid}&order=caught_at.desc&limit=10000`, { token: s.access_token }), call('/rest/v1/profiles?select=id,username', { token: s.access_token })]);
+    const nm = new Map((profs || []).map((p) => [p.id, p.username]));
+    return (rows || []).map((r) => Object.assign(fromRow(r), { user: nm.get(r.user_id) || 'ukjent' }));
+  }
   async sync() {
     if (!this.s || this.syncing) return; this.syncing = true; this.emit();
     try {

@@ -1,4 +1,5 @@
-// Fangstlogg-panelet: logg fangst (eller tur uten fangst), loggbok og konto. Fangstene vises i kartet mens panelet er åpent.
+// Fangstlogg-panelet: logg fangst (eller tur uten fangst), loggbok og konto. Fangstene vises i kartet mens panelet er åpent,
+// eller hele tiden når «Mine fangster» er slått på i Kartlag. Trykk på et fangstsymbol for å se loggingen.
 import { Cloud, cleanUser } from './cloud.js';
 import { SPECIES } from '../map/algolayer.js';
 import { esc, fmt } from '../algo/index.js';
@@ -12,6 +13,18 @@ const GEAR = ['Pilk', 'Pilk og opphenger', 'Slep', 'Sluk', 'Agnfiske', 'Dorging'
 const MND = ['januar', 'februar', 'mars', 'april', 'mai', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'desember'];
 const pad = (n) => String(n).padStart(2, '0');
 const localInput = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const load = (k, d) => { try { const v = localStorage.getItem('fiskesim.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
+const save = (k, v) => { try { localStorage.setItem('fiskesim.' + k, JSON.stringify(v)); } catch (e) { /* privat modus */ } };
+// kartsymbol: nål med fisk (fangst), strek (ingen fangst); blågrønn for andre brukere (admin)
+function pin(color, fish) {
+  const c = document.createElement('canvas'); c.width = 52; c.height = 66; const g = c.getContext('2d');
+  g.beginPath(); g.arc(26, 25, 22, Math.PI * 0.8, Math.PI * 2.2); g.lineTo(26, 63); g.closePath();
+  g.fillStyle = color; g.fill(); g.lineWidth = 3; g.strokeStyle = '#0b1820'; g.stroke();
+  g.fillStyle = '#fff'; g.strokeStyle = '#fff';
+  if (fish) { g.save(); g.translate(26 - 12 * 1.45, 25 - 12 * 1.45); g.scale(1.45, 1.45); g.fill(new Path2D('M3 12c3-4 8-5 12-2l4-3-1 5 1 5-4-3c-4 3-9 2-12-2z')); g.fillStyle = color; g.beginPath(); g.arc(8, 11, 1.1, 0, 7); g.fill(); g.restore(); }
+  else { g.lineWidth = 4; g.lineCap = 'round'; g.beginPath(); g.moveTo(16, 25); g.lineTo(36, 25); g.stroke(); }
+  return g.getImageData(0, 0, 52, 66);
+}
 const num = (v) => { if (v === '' || v == null) return null; const n = +String(v).replace(',', '.'); return n === n ? n : null; };
 
 export class FangstPanel {
@@ -23,29 +36,62 @@ export class FangstPanel {
     el.addEventListener('click', (e) => this.onClick(e));
     el.addEventListener('submit', (e) => { e.preventDefault(); this.onSubmit(e.target); });
     el.addEventListener('change', (e) => { if (e.target.name === 'no_catch') { this.el.querySelector('.fa-catch').classList.toggle('hidden', e.target.checked); this.el.querySelector('.fa-none').classList.toggle('hidden', !e.target.checked); } if (e.target.name === 'andres') this.el.querySelector('.fa-andres')?.classList.toggle('hidden', !e.target.checked); });
+    this.showMap = load('fangstkart', false); this.showAll = load('fangstalle', false); this.others = []; this.admin = false; this.adminFor = null; this.onAdmin = () => {};
+    api.onStyle((m) => this.addLayers(m));
+    this.cloud.on(() => this.checkAdmin());
+    this.checkAdmin();
     if (this.cloud.user) this.cloud.sync().catch(() => {});
     window.addEventListener('online', () => this.cloud.sync().catch(() => {}));
   }
   get active() { return this.on; }
   name(k) { return this.names.get(k) || k || 'Ukjent fisk'; }
-  open() { this.on = true; this.view = 'list'; this.el.classList.remove('hidden'); this.onMode(true); this.render(); this.layer(true); }
-  clear() { this.on = false; this.pickPos = false; this.el.classList.add('hidden'); this.onMode(false); this.layer(false); }
+  open() { this.on = true; this.view = 'list'; this.other = null; this.el.classList.remove('hidden'); this.onMode(true); this.render(); this.vis(); if (this.admin && this.showAll && !this.others.length) this.loadOthers(); }
+  clear() { this.on = false; this.pickPos = false; this.other = null; this.el.classList.add('hidden'); this.onMode(false); this.vis(); }
   // kartklikk: brukes bare når skjemaet venter på posisjon
   click(lon, lat) { if (!this.on || !this.pickPos) return false; this.pickPos = false; this.setPos(lon, lat, 'valgt i kartet'); this.el.classList.remove('hidden'); return true; }
 
-  // ---------- kartlaget med egne fangster ----------
-  geo() { return { type: 'FeatureCollection', features: this.cloud.list().map((c) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [c.lon, c.lat] }, properties: { n: c.no_catch } })) }; }
-  layer(show) {
-    const m = this.api.map;
-    if (!m.getSource('fa')) {
-      m.addSource('fa', { type: 'geojson', data: this.geo() });
-      m.addLayer({ id: 'fa-pt', type: 'circle', source: 'fa', paint: { 'circle-radius': 5, 'circle-color': ['case', ['get', 'n'], '#7f97a3', '#ff6a13'], 'circle-stroke-color': '#0b1820', 'circle-stroke-width': 1.5 } });
-      m.addSource('fa-new', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-      m.addLayer({ id: 'fa-new', type: 'circle', source: 'fa-new', paint: { 'circle-radius': 8, 'circle-color': 'rgba(255,106,19,.25)', 'circle-stroke-color': '#ff6a13', 'circle-stroke-width': 2 } });
-    }
-    for (const id of ['fa-pt', 'fa-new']) m.setLayoutProperty(id, 'visibility', show ? 'visible' : 'none');
+  // ---------- kartlaget med fangster ----------
+  geo() {
+    const f = this.cloud.list().filter((c) => c.lon != null && c.lat != null).map((c) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [c.lon, c.lat] }, properties: { id: c.client_id, n: !!c.no_catch, o: false } }));
+    if (this.admin && this.showAll) this.others.forEach((c, i) => { if (c.lon != null && c.lat != null) f.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [c.lon, c.lat] }, properties: { id: 'o' + i, n: !!c.no_catch, o: true } }); });
+    return { type: 'FeatureCollection', features: f };
+  }
+  addLayers(m) {
+    if (!m.hasImage('fa-fisk')) { m.addImage('fa-fisk', pin('#ff6a13', true), { pixelRatio: 2 }); m.addImage('fa-ingen', pin('#7f97a3', false), { pixelRatio: 2 }); m.addImage('fa-andre', pin('#1fa3b0', true), { pixelRatio: 2 }); m.addImage('fa-andre0', pin('#5d8c93', false), { pixelRatio: 2 }); }
+    if (!m.getSource('fa')) m.addSource('fa', { type: 'geojson', data: this.geo() });
+    if (!m.getLayer('fa-pt')) m.addLayer({ id: 'fa-pt', type: 'symbol', source: 'fa', layout: { 'icon-image': ['case', ['get', 'o'], ['case', ['get', 'n'], 'fa-andre0', 'fa-andre'], ['case', ['get', 'n'], 'fa-ingen', 'fa-fisk']], 'icon-anchor': 'bottom', 'icon-allow-overlap': true, 'icon-ignore-placement': true, 'icon-size': ['interpolate', ['linear'], ['zoom'], 6, 0.6, 12, 0.9, 15, 1] } });
+    if (!m.getSource('fa-new')) m.addSource('fa-new', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+    if (!m.getLayer('fa-new')) m.addLayer({ id: 'fa-new', type: 'circle', source: 'fa-new', paint: { 'circle-radius': 8, 'circle-color': 'rgba(255,106,19,.25)', 'circle-stroke-color': '#ff6a13', 'circle-stroke-width': 2 } });
+    this.vis();
+  }
+  layer() { this.vis(); }
+  vis() {
+    const m = this.api.map; if (!m.getLayer('fa-pt')) return;
+    m.setLayoutProperty('fa-pt', 'visibility', this.on || this.showMap ? 'visible' : 'none');
+    m.setLayoutProperty('fa-new', 'visibility', this.on ? 'visible' : 'none');
   }
   sync() { const s = this.api.map.getSource('fa'); if (s) s.setData(this.geo()); }
+  // Kartlag-valgene
+  setMap(on) { this.showMap = on; save('fangstkart', on); this.vis(); if (on && this.admin && this.showAll) this.loadOthers(); }
+  setAll(on) { this.showAll = on; save('fangstalle', on); if (on) this.loadOthers(); else this.sync(); }
+  async checkAdmin() {
+    const u = this.cloud.user || null; if (u === this.adminFor) return; this.adminFor = u;
+    let a = false; if (u) { try { a = await this.cloud.isAdmin(); } catch (e) { a = false; } }
+    if (this.adminFor !== u) return; this.admin = a; if (!a) this.others = []; this.sync(); this.onAdmin(a);
+    if (a && this.showAll && (this.showMap || this.on)) this.loadOthers();
+  }
+  async loadOthers() { if (!this.admin) return; try { this.others = await this.cloud.everyone(); } catch (e) { this.others = []; } this.sync(); }
+  // kartklikk på et fangstsymbol: vis loggingen
+  hit(e) {
+    const m = this.api.map; if (!e || !e.point || !m.getLayer('fa-pt') || m.getLayoutProperty('fa-pt', 'visibility') === 'none') return false;
+    const f = m.queryRenderedFeatures([[e.point.x - 6, e.point.y - 6], [e.point.x + 6, e.point.y + 6]], { layers: ['fa-pt'] })[0]; if (!f) return false;
+    const id = f.properties.id;
+    if (!this.on) this.open();
+    if (f.properties.o) { this.other = this.others[+id.slice(1)] || null; if (!this.other) return true; this.cur = null; }
+    else { this.other = null; this.cur = id; const c = this.cloud.list().find((x) => x.client_id === id); if (c && !c.env) envAt(c.lon, c.lat, c.caught_at).then((env) => { this.cloud.update(id, { env }); if (this.view === 'detail' && this.cur === id) this.render(); }).catch(() => {}); }
+    this.view = 'detail'; this.delAsk = false; this.render(); this.el.classList.remove('hidden');
+    return true;
+  }
   setPos(lon, lat, how) {
     this.pos = { lon, lat, how, depth: null }; this.renderPos();
     const s = this.api.map.getSource('fa-new'); if (s) s.setData({ type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [lon, lat] }, properties: {} }] });
@@ -128,13 +174,13 @@ export class FangstPanel {
       <p class="pmut">Fangstene lagres på kontoen og brukes til å forbedre algoritmen i Fiskesim.</p>`;
   }
   htmlDetail() {
-    const c = this.cloud.list().find((x) => x.client_id === this.cur); if (!c) { this.view = 'list'; return this.htmlList(); }
+    const o = this.other, c = o || this.cloud.list().find((x) => x.client_id === this.cur); if (!c) { this.view = 'list'; return this.htmlList(); }
     const d = new Date(c.caught_at), row = (k, v) => (v || v === 0 ? `<div><span>${k}</span><b>${v}</b></div>` : '');
     return `${this.head(c.no_catch ? 'Ingen fangst' : `${c.count > 1 ? c.count + ' × ' : ''}${esc(this.name(c.species))}`, true)}
-      <div class="fa-kv">${row('Tid', `${d.getDate()}. ${MND[d.getMonth()]} ${d.getFullYear()} kl. ${pad(d.getHours())}:${pad(d.getMinutes())}`)}${row('Posisjon', `<span class="num">${fmtLat(c.lat)} ${fmtLon(c.lon)}</span>`)}${row('Dybde', c.depth_m != null ? Math.round(c.depth_m) + ' m' : '')}
+      <div class="fa-kv">${o ? row('Fisker', esc(o.user)) : ''}${row('Tid', `${d.getDate()}. ${MND[d.getMonth()]} ${d.getFullYear()} kl. ${pad(d.getHours())}:${pad(d.getMinutes())}`)}${row('Posisjon', `<span class="num">${fmtLat(c.lat)} ${fmtLon(c.lon)}</span>`)}${row('Dybde', c.depth_m != null ? Math.round(c.depth_m) + ' m' : '')}
       ${row('Total vekt', c.weight_kg ? fmt(c.weight_kg, 1) + ' kg' : '')}${row('Lengde', c.length_cm ? fmt(c.length_cm) + ' cm' : '')}${row('Fisketid', c.effort_min ? c.effort_min + ' min' : '')}${row('Redskap', esc(c.gear || ''))}${row('Agn', esc(c.bait || ''))}${row('Notat', esc(c.note || ''))}${c.andres ? row('Andres fisk', (c.andres_navn ? esc(c.andres_navn) + ' · ' : '') + 'teller ikke i topplisten') : ''}${c.algo ? row('Algoritmeforslag', esc(c.algo.sp.map((k, i) => this.name(k) + (c.algo.sc && c.algo.sc[i] != null ? ' ' + c.algo.sc[i] : '')).join(', '))) : ''}</div>
       ${this.htmlEnv(c)}
-      <div class="furow"><button class="btn" data-f="show">Vis i kartet</button><button class="btn" data-f="edit">Endre</button><button class="btn" data-f="del">${this.delAsk ? 'Sikker? Slett' : 'Slett'}</button></div>`;
+      <div class="furow"><button class="btn" data-f="show">Vis i kartet</button>${o ? '' : `<button class="btn" data-f="edit">Endre</button><button class="btn" data-f="del">${this.delAsk ? 'Sikker? Slett' : 'Slett'}</button>`}</div>`;
   }
   // fra et algoritmeforslag: plassen og arten fylles inn, og forslaget (art og poeng) lagres med fangsten
   fromAlgo(info, caught) {
@@ -191,19 +237,19 @@ export class FangstPanel {
     if (f === 'stats') return this.openStats();
     if (f === 'sper') { this.sPer = b.dataset.v; return this.render(); }
     if (f === 'tper' || f === 'tsort') { if (f === 'tper') this.tPer = b.dataset.v; else this.tSort = b.dataset.v; return this.loadTopp(); }
-    if (f === 'back') { this.view = this.view === 'form' && this.cur ? 'detail' : 'list'; this.pickPos = false; this.api.map.getSource('fa-new')?.setData({ type: 'FeatureCollection', features: [] }); return this.render(); }
+    if (f === 'back') { this.other = null; this.view = this.view === 'form' && this.cur ? 'detail' : 'list'; this.pickPos = false; this.api.map.getSource('fa-new')?.setData({ type: 'FeatureCollection', features: [] }); return this.render(); }
     if (f === 'new') { this.cur = null; return this.form(null, false); }
     if (f === 'none') { this.cur = null; return this.form(null, true); }
     if (f === 'konto') { this.view = 'konto'; return this.render(); }
     if (f === 'open') {
-      this.cur = b.dataset.id; this.view = 'detail'; this.delAsk = false; this.render();
+      this.other = null; this.cur = b.dataset.id; this.view = 'detail'; this.delAsk = false; this.render();
       const c = this.cloud.list().find((x) => x.client_id === this.cur), id = this.cur;
       if (c && !c.env) envAt(c.lon, c.lat, c.caught_at).then((env) => { this.cloud.update(id, { env }); if (this.view === 'detail' && this.cur === id) this.render(); }).catch(() => {});
       return;
     }
     if (f === 'edit') { const c = this.cloud.list().find((x) => x.client_id === this.cur); return this.form(c); }
     if (f === 'del') { if (!this.delAsk) { this.delAsk = true; return this.render(); } this.cloud.remove(this.cur); this.view = 'list'; return this.render(); }
-    if (f === 'show') { const c = this.cloud.list().find((x) => x.client_id === this.cur); if (c) this.api.map.flyTo({ center: [c.lon, c.lat], zoom: Math.max(this.api.map.getZoom(), 14) }); return; }
+    if (f === 'show') { const c = this.other || this.cloud.list().find((x) => x.client_id === this.cur); if (c) this.api.map.flyTo({ center: [c.lon, c.lat], zoom: Math.max(this.api.map.getZoom(), 14) }); return; }
     if (f === 'gps') return this.gps(false);
     if (f === 'pick') { this.pickPos = true; this.flash('Trykk i kartet der fangsten ble tatt …'); if (matchMedia('(max-width: 760px)').matches) this.el.classList.add('hidden'); return; }
     if (f === 'sync') { this.cloud.sync().catch(() => {}); return; }

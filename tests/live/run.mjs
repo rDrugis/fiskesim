@@ -606,6 +606,37 @@ if (want('mydata')) {
   }
 }
 
+// ---------- Fangstsymboler i kartet (Kartlag → Mine fangster), trykk for info; admin ser andres ----------
+if (want('fangstkart')) {
+  const fake = [{ client_id: 'k1', caught_at: '2026-10-03T08:00:00.000Z', no_catch: false, species: 'sei', count: 4, weight_kg: 6, lon: 5.27, lat: 60.52, depth_m: 40, gear: 'Pilk', dirty: false, andres: true, andres_navn: 'ola' },
+    { client_id: 'k2', caught_at: '2026-10-04T08:00:00.000Z', no_catch: true, effort_min: 60, lon: 5.29, lat: 60.515, dirty: false }];
+  for (const [vw, vh, tag] of [[1280, 800, 'pc'], [390, 844, 'mobil']]) {
+    const ctx = await browser.newContext({ viewport: { width: vw, height: vh } }), pg = await ctx.newPage(), errs = [];
+    pg.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));
+    await pg.addInitScript((f) => { try { localStorage.setItem('fiskesim.fangst', JSON.stringify(f)); } catch (e) {} }, fake);
+    await pg.goto(BASE + '?sted=60.518,5.28&z=13', { waitUntil: 'load' });
+    await waitFor(pg, () => !!(window.fiskesim && window.fiskesim.app && window.fiskesim.app.fangst), 30000); await pg.waitForTimeout(2500);
+    const r = {};
+    await pg.click('[data-a="layers"]'); await pg.waitForTimeout(300); r.valg = await pg.isVisible('.layers input[data-k="fangst"]');
+    await pg.check('.layers input[data-k="fangst"]'); await pg.click('.layers [data-a="lclose"]'); await pg.waitForTimeout(1200);
+    r.synlig = await pg.evaluate(() => window.fiskesim.app.api.map.getLayoutProperty('fa-pt', 'visibility'));
+    await pg.screenshot({ path: join(OUT, `fangstkart-${tag}.png`) });
+    const pt = (lon, lat) => pg.evaluate(([a, b]) => { const p = window.fiskesim.app.api.map.project([a, b]); const r = window.fiskesim.app.api.map.getCanvas().getBoundingClientRect(); return [r.left + p.x, r.top + p.y - 12]; }, [lon, lat]);
+    let [x, y] = await pt(5.27, 60.52); await pg.mouse.click(x, y); await pg.waitForTimeout(600);
+    r.detalj = await pg.evaluate(() => { const e = document.querySelector('.fangst'); return e && !e.classList.contains('hidden') ? e.innerText.replace(/\s+/g, ' ').slice(0, 260) : null; });
+    await pg.screenshot({ path: join(OUT, `fangstkart-detalj-${tag}.png`) });
+    // admin (simulert i nettleseren): andres fangster i blågrønt, uten Endre/Slett
+    await pg.evaluate(() => { const f = window.fiskesim.app.fangst; f.clear(); f.admin = true; f.showAll = true; f.others = [{ client_id: 'x', user: 'kari', caught_at: '2026-09-01T10:00:00.000Z', species: 'torsk', count: 2, weight_kg: 5, lon: 5.25, lat: 60.525 }]; f.sync(); window.fiskesim.app.renderLayers && window.fiskesim.app.renderLayers(); });
+    await pg.waitForTimeout(800); await pg.screenshot({ path: join(OUT, `fangstkart-admin-${tag}.png`) });
+    [x, y] = await pt(5.25, 60.525); await pg.mouse.click(x, y); await pg.waitForTimeout(600);
+    r.admin = await pg.evaluate(() => ({ tekst: document.querySelector('.fangst').innerText.replace(/\s+/g, ' ').slice(0, 200), endre: !!document.querySelector('.fangst [data-f="edit"]') }));
+    // valgfritt navn på andres fisk
+    await pg.evaluate(() => window.fiskesim.app.fangst.clear()); await pg.click('[data-a="fangst"]'); await pg.click('.fangst [data-f="new"]'); await pg.waitForTimeout(500);
+    r.navnFoer = await pg.isVisible('.fangst input[name="andres_navn"]'); await pg.check('.fangst input[name="andres"]'); r.navnEtter = await pg.isVisible('.fangst input[name="andres_navn"]');
+    r.errs = errs; log('fangstkart', tag, JSON.stringify(r)); await ctx.close();
+  }
+}
+
 // ---------- Algoritmen med bunntype: toppforslag per art i faste områder (før/etter-sammenligning) ----------
 if (want('algobunn')) {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } }), pg = await ctx.newPage(), out = {};

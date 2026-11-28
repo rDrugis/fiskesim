@@ -121,6 +121,7 @@ export class App {
     // fangstlogg: logg fangst / tur uten fangst, loggbok og konto
     const gbtn = this.root.querySelector('[data-a="fangst"]');
     this.fangst = new FangstPanel(api, this.root.querySelector('.fangst'), { onMode: (on) => gbtn.setAttribute('aria-pressed', String(on)) });
+    this.fangst.onAdmin = () => this.renderLayers && this.renderLayers();
     this.root.querySelector('[data-a="mydata"]').addEventListener('click', () => { this.profile.clear(); this.drift.clear(); if (this.fuel.active) this.fuel.clear(); this.closeInfo(); this.fangst.openStats(); });
     gbtn.addEventListener('click', () => {
       if (this.fangst.active) { this.fangst.clear(); return; }
@@ -136,7 +137,7 @@ export class App {
     this.initSearch();
     this.initLayers();
     if (!this.mobile) this.initCursorDepth(map);
-    api.onClick((ll, e) => { if (this.fangst.click(ll.lng, ll.lat)) return; if (this.fuel.click(ll.lng, ll.lat)) return; if (this.profile.click(ll.lng, ll.lat)) return; if (this.drift.click(ll.lng, ll.lat)) return; if (e && this.marks.click(e)) return; this.pick(ll.lng, ll.lat); });
+    api.onClick((ll, e) => { if (this.fangst.click(ll.lng, ll.lat)) return; if (this.fuel.click(ll.lng, ll.lat)) return; if (this.profile.click(ll.lng, ll.lat)) return; if (this.drift.click(ll.lng, ll.lat)) return; if (this.fangst.hit(e)) return; if (e && this.marks.click(e)) return; this.pick(ll.lng, ll.lat); });
     // verktøymenyen: dybdeprofil, drift og drivstoff i én knapp; knappen lyser mens et av dem er i bruk
     const tbtn = this.root.querySelector('[data-a="tools"]'), tmenu = this.root.querySelector('.toolmenu');
     const tmOpen = (v) => { tmenu.classList.toggle('hidden', !v); tbtn.setAttribute('aria-expanded', String(v)); };
@@ -206,6 +207,8 @@ export class App {
         <label class="tog"><input type="checkbox" data-k="marks" ${this.marks.on ? 'checked' : ''}><span>Sjømerker, skjær og grunner</span></label>
         <label class="tog"><input type="checkbox" data-k="lodd" ${this.soundings.on ? 'checked' : ''}><span>Loddskudd (dybdetall)</span></label>
         ${this.api.style === 'bunn' ? `<div class="bleg">${NGU_CLS.map((c) => `<span><i style="background:rgb(${c.c.join(',')})"></i>${c.n[0].toUpperCase() + c.n.slice(1)}</span>`).join('')}<small>Bare der NGU har kartlagt bunnen. Kilde: NGU.</small></div>` : ''}
+        <label class="tog"><input type="checkbox" data-k="fangst" ${this.fangst?.showMap ? 'checked' : ''}><span>Mine fangster</span></label>
+        ${this.fangst?.admin ? `<label class="tog"><input type="checkbox" data-k="fangstalle" ${this.fangst.showAll ? 'checked' : ''}><span>Alle brukeres fangster <em class="pmut">(admin)</em></span></label>` : ''}
         <label class="tog"><input type="checkbox" data-k="algo" ${a.on ? 'checked' : ''}><span>Fiskeplasser (algoritme)</span></label>
         <div class="algo-opts${a.on ? '' : ' hidden'}">
           <div class="chips" role="group" aria-label="Arter">${sp.map((s) => `<button class="chip${a.sel.includes(s.k) ? ' on' : ''}" data-sp="${s.k}" style="--c:${s.col}" aria-pressed="${a.sel.includes(s.k)}"><i></i>${esc(s.no)}</button>`).join('')}</div>
@@ -240,6 +243,8 @@ export class App {
       const k = e.target.dataset.k;
       if (k === 'marks') this.marks.setOn(e.target.checked);
       if (k === 'lodd') this.soundings.setOn(e.target.checked);
+      if (k === 'fangst') this.fangst.setMap(e.target.checked);
+      if (k === 'fangstalle') { this.fangst.setAll(e.target.checked); if (e.target.checked && !this.fangst.showMap) { this.fangst.setMap(true); render(); } }
       if (k === 'algo') { this.algo.setOn(e.target.checked); render(); }
       else if (k === 'mon') this.algo.setMonth(e.target.value);
     });
