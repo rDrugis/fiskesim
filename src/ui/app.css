@@ -431,3 +431,6 @@ a { color: #8fd0ec; }
 .st-v { min-width: 34px; text-align: right; }
 .st-v em { font-style: normal; color: var(--text-3); font-size: 11.5px; margin-left: 4px; }
 @media (max-width: 760px) { .st-big b { font-size: 22px; } }
+/* valgknapper i fiskedata og toppliste: tydelig valgt, med synlig tekst */
+.st-per .chip, .fa-tophead .chip { background: transparent; color: var(--text-2); border-color: var(--line-2); }
+.st-per .chip.on, .fa-tophead .chip.on { background: rgba(255, 106, 19, .18); color: var(--text); border-color: var(--buoy); }
