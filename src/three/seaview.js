@@ -86,7 +86,7 @@ float noise(vec2 p, int c) { vec4 n = texture2D(uNoise, p / 32.0); return c == 0
 vec3 ripLayer(vec2 p, float T, float ang, vec2 drift) {
   vec2 d = vec2(uRipD.x * cos(ang) - uRipD.y * sin(ang), uRipD.x * sin(ang) + uRipD.y * cos(ang)), e = vec2(d.y, -d.x);
   vec2 uv = (vec2(dot(p, d), dot(p, e)) - drift * uTime) / T;
-  vec4 s = texture2D(uRip, uv);
+  vec4 s = texture2D(uRip, uv, 1.0); // ett nivå grovere: krusninger på bare et par skjermpunkter ble til prikker
   float v = max(s.z - s.x * s.x, 0.0) + max(s.w - s.y * s.y, 0.0);
   return vec3(s.x * d + s.y * e, v);
 }
@@ -114,10 +114,12 @@ void main() {
   // krusninger fra vinden: tre lag av den ferdigfiltrerte flisen i ulike størrelser og retninger, så mønsteret ikke
   // gjentar seg synlig. Det som er for smått til å vises der du ser, går inn i ruheten for lyset (LEAN)
   vec3 r1 = ripLayer(p, 5.3, 0.0, vec2(0.45, 0.05)), r2 = ripLayer(p, 2.9, 0.55, vec2(0.33, -0.04)), r3 = ripLayer(p, 1.7, -0.6, vec2(0.25, 0.03));
+  // bare en del av helningen vises som form (VIS); resten er kapillærkrusninger som bare gjør flaten matt
+  const float VIS = 0.6;
   float rm = uRipM * min(1.0, vFac + 0.3);
-  vec2 rg = (r1.xy * 0.66 + r2.xy * 0.56 + r3.xy * 0.5) * rm;
+  vec2 rg = (r1.xy * 0.66 + r2.xy * 0.56 + r3.xy * 0.5) * rm * VIS;
   gx += rg.x; gy += rg.y;
-  lost += (r1.z * 0.4356 + r2.z * 0.3136 + r3.z * 0.25) * rm * rm;
+  lost += ((r1.z * 0.4356 + r2.z * 0.3136 + r3.z * 0.25) * VIS * VIS + (1.0 - VIS * VIS)) * rm * rm;
   vec3 N = normalize(vec3(-gx, max(up, 0.15), gy));
   float J = (1.0 - jxx) * (1.0 - jyy) - jxy * jxy;
   float s2 = max(uSigF + lost, 0.0002); // helningsvarians som ikke er tegnet
@@ -148,11 +150,11 @@ void main() {
   // brytende topper: der flaten presses mest sammen (Jacobi), i flekker. Terskelen uFoamT er valgt slik at andelen
   // som skummer blir som målt for vindstyrken (Monahan & O'Muircheartaigh 1980); uSlope = forventet spredning i 1 − J.
   float X = (1.0 - J) / uSlope + (n1 * 0.6 + n2 * 0.4 - 0.5) * 2.0;
-  float white = uFoamT < 9.0 ? smoothstep(uFoamT, uFoamT + 0.35, X) * smoothstep(0.0, 0.2, amp) : 0.0;
+  float white = uFoamT < 9.0 ? smoothstep(uFoamT - 0.1, uFoamT + 0.9, X) * smoothstep(0.0, 0.2, amp) : 0.0; // myk kant: skum er ikke flate skiver
   float shore = (1.0 - smoothstep(0.0, 1.6 * uHs + 0.4, vDepth)) * smoothstep(0.03, 0.25, uHs) * smoothstep(0.3, 0.8, n2 + n1 * 0.4);
   float foam = clamp(white + shore, 0.0, 1.0);
   // skum er hvitt og matt: lyset fra hele himmelen og sola
-  foam *= mix(0.55, 1.0, noise(q * 4.3 + 5.0, 2)); // skummet er trådete, ikke flate flekker
+  foam *= smoothstep(0.25, 0.7, noise(q * 4.3 + 5.0, 2) * 0.7 + noise(q * 11.0 + 2.0, 0) * 0.5); // skummet er trådete og hullete, ikke flate flekker
   float ambL = dot(amb, vec3(0.3, 0.5, 0.2));
   col = mix(col, vec3(0.88, 0.9, 0.92) * (ambL * 2.4 + uSunCol * max(uSun.y, 0.0) * 1.2 + 0.02), foam);
   // klart vann på grunt: bunnen synes gjennom

@@ -48,7 +48,9 @@ function slopeTile(N, nMin, nMax, seed) {
     // myk kant i begge ender av båndet, så det ikke blir ringer
     const edge = Math.min(1, (n - nMin) / nMin) * Math.min(1, (nMax - n) / (0.25 * nMax));
     const c = fx / n, spread = 0.25 + 0.75 * Math.pow(Math.max(0, c), 2) + 0.15 * Math.pow(Math.max(0, -c), 2);
-    const amp = Math.sqrt(edge * spread) / n; // helning per komponent ~ 1/n gir flatt helningsspekter per oktav
+    // helning per komponent ~ n^-1,6: mest helning i de lengste krusningene (desimeter til meter), lite i de korteste,
+    // som på et par meters avstand ikke synes enkeltvis, bare som matthet (det tar ruheten i lyset seg av)
+    const amp = Math.sqrt(edge * spread) * Math.pow(n, -1.6);
     const ar = gauss(r) * amp, ai = gauss(r) * amp, p = y * N + x;
     // helningen er i·k·h: x-helning fra fx, y-helning fra fy
     re[0][p] = -ai * fx; im[0][p] = ar * fx;
@@ -83,7 +85,7 @@ function leanTexture(N, gx, gy) {
 }
 
 export function rippleTexture(N = 256) {
-  const { gx, gy } = slopeTile(N, 2, N * 0.42, 11);
+  const { gx, gy } = slopeTile(N, 2, N * 0.3, 11);
   return leanTexture(N, gx, gy);
 }
 
