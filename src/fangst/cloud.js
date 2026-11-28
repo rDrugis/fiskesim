@@ -15,6 +15,7 @@ export const badUser = (u) => { const n = String(u).toLowerCase().replace(/[0]/g
 
 const ls = { get: (k, d) => { try { return JSON.parse(localStorage.getItem(k) || 'null') ?? d; } catch (e) { return d; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* privat modus */ } } };
 
+const rpc = (s, fn, body) => call('/rest/v1/rpc/' + fn, { method: 'POST', token: s.access_token, body });
 async function call(path, { method = 'GET', body, token, prefer } = {}) {
   const h = { apikey: SUPA.key, 'Content-Type': 'application/json' };
   if (token) h.Authorization = 'Bearer ' + token;
@@ -73,7 +74,7 @@ export class Cloud {
 
   // ---- fangstene ----
   add(c) { c.client_id = c.client_id || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()); c.dirty = true; this.log.unshift(c); this.sort(); this.save(); this.sync().catch(() => {}); return c; }
-  update(id, patch) { const c = this.log.find((x) => x.client_id === id); if (!c) return; Object.assign(c, patch, { dirty: true }); this.sort(); this.save(); this.sync().catch(() => {}); }
+  update(id, patch) { const c = this.log.find((x) => x.client_id === id); if (!c) return; Object.assign(c, patch, { dirty: true }); if ('env' in patch && (c.gitt || c.andres_navn) && this.user) c.giPending = true; this.sort(); this.save(); this.sync().catch(() => {}); }
   remove(id) { const c = this.log.find((x) => x.client_id === id); if (!c) return; c.deleted = true; c.dirty = true; this.save(); this.sync().catch(() => {}); }
   sort() { this.log.sort((a, b) => (b.caught_at > a.caught_at ? 1 : -1)); }
   list() { return this.log.filter((c) => !c.deleted); }
@@ -88,17 +89,35 @@ export class Cloud {
     const nm = new Map((profs || []).map((p) => [p.id, p.username]));
     return (rows || []).map((r) => Object.assign(fromRow(r), { user: nm.get(r.user_id) || 'ukjent' }));
   }
+  // «Andres fisk» med brukernavn: en kopi logges på kontoen deres (teller for dem). Endres eller fjernes navnet, flyttes/fjernes kopien.
+  async give(s) {
+    for (const c of this.log.filter((x) => x.giPending && !x.deleted)) {
+      const navn = c.andres && c.andres_navn && c.andres_navn !== this.user ? c.andres_navn : null;
+      try {
+        if (navn) { await rpc(s, 'gi_fangst', { mottaker: navn, rad: toRow(c) }); c.gitt = navn; c.giFeil = null; }
+        else if (c.gitt) { await rpc(s, 'fjern_gitt', { cid: c.client_id }); c.gitt = null; c.giFeil = null; }
+        c.giPending = false;
+      } catch (e) {
+        if (/fant_ikke_bruker/.test(e.message)) { c.giFeil = `fant ingen bruker «${navn}»`; c.giPending = false; }
+        else if (/gi_fangst|fjern_gitt|function|404/i.test(e.message) || e.status === 404) { c.giFeil = 'ikke satt opp i databasen ennå'; }
+        else throw e;
+      }
+    }
+  }
+  async userExists(u) { const s = await this.session(); if (!s) return null; try { return !!(await rpc(s, 'finnes_bruker', { navn: cleanUser(u) })); } catch (e) { return null; } }
   async sync() {
     if (!this.s || this.syncing) return; this.syncing = true; this.emit();
     try {
       const s = await this.session(); if (!s) return;
       const del = this.log.filter((c) => c.dirty && c.deleted), up = this.log.filter((c) => c.dirty && !c.deleted);
-      for (const c of del) { await call(`/rest/v1/catches?client_id=eq.${encodeURIComponent(c.client_id)}`, { method: 'DELETE', token: s.access_token }); }
+      for (const c of del) { if (c.gitt) { try { await rpc(s, 'fjern_gitt', { cid: c.client_id }); } catch (e) { /* prøves ikke igjen */ } }
+        await call(`/rest/v1/catches?client_id=eq.${encodeURIComponent(c.client_id)}`, { method: 'DELETE', token: s.access_token }); }
       if (up.length) {
         const post = (rows) => call('/rest/v1/catches?on_conflict=user_id,client_id', { method: 'POST', token: s.access_token, prefer: 'resolution=merge-duplicates,return=minimal', body: rows });
         // andres_navn er en ny kolonne; finnes den ikke i databasen ennå, sendes fangsten uten (navnet blir liggende lokalt)
-        try { await post(up.map(toRow)); } catch (e) { if (!/andres_navn/.test(e.message)) throw e; await post(up.map((c) => { const r = toRow(c); delete r.andres_navn; return r; })); }
+        try { await post(up.map(toRow)); } catch (e) { if (!/andres_navn|logget_av/.test(e.message)) throw e; await post(up.map((c) => { const r = toRow(c); delete r.andres_navn; delete r.logget_av; return r; })); }
       }
+      await this.give(s);
       this.log = this.log.filter((c) => !(c.dirty && c.deleted)); for (const c of up) c.dirty = false;
       const rows = await call(`/rest/v1/catches?select=*&user_id=eq.${s.uid}&order=caught_at.desc&limit=5000`, { token: s.access_token });
       const have = new Map(this.log.map((c) => [c.client_id, c]));
@@ -114,6 +133,6 @@ export class Cloud {
   get pending() { return this.log.filter((c) => c.dirty).length; }
 }
 
-const COLS = ['client_id', 'caught_at', 'species', 'count', 'weight_kg', 'length_cm', 'released', 'no_catch', 'effort_min', 'lon', 'lat', 'depth_m', 'gear', 'bait', 'note', 'andres', 'andres_navn', 'env'];
+const COLS = ['client_id', 'caught_at', 'species', 'count', 'weight_kg', 'length_cm', 'released', 'no_catch', 'effort_min', 'lon', 'lat', 'depth_m', 'gear', 'bait', 'note', 'andres', 'andres_navn', 'logget_av', 'env'];
 function toRow(c) { const r = {}; for (const k of COLS) r[k] = c[k] === '' || c[k] === undefined ? null : c[k]; r.algo = c.algo || null; /* alle rader må ha samme felter når de sendes samlet */ r.count = c.no_catch ? 0 : (c.count || 1); r.released = !!c.released; r.no_catch = !!c.no_catch; r.andres = !!c.andres; r.updated_at = new Date().toISOString(); return r; }
 function fromRow(r) { const c = {}; for (const k of COLS) if (k in r) c[k] = r[k]; if (r.algo) c.algo = r.algo; c.weight_kg = r.weight_kg == null ? null : +r.weight_kg; c.length_cm = r.length_cm == null ? null : +r.length_cm; c.depth_m = r.depth_m == null ? null : +r.depth_m; c.dirty = false; return c; }

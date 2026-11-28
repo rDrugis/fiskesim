@@ -70,3 +70,29 @@ alter table public.profiles add constraint profiles_username_ok check (
 );
 -- Valgfritt brukernavn på den som fikk fisken når den er logget som «andres fisk», 28.11.2026
 alter table public.catches add column if not exists andres_navn text;
+-- Andres fisk med brukernavn: en kopi logges på kontoen til den som fikk fisken (teller for dem), 28.11.2026
+alter table public.catches add column if not exists logget_av text;
+create or replace function public.finnes_bruker(navn text) returns boolean language sql stable security definer set search_path = public as
+$$ select exists (select 1 from public.profiles where username = lower(navn)) $$;
+create or replace function public.gi_fangst(mottaker text, rad jsonb) returns void language plpgsql security definer set search_path = public as $$
+declare til uuid; fra text; cid text;
+begin
+  select username into fra from public.profiles where id = auth.uid();
+  if fra is null then raise exception 'ikke_innlogget'; end if;
+  select id into til from public.profiles where username = lower(mottaker);
+  if til is null then raise exception 'fant_ikke_bruker'; end if;
+  if til = auth.uid() then return; end if;
+  cid := 'fra-' || (rad->>'client_id');
+  delete from public.catches where client_id = cid and logget_av = fra and user_id <> til;
+  insert into public.catches (user_id, client_id, caught_at, species, count, weight_kg, length_cm, released, no_catch, lon, lat, depth_m, gear, bait, note, env, algo, andres, logget_av, updated_at)
+  select til, cid, r.caught_at, r.species, greatest(r.count, 1), r.weight_kg, r.length_cm, false, false, r.lon, r.lat, r.depth_m, r.gear, r.bait, r.note, r.env, r.algo, false, fra, now()
+  from jsonb_populate_record(null::public.catches, rad) r
+  on conflict (user_id, client_id) do update set caught_at = excluded.caught_at, species = excluded.species, count = excluded.count, weight_kg = excluded.weight_kg,
+    length_cm = excluded.length_cm, lon = excluded.lon, lat = excluded.lat, depth_m = excluded.depth_m, gear = excluded.gear, bait = excluded.bait, note = excluded.note,
+    env = excluded.env, algo = excluded.algo, updated_at = now()
+  where public.catches.logget_av = fra;
+end $$;
+create or replace function public.fjern_gitt(cid text) returns void language sql security definer set search_path = public as
+$$ delete from public.catches where client_id = 'fra-' || cid and logget_av = (select username from public.profiles where id = auth.uid()) $$;
+revoke all on function public.gi_fangst(text, jsonb), public.fjern_gitt(text), public.finnes_bruker(text) from public, anon;
+grant execute on function public.gi_fangst(text, jsonb), public.fjern_gitt(text), public.finnes_bruker(text) to authenticated;

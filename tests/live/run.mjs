@@ -622,14 +622,21 @@ if (want('fangstkart')) {
     r.synlig = await pg.evaluate(() => window.fiskesim.app.api.map.getLayoutProperty('fa-pt', 'visibility'));
     await pg.screenshot({ path: join(OUT, `fangstkart-${tag}.png`) });
     const pt = (lon, lat) => pg.evaluate(([a, b]) => { const p = window.fiskesim.app.api.map.project([a, b]); const r = window.fiskesim.app.api.map.getCanvas().getBoundingClientRect(); return [r.left + p.x, r.top + p.y - 12]; }, [lon, lat]);
-    let [x, y] = await pt(5.27, 60.52); await pg.mouse.click(x, y); await pg.waitForTimeout(600);
+    let [x, y] = await pt(5.27, 60.52); await pg.mouse.click(x, y); await pg.waitForTimeout(800);
+    r.kort = await pg.evaluate(() => { const e = document.querySelector('.fa-card'); return e && !e.classList.contains('hidden') ? e.innerText.replace(/\s+/g, ' ') : null; });
+    await pg.screenshot({ path: join(OUT, `fangstkart-kort-${tag}.png`) });
+    if (r.kort) await pg.click('.fa-card'); await pg.waitForTimeout(500);
     r.detalj = await pg.evaluate(() => { const e = document.querySelector('.fangst'); return e && !e.classList.contains('hidden') ? e.innerText.replace(/\s+/g, ' ').slice(0, 260) : null; });
     await pg.screenshot({ path: join(OUT, `fangstkart-detalj-${tag}.png`) });
     // admin (simulert i nettleseren): andres fangster i blågrønt, uten Endre/Slett
     await pg.evaluate(() => { const f = window.fiskesim.app.fangst; f.clear(); f.admin = true; f.showAll = true; f.others = [{ client_id: 'x', user: 'kari', caught_at: '2026-09-01T10:00:00.000Z', species: 'torsk', count: 2, weight_kg: 5, lon: 5.25, lat: 60.525 }]; f.sync(); window.fiskesim.app.renderLayers && window.fiskesim.app.renderLayers(); });
     await pg.waitForTimeout(800); await pg.screenshot({ path: join(OUT, `fangstkart-admin-${tag}.png`) });
-    [x, y] = await pt(5.25, 60.525); await pg.mouse.click(x, y); await pg.waitForTimeout(600);
+    await pg.evaluate(() => window.fiskesim.app.api.map.jumpTo({ center: [5.26, 60.522] })); await pg.waitForTimeout(600);
+    [x, y] = await pt(5.25, 60.525); await pg.mouse.click(x, y); await pg.waitForTimeout(800); r.adminKort = await pg.evaluate(() => document.querySelector('.fa-card')?.innerText.replace(/\s+/g, ' ')); if (r.adminKort) await pg.click('.fa-card'); await pg.waitForTimeout(500);
     r.admin = await pg.evaluate(() => ({ tekst: document.querySelector('.fangst').innerText.replace(/\s+/g, ' ').slice(0, 200), endre: !!document.querySelector('.fangst [data-f="edit"]') }));
+    await pg.evaluate(() => { const f = window.fiskesim.app.fangst; f.clear(); window.fiskesim.app.api.map.jumpTo({ center: [5.275, 60.52], zoom: 11 }); }); await pg.waitForTimeout(1500);
+    r.klynger = await pg.evaluate(() => window.fiskesim.app.api.map.queryRenderedFeatures({ layers: ['fa-kl'] }).map((f) => f.properties.point_count));
+    await pg.screenshot({ path: join(OUT, `fangstkart-klynge-${tag}.png`) });
     // valgfritt navn på andres fisk
     await pg.evaluate(() => window.fiskesim.app.fangst.clear()); await pg.click('[data-a="fangst"]'); await pg.click('.fangst [data-f="new"]'); await pg.waitForTimeout(500);
     r.navnFoer = await pg.isVisible('.fangst input[name="andres_navn"]'); await pg.check('.fangst input[name="andres"]'); r.navnEtter = await pg.isVisible('.fangst input[name="andres_navn"]');
