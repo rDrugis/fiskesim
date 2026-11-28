@@ -96,3 +96,7 @@ create or replace function public.fjern_gitt(cid text) returns void language sql
 $$ delete from public.catches where client_id = 'fra-' || cid and logget_av = (select username from public.profiles where id = auth.uid()) $$;
 revoke all on function public.gi_fangst(text, jsonb), public.fjern_gitt(text), public.finnes_bruker(text) from public, anon;
 grant execute on function public.gi_fangst(text, jsonb), public.fjern_gitt(text), public.finnes_bruker(text) to authenticated;
+-- Holder gratisprosjektet våkent: GitHub Actions (hold-vaaken.yml) kaller denne hvert tredje døgn, 28.11.2026
+create or replace function public.hold_vaaken() returns int language sql stable security definer set search_path = public as
+$$ select coalesce((select 1 from public.profiles limit 1), 0) $$;
+grant execute on function public.hold_vaaken() to anon, authenticated;

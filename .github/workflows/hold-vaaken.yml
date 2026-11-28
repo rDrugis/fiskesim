@@ -1,0 +1,26 @@
+# Supabase setter gratisprosjekter på pause etter en uke med lite databaseaktivitet.
+# Denne jobben gjør et lite databasekall hvert tredje døgn så fangstloggen alltid er oppe.
+# Bruker bare den offentlige nøkkelen (samme som nettsiden).
+name: Hold Supabase våken
+on:
+  schedule:
+    - cron: '41 3 */3 * *'
+  workflow_dispatch:
+permissions: {}
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Databasekall
+        env:
+          URL: https://kzyqoyzbeefzxurvaigr.supabase.co
+          KEY: sb_publishable_XzJRIfoWVFw_9_l0otpf5A_dR9n_-1E
+        run: |
+          for i in 1 2 3; do
+            code=$(curl -s -o /tmp/svar -w '%{http_code}' -X POST "$URL/rest/v1/rpc/hold_vaaken" -H "apikey: $KEY" -H "Content-Type: application/json" -d '{}')
+            echo "hold_vaaken: HTTP $code $(cat /tmp/svar)"
+            [ "$code" = 200 ] && exit 0
+            sleep 30
+          done
+          exit 1
