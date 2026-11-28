@@ -68,3 +68,5 @@ alter table public.profiles add constraint profiles_username_ok check (
   regexp_replace(translate(lower(username), '013457@$!|', 'oieastasii'), '[^a-z]', '', 'g')
   !~ '(faen|fanden|helvete|jaevel|jaevl|javel|javl|satan|dritt|fitte|fitta|kuk|pikk|hore|horunge|rasshol|raevhol|neger|nigg|fuck|fck|shit|bitch|cunt|dick|cock|pussy|whore|slut|faggot|voldt|rape|retard|nazi|hitler|mongo|porn|sex)'
 );
+-- Valgfritt brukernavn på den som fikk fisken når den er logget som «andres fisk», 28.11.2026
+alter table public.catches add column if not exists andres_navn text;

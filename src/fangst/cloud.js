@@ -85,7 +85,11 @@ export class Cloud {
       const s = await this.session(); if (!s) return;
       const del = this.log.filter((c) => c.dirty && c.deleted), up = this.log.filter((c) => c.dirty && !c.deleted);
       for (const c of del) { await call(`/rest/v1/catches?client_id=eq.${encodeURIComponent(c.client_id)}`, { method: 'DELETE', token: s.access_token }); }
-      if (up.length) await call('/rest/v1/catches?on_conflict=user_id,client_id', { method: 'POST', token: s.access_token, prefer: 'resolution=merge-duplicates,return=minimal', body: up.map(toRow) });
+      if (up.length) {
+        const post = (rows) => call('/rest/v1/catches?on_conflict=user_id,client_id', { method: 'POST', token: s.access_token, prefer: 'resolution=merge-duplicates,return=minimal', body: rows });
+        // andres_navn er en ny kolonne; finnes den ikke i databasen ennå, sendes fangsten uten (navnet blir liggende lokalt)
+        try { await post(up.map(toRow)); } catch (e) { if (!/andres_navn/.test(e.message)) throw e; await post(up.map((c) => { const r = toRow(c); delete r.andres_navn; return r; })); }
+      }
       this.log = this.log.filter((c) => !(c.dirty && c.deleted)); for (const c of up) c.dirty = false;
       const rows = await call(`/rest/v1/catches?select=*&user_id=eq.${s.uid}&order=caught_at.desc&limit=5000`, { token: s.access_token });
       const have = new Map(this.log.map((c) => [c.client_id, c]));
@@ -101,6 +105,6 @@ export class Cloud {
   get pending() { return this.log.filter((c) => c.dirty).length; }
 }
 
-const COLS = ['client_id', 'caught_at', 'species', 'count', 'weight_kg', 'length_cm', 'released', 'no_catch', 'effort_min', 'lon', 'lat', 'depth_m', 'gear', 'bait', 'note', 'andres', 'env'];
+const COLS = ['client_id', 'caught_at', 'species', 'count', 'weight_kg', 'length_cm', 'released', 'no_catch', 'effort_min', 'lon', 'lat', 'depth_m', 'gear', 'bait', 'note', 'andres', 'andres_navn', 'env'];
 function toRow(c) { const r = {}; for (const k of COLS) r[k] = c[k] === '' || c[k] === undefined ? null : c[k]; r.algo = c.algo || null; /* alle rader må ha samme felter når de sendes samlet */ r.count = c.no_catch ? 0 : (c.count || 1); r.released = !!c.released; r.no_catch = !!c.no_catch; r.andres = !!c.andres; r.updated_at = new Date().toISOString(); return r; }
-function fromRow(r) { const c = {}; for (const k of COLS) c[k] = r[k]; if (r.algo) c.algo = r.algo; c.weight_kg = r.weight_kg == null ? null : +r.weight_kg; c.length_cm = r.length_cm == null ? null : +r.length_cm; c.depth_m = r.depth_m == null ? null : +r.depth_m; c.dirty = false; return c; }
+function fromRow(r) { const c = {}; for (const k of COLS) if (k in r) c[k] = r[k]; if (r.algo) c.algo = r.algo; c.weight_kg = r.weight_kg == null ? null : +r.weight_kg; c.length_cm = r.length_cm == null ? null : +r.length_cm; c.depth_m = r.depth_m == null ? null : +r.depth_m; c.dirty = false; return c; }

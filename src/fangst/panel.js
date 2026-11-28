@@ -1,5 +1,5 @@
 // Fangstlogg-panelet: logg fangst (eller tur uten fangst), loggbok og konto. Fangstene vises i kartet mens panelet er åpent.
-import { Cloud } from './cloud.js';
+import { Cloud, cleanUser } from './cloud.js';
 import { SPECIES } from '../map/algolayer.js';
 import { esc, fmt } from '../algo/index.js';
 import { fmtLat, fmtLon } from '../geo/proj.js';
@@ -22,7 +22,7 @@ export class FangstPanel {
     this.cloud.on(() => { if (this.on && (this.view === 'list' || this.view === 'konto')) this.render(); this.sync(); });
     el.addEventListener('click', (e) => this.onClick(e));
     el.addEventListener('submit', (e) => { e.preventDefault(); this.onSubmit(e.target); });
-    el.addEventListener('change', (e) => { if (e.target.name === 'no_catch') { this.el.querySelector('.fa-catch').classList.toggle('hidden', e.target.checked); this.el.querySelector('.fa-none').classList.toggle('hidden', !e.target.checked); } });
+    el.addEventListener('change', (e) => { if (e.target.name === 'no_catch') { this.el.querySelector('.fa-catch').classList.toggle('hidden', e.target.checked); this.el.querySelector('.fa-none').classList.toggle('hidden', !e.target.checked); } if (e.target.name === 'andres') this.el.querySelector('.fa-andres')?.classList.toggle('hidden', !e.target.checked); });
     if (this.cloud.user) this.cloud.sync().catch(() => {});
     window.addEventListener('online', () => this.cloud.sync().catch(() => {}));
   }
@@ -104,7 +104,7 @@ export class FangstPanel {
       if (k !== mon) { mon = k; rows += `<li class="fa-mon">${k[0].toUpperCase() + k.slice(1)}</li>`; }
       const t = c.no_catch ? 'Ingen fangst' : `${c.count > 1 ? c.count + ' × ' : ''}${esc(this.name(c.species))}`;
       const sub = [`${d.getDate()}. ${MND[d.getMonth()]} · ${pad(d.getHours())}:${pad(d.getMinutes())}`, c.weight_kg ? fmt(c.weight_kg, c.weight_kg < 10 ? 1 : 0) + ' kg' : '', c.depth_m != null ? Math.round(c.depth_m) + ' m' : '', c.no_catch && c.effort_min ? c.effort_min + ' min' : ''].filter(Boolean).join(' · ');
-      rows += `<li><button class="fa-item${c.no_catch ? ' none' : ''}" data-f="open" data-id="${esc(c.client_id)}"><span class="fa-ic">${c.no_catch ? '–' : ICON_FANGST}</span><span class="fa-t"><b>${t}</b><em>${sub}${c.andres ? ' · andres' : ''}${c.dirty && this.cloud.user ? ' · ikke sendt' : ''}</em></span><span class="fa-go">›</span></button></li>`;
+      rows += `<li><button class="fa-item${c.no_catch ? ' none' : ''}" data-f="open" data-id="${esc(c.client_id)}"><span class="fa-ic">${c.no_catch ? '–' : ICON_FANGST}</span><span class="fa-t"><b>${t}</b><em>${sub}${c.andres ? ' · ' + (c.andres_navn ? esc(c.andres_navn) + (/[sxz]$/.test(c.andres_navn) ? "'" : 's') : 'andres') : ''}${c.dirty && this.cloud.user ? ' · ikke sendt' : ''}</em></span><span class="fa-go">›</span></button></li>`;
     }
     return `${this.head('Fangstlogg')}
       ${this.htmlAcct()}
@@ -132,7 +132,7 @@ export class FangstPanel {
     const d = new Date(c.caught_at), row = (k, v) => (v || v === 0 ? `<div><span>${k}</span><b>${v}</b></div>` : '');
     return `${this.head(c.no_catch ? 'Ingen fangst' : `${c.count > 1 ? c.count + ' × ' : ''}${esc(this.name(c.species))}`, true)}
       <div class="fa-kv">${row('Tid', `${d.getDate()}. ${MND[d.getMonth()]} ${d.getFullYear()} kl. ${pad(d.getHours())}:${pad(d.getMinutes())}`)}${row('Posisjon', `<span class="num">${fmtLat(c.lat)} ${fmtLon(c.lon)}</span>`)}${row('Dybde', c.depth_m != null ? Math.round(c.depth_m) + ' m' : '')}
-      ${row('Total vekt', c.weight_kg ? fmt(c.weight_kg, 1) + ' kg' : '')}${row('Lengde', c.length_cm ? fmt(c.length_cm) + ' cm' : '')}${row('Fisketid', c.effort_min ? c.effort_min + ' min' : '')}${row('Redskap', esc(c.gear || ''))}${row('Agn', esc(c.bait || ''))}${row('Notat', esc(c.note || ''))}${c.andres ? row('Andres fisk', 'teller ikke i topplisten') : ''}${c.algo ? row('Algoritmeforslag', esc(c.algo.sp.map((k, i) => this.name(k) + (c.algo.sc && c.algo.sc[i] != null ? ' ' + c.algo.sc[i] : '')).join(', '))) : ''}</div>
+      ${row('Total vekt', c.weight_kg ? fmt(c.weight_kg, 1) + ' kg' : '')}${row('Lengde', c.length_cm ? fmt(c.length_cm) + ' cm' : '')}${row('Fisketid', c.effort_min ? c.effort_min + ' min' : '')}${row('Redskap', esc(c.gear || ''))}${row('Agn', esc(c.bait || ''))}${row('Notat', esc(c.note || ''))}${c.andres ? row('Andres fisk', (c.andres_navn ? esc(c.andres_navn) + ' · ' : '') + 'teller ikke i topplisten') : ''}${c.algo ? row('Algoritmeforslag', esc(c.algo.sp.map((k, i) => this.name(k) + (c.algo.sc && c.algo.sc[i] != null ? ' ' + c.algo.sc[i] : '')).join(', '))) : ''}</div>
       ${this.htmlEnv(c)}
       <div class="furow"><button class="btn" data-f="show">Vis i kartet</button><button class="btn" data-f="edit">Endre</button><button class="btn" data-f="del">${this.delAsk ? 'Sikker? Slett' : 'Slett'}</button></div>`;
   }
@@ -166,6 +166,7 @@ export class FangstPanel {
         <label class="tog"><input type="checkbox" name="no_catch" ${nc ? 'checked' : ''}><span>Fisket uten å få noe</span></label>
         <div class="fa-catch${nc ? ' hidden' : ''}">
           <label class="tog"><input type="checkbox" name="andres" ${e.andres ? 'checked' : ''}><span>Andres fisk <em class="pmut">(teller ikke i topplisten)</em></span></label>
+          <label class="fuin fa-andres${e.andres ? '' : ' hidden'}">Hvem fikk den? <em>(valgfritt brukernavn)</em><input name="andres_navn" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="24" value="${esc(e.andres_navn || '')}"></label>
           <div class="fugrid"><label class="fuin fa-wide">Art<select name="species">${opts}</select></label><label class="fuin">Antall<input name="count" inputmode="numeric" value="${e.count || 1}"></label><label class="fuin">Vekt, kg <em>(totalt)</em><input name="weight_kg" inputmode="decimal" value="${e.weight_kg ?? ''}"></label><label class="fuin">Lengde, cm<input name="length_cm" inputmode="decimal" value="${e.length_cm ?? ''}"></label></div>
         </div>
         <div class="fa-none${nc ? '' : ' hidden'}"><label class="fuin">Hvor lenge du fisket, min<input name="effort_min" inputmode="numeric" value="${e.effort_min ?? ''}"></label></div>
@@ -223,6 +224,7 @@ export class FangstPanel {
     const g = (n) => form[n] && form[n].value, nc = form.no_catch.checked;
     const c = { caught_at: new Date(g('t')).toISOString(), no_catch: nc, species: nc ? null : g('species'), count: nc ? 0 : Math.max(1, Math.round(num(g('count')) || 1)), weight_kg: nc ? null : num(g('weight_kg')), length_cm: nc ? null : num(g('length_cm')), released: false,
       effort_min: nc ? num(g('effort_min')) : null, gear: g('gear') || null, bait: (g('bait') || '').trim() || null, note: (g('note') || '').trim() || null, lon: this.pos.lon, lat: this.pos.lat, depth_m: this.pos.depth, andres: !nc && !!(form.andres && form.andres.checked) };
+    c.andres_navn = c.andres ? (cleanUser(g('andres_navn') || '') || null) : null;
     if (this.algoInfo) { c.algo = this.algoInfo; this.algoInfo = null; }
     const old = this.cur && this.cloud.list().find((x) => x.client_id === this.cur);
     const sameWhenWhere = old && old.env && old.caught_at === c.caught_at && old.lon === c.lon && old.lat === c.lat;
