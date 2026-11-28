@@ -87,7 +87,7 @@ export class FangstPanel {
     const f = m.queryRenderedFeatures([[e.point.x - 6, e.point.y - 6], [e.point.x + 6, e.point.y + 6]], { layers: ['fa-pt'] })[0]; if (!f) return false;
     const id = f.properties.id;
     if (!this.on) this.open();
-    if (f.properties.o) { this.other = this.others[+id.slice(1)] || null; if (!this.other) return true; this.cur = null; }
+    if (f.properties.o) { const o = this.others[+id.slice(1)]; this.other = o || null; if (!o) return true; this.cur = null; if (!o.env) envAt(o.lon, o.lat, o.caught_at).then((env) => { o.env = env; if (this.view === 'detail' && this.other === o) this.render(); }).catch(() => {}); }
     else { this.other = null; this.cur = id; const c = this.cloud.list().find((x) => x.client_id === id); if (c && !c.env) envAt(c.lon, c.lat, c.caught_at).then((env) => { this.cloud.update(id, { env }); if (this.view === 'detail' && this.cur === id) this.render(); }).catch(() => {}); }
     this.view = 'detail'; this.delAsk = false; this.render(); this.el.classList.remove('hidden');
     return true;
