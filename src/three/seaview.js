@@ -12,8 +12,9 @@ import { World } from '../sim/world.js';
 import { UTM33, fmtLat, fmtLon } from '../geo/proj.js';
 import { sunPos } from '../sim/sun.js';
 import { fetchSea, stateAt, components, ripples, slopeVar } from './seastate.js';
+import { rippleTexture, noiseTexture } from './ripmap.js';
 
-const MAXC = 64, MAXR = 24;
+const MAXC = 64;
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const n1 = (v) => (Math.round(v * 10) / 10).toFixed(1).replace('.', ',');
 // bølgehøyde: centimeter når det er nesten blankt
@@ -67,21 +68,28 @@ void main() {
 // riktig bred også langt unna. Himmel og land speiles fra et kubekart tatt fra båten.
 const FRAG = /* glsl */`
 #define MAXC ${MAXC}
-#define MAXR ${MAXR}
 uniform vec4 uK[MAXC];
 uniform float uP[MAXC];
 uniform int uN;
-uniform vec4 uRk[MAXR];
-uniform float uRp[MAXR];
-uniform int uNR;
-uniform samplerCube uEnv;
+uniform sampler2D uRip, uNoise;
+uniform vec2 uRipD;
+uniform float uRipM;
+uniform samplerCube uEnv, uEnvSoft;
 uniform vec3 uSun, uSunCol, uDeep, uShallow, uFogCol;
 uniform vec2 uWind;
 uniform float uTime, uQ, uHs, uFoamT, uSlope, uFogDen, uSigF, uSigG, uSigR, uNight, uGlit, uEnvMax;
 varying vec3 vWorld; varying vec2 vP; varying float vFac, vFade, vDepth, vDist;
-float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-float noise(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
-  return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y); }
+// myk støy fra teksturen (filtreres riktig på avstand); p i «ruter» som før, kanal velger uavhengig støy
+float noise(vec2 p, int c) { vec4 n = texture2D(uNoise, p / 32.0); return c == 0 ? n.r : c == 1 ? n.g : n.b; }
+// ett lag krusninger: flisen (x langs vinden), skalert til T meter og drevet med vinden. Gir helning (xy) og helning som
+// er glattet bort i dette punktet (z), begge i kartets retninger
+vec3 ripLayer(vec2 p, float T, float ang, vec2 drift) {
+  vec2 d = vec2(uRipD.x * cos(ang) - uRipD.y * sin(ang), uRipD.x * sin(ang) + uRipD.y * cos(ang)), e = vec2(d.y, -d.x);
+  vec2 uv = (vec2(dot(p, d), dot(p, e)) - drift * uTime) / T;
+  vec4 s = texture2D(uRip, uv);
+  float v = max(s.z - s.x * s.x, 0.0) + max(s.w - s.y * s.y, 0.0);
+  return vec3(s.x * d + s.y * e, v);
+}
 void main() {
   if (vDepth < -0.2) discard; // land
   vec2 p = vP;
@@ -103,17 +111,13 @@ void main() {
   }
   // langt ute er bølgene ikke tegnet: helningen deres blir ruhet for lyset
   lost += uSigG * (1.0 - vFade * vFade);
-  // krusninger fra vinden (riktig fart etter bølgelengden), tones bort med avstanden
-  float rf = 1.0 - smoothstep(60.0, 300.0, vDist);
-  for (int j = 0; j < MAXR; j++) {
-    if (j >= uNR) break;
-    vec4 c = uRk[j]; float k = length(c.xy);
-    float aa = smoothstep(1.5 * fp, 4.0 * fp, 6.2832 / k) * rf;
-    float ak = c.z * k; lost += 0.5 * ak * ak * (1.0 - aa * aa);
-    if (aa <= 0.0) continue;
-    float th = dot(c.xy, p) - c.w * uTime + uRp[j], A = c.z * aa * min(1.0, vFac + 0.3);
-    float s = sin(th); gx -= A * c.x * s; gy -= A * c.y * s;
-  }
+  // krusninger fra vinden: tre lag av den ferdigfiltrerte flisen i ulike størrelser og retninger, så mønsteret ikke
+  // gjentar seg synlig. Det som er for smått til å vises der du ser, går inn i ruheten for lyset (LEAN)
+  vec3 r1 = ripLayer(p, 5.3, 0.0, vec2(0.45, 0.05)), r2 = ripLayer(p, 2.9, 0.55, vec2(0.33, -0.04)), r3 = ripLayer(p, 1.7, -0.6, vec2(0.25, 0.03));
+  float rm = uRipM * min(1.0, vFac + 0.3);
+  vec2 rg = (r1.xy * 0.66 + r2.xy * 0.56 + r3.xy * 0.5) * rm;
+  gx += rg.x; gy += rg.y;
+  lost += (r1.z * 0.4356 + r2.z * 0.3136 + r3.z * 0.25) * rm * rm;
   vec3 N = normalize(vec3(-gx, max(up, 0.15), gy));
   float J = (1.0 - jxx) * (1.0 - jyy) - jxy * jxy;
   float s2 = max(uSigF + lost, 0.0002); // helningsvarians som ikke er tegnet
@@ -122,8 +126,11 @@ void main() {
   float F = 0.02 + 0.98 * pow(1.0 - ndv, 5.0);
   vec3 R = reflect(-V, N); if (R.y < 0.0) R.y = -R.y * 0.5;
   // speilbildet: himmel og land fra kubekartet, uskarpt når sjøen er ru
-  vec3 env = min(textureCube(uEnv, R, clamp(log2(1.0 + s2 * 900.0), 0.0, 7.0)).rgb, vec3(uEnvMax));
-  vec3 amb = textureCube(uEnv, vec3(0.0, 1.0, 0.0), 9.0).rgb;
+  // (de groveste nivåene i kubekartet ble til ruter; det ru speilbildet tas derfor fra et eget lite, mykt kubekart)
+  float lod = log2(1.0 + s2 * 900.0);
+  vec3 env = mix(textureCube(uEnv, R, min(lod, 3.0)).rgb, textureCube(uEnvSoft, R).rgb, smoothstep(2.0, 5.5, lod));
+  env = min(env, vec3(uEnvMax));
+  vec3 amb = textureCube(uEnvSoft, vec3(0.0, 1.0, 0.0)).rgb;
   // solgata (Beckmann-fordeling med Cox–Munk-ruheten)
   vec3 H = normalize(uSun + V); float nh = max(dot(N, H), 0.001), nh2 = nh * nh;
   float D = exp(-(1.0 - nh2) / (nh2 * s2)) / (3.14159 * s2 * nh2 * nh2);
@@ -137,7 +144,7 @@ void main() {
   vec3 col = mix(body, env, F) + spec;
   // skum: der bølgetoppene bryter (Jacobi under terskel) og i brenningene der det er grunt; driver sakte med vinden
   vec2 q = vWorld.xz - uWind * uTime * 0.35;
-  float n1 = noise(q * 0.35), n2 = noise(q * 1.7 + 13.0);
+  float n1 = noise(q * 0.35, 0), n2 = noise(q * 1.7 + 13.0, 1);
   // brytende topper: der flaten presses mest sammen (Jacobi), i flekker. Terskelen uFoamT er valgt slik at andelen
   // som skummer blir som målt for vindstyrken (Monahan & O'Muircheartaigh 1980); uSlope = forventet spredning i 1 − J.
   float X = (1.0 - J) / uSlope + (n1 * 0.6 + n2 * 0.4 - 0.5) * 2.0;
@@ -145,7 +152,7 @@ void main() {
   float shore = (1.0 - smoothstep(0.0, 1.6 * uHs + 0.4, vDepth)) * smoothstep(0.03, 0.25, uHs) * smoothstep(0.3, 0.8, n2 + n1 * 0.4);
   float foam = clamp(white + shore, 0.0, 1.0);
   // skum er hvitt og matt: lyset fra hele himmelen og sola
-  foam *= mix(0.55, 1.0, noise(q * 4.3 + 5.0)); // skummet er trådete, ikke flate flekker
+  foam *= mix(0.55, 1.0, noise(q * 4.3 + 5.0, 2)); // skummet er trådete, ikke flate flekker
   float ambL = dot(amb, vec3(0.3, 0.5, 0.2));
   col = mix(col, vec3(0.88, 0.9, 0.92) * (ambL * 2.4 + uSunCol * max(uSun.y, 0.0) * 1.2 + 0.02), foam);
   // klart vann på grunt: bunnen synes gjennom
@@ -252,6 +259,8 @@ export class SeaView {
     // speilbilde av himmel og land, tatt fra båten (oppdateres når tid eller terreng endres)
     this.cubeRT = new THREE.WebGLCubeRenderTarget(this.mobile ? 128 : 256, { type: THREE.HalfFloatType, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter });
     this.cubeCam = new THREE.CubeCamera(1, 60000, this.cubeRT); scene.add(this.cubeCam);
+    this.cubeRT2 = new THREE.WebGLCubeRenderTarget(16, { type: THREE.HalfFloatType, generateMipmaps: false, minFilter: THREE.LinearFilter });
+    this.cubeCam2 = new THREE.CubeCamera(1, 60000, this.cubeRT2); scene.add(this.cubeCam2);
     // dybden som tekstur (for demping og brenninger der det er grunt)
     const g = this.world.near, W = g.W, H = g.H, half = new Uint16Array(W * H);
     for (let p = 0; p < W * H; p++) half[p] = THREE.DataUtils.toHalfFloat(this.world.tide - g.z[p]);
@@ -262,9 +271,9 @@ export class SeaView {
     const [bx, by] = this.bp || [0, 0];
     const uniforms = {
       uTime: { value: 0 }, uQ: { value: 0.75 }, uHs: { value: 0.5 }, uK: { value: Array.from({ length: MAXC }, () => new THREE.Vector4()) }, uP: { value: new Float32Array(MAXC) }, uN: { value: 0 },
-      uRk: { value: Array.from({ length: MAXR }, () => new THREE.Vector4()) }, uRp: { value: new Float32Array(MAXR) }, uNR: { value: 0 },
+      uRip: { value: rippleTexture() }, uNoise: { value: noiseTexture() }, uRipD: { value: new THREE.Vector2(1, 0) }, uRipM: { value: 0.03 },
       uDepth: { value: tex }, uBox: { value: box }, uC: { value: new THREE.Vector2(bx, -by) }, uFade0: { value: 700 }, uFade1: { value: 1100 },
-      uEnv: { value: this.cubeRT.texture }, uEnvMax: { value: 40 },
+      uEnv: { value: this.cubeRT.texture }, uEnvSoft: { value: this.cubeRT2.texture }, uEnvMax: { value: 40 },
       uSun: { value: new THREE.Vector3(0, 1, 0) }, uSunCol: { value: new THREE.Color(1, 0.95, 0.85) }, uWind: { value: new THREE.Vector2() },
       uDeep: { value: new THREE.Color(0.004, 0.014, 0.02) }, uShallow: { value: new THREE.Color(0.02, 0.07, 0.06) }, uFogCol: { value: new THREE.Color(0.7, 0.75, 0.8) },
       uFoamT: { value: 99 }, uSlope: { value: 1 }, uFogDen: { value: 0.00008 }, uSigF: { value: 0.002 }, uSigG: { value: 0 }, uSigR: { value: 0 }, uNight: { value: 0 }, uGlit: { value: 25 },
@@ -321,6 +330,7 @@ export class SeaView {
     this.sea.visible = this.seaFar.visible = this.boat.visible = false;
     this.cubeCam.position.set(bx, 2.5, -by);
     this.cubeCam.update(this.renderer, this.scene);
+    this.cubeCam2.position.copy(this.cubeCam.position); this.cubeCam2.update(this.renderer, this.scene);
     [this.sea.visible, this.seaFar.visible, this.boat.visible] = vis;
     this.envDirty = false;
   }
@@ -340,9 +350,9 @@ export class SeaView {
     U.uHs.value = Math.max(0.01, st.hs);
     // krusninger fra vinden: mot retningen vinden blåser mot
     const toDir = (this.world.trueToGrid(st.wd) + 180) * Math.PI / 180, resVar = slopeVar(comps);
-    const rip = ripples(st.ws, toDir, resVar, this.mobile ? 12 : MAXR, 5);
-    U.uNR.value = rip.comps.length;
-    rip.comps.forEach((c, i) => { U.uRk.value[i].set(c.kx, c.ky, c.a, c.w); U.uRp.value[i] = c.ph; });
+    // samlet helningsvarians fra Cox & Munk, minus det bølgekomponentene over allerede gir
+    const rip = ripples(st.ws, toDir, resVar, 1, 5), ripVar = Math.max(0.0003, rip.total - resVar);
+    U.uRipM.value = Math.sqrt(ripVar); U.uRipD.value.set(Math.sin(toDir), Math.cos(toDir));
     U.uSigG.value = resVar; U.uSigF.value = 0.0004;
     // vinden driver skummet sakte (vinddrift ca. 3 % av vindfarten)
     U.uWind.value.set(Math.sin(toDir) * st.ws * 0.03 / 0.35, -Math.cos(toDir) * st.ws * 0.03 / 0.35);
@@ -422,7 +432,7 @@ export class SeaView {
   close() {
     this.dead = true; cancelAnimationFrame(this.raf);
     window.removeEventListener('keydown', this.onKey); window.removeEventListener('resize', this.onResize);
-    try { this.renderer?.dispose(); this.cubeRT?.dispose(); this.scene?.traverse((o) => { o.geometry?.dispose?.(); o.material?.dispose?.(); }); } catch (e) { /* ignorer */ }
+    try { this.renderer?.dispose(); this.cubeRT?.dispose(); this.cubeRT2?.dispose(); this.U?.uRip.value.dispose(); this.U?.uNoise.value.dispose(); this.scene?.traverse((o) => { o.geometry?.dispose?.(); o.material?.dispose?.(); }); } catch (e) { /* ignorer */ }
     this.el.remove();
     this.onClose && this.onClose();
   }
