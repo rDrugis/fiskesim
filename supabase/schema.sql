@@ -100,3 +100,21 @@ grant execute on function public.gi_fangst(text, jsonb), public.fjern_gitt(text)
 create or replace function public.hold_vaaken() returns int language sql stable security definer set search_path = public as
 $$ select coalesce((select 1 from public.profiles limit 1), 0) $$;
 grant execute on function public.hold_vaaken() to anon, authenticated;
+-- Mine punkter: røde nåler med notat, bare eieren ser dem (admin kan lese), 28.11.2026
+create table if not exists public.points (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users on delete cascade,
+  client_id text not null,
+  lon double precision not null,
+  lat double precision not null,
+  depth_m numeric,
+  note text check (char_length(note) <= 500),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (user_id, client_id)
+);
+alter table public.points enable row level security;
+create policy points_select on public.points for select using (user_id = auth.uid() or public.is_admin());
+create policy points_insert on public.points for insert with check (user_id = auth.uid());
+create policy points_update on public.points for update using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy points_delete on public.points for delete using (user_id = auth.uid());
