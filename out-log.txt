@@ -1,0 +1,3 @@
+17:12:22 heat pc {"ruter":1,"s":19,"forslag":6,"errs":[],"avIgjen":0}
+17:12:48 heat mobil {"ruter":1,"s":12,"forslag":23,"errs":[],"avIgjen":0}
+17:12:48 ferdig 
