@@ -631,6 +631,11 @@ if (want('fangstkart')) {
     await pg.evaluate(() => window.fiskesim.app.api.map.jumpTo({ center: [5.26, 60.522] })); await pg.waitForTimeout(600);
     [x, y] = await pt(5.25, 60.525); await pg.mouse.click(x, y); await pg.waitForTimeout(800);
     r.admin = await pg.evaluate(() => ({ tekst: document.querySelector('.fangst').innerText.replace(/\s+/g, ' ').slice(0, 200), endre: !!document.querySelector('.fangst [data-f="edit"]') }));
+    await pg.evaluate(() => { const f = window.fiskesim.app.fangst; f.clear(); f.showAll = false; f.sync(); window.fiskesim.app.api.map.jumpTo({ center: [5.28, 60.518], zoom: 10.5 }); }); await pg.waitForTimeout(1500);
+    r.klynger = await pg.evaluate(() => window.fiskesim.app.api.map.queryRenderedFeatures({ layers: ['fa-kl'] }).map((f) => f.properties.point_count + ' ' + f.properties.l));
+    await pg.screenshot({ path: join(OUT, `fangstkart-klynge-${tag}.png`) });
+    { const [cx, cy] = await pg.evaluate(() => { const m = window.fiskesim.app.api.map, f = m.queryRenderedFeatures({ layers: ['fa-kl'] })[0]; if (!f) return [0, 0]; const p = m.project(f.geometry.coordinates), b = m.getCanvas().getBoundingClientRect(); return [b.left + p.x, b.top + p.y - 12]; });
+      if (cx) { await pg.mouse.click(cx, cy); await pg.waitForTimeout(1500); r.etterKlikkZoom = await pg.evaluate(() => Math.round(window.fiskesim.app.api.map.getZoom() * 10) / 10); r.enkeltEtter = await pg.evaluate(() => window.fiskesim.app.api.map.queryRenderedFeatures({ layers: ['fa-pt'] }).length); } }
     // valgfritt navn på andres fisk
     await pg.evaluate(() => window.fiskesim.app.fangst.clear()); await pg.click('[data-a="fangst"]'); await pg.click('.fangst [data-f="new"]'); await pg.waitForTimeout(500);
     r.navnFoer = await pg.isVisible('.fangst input[name="andres_navn"]'); await pg.check('.fangst input[name="andres"]'); r.navnEtter = await pg.isVisible('.fangst input[name="andres_navn"]');

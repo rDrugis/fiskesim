@@ -41,6 +41,7 @@ export class FangstPanel {
     this.cloud.on(() => this.checkAdmin());
     this.checkAdmin();
     if (this.cloud.user) this.cloud.sync().catch(() => {});
+    setTimeout(() => { for (const c of this.cloud.list().slice(0, 50)) if (c.depth_m == null) this.fillDepth(c.client_id); }, 6000);
     window.addEventListener('online', () => this.cloud.sync().catch(() => {}));
   }
   get active() { return this.on; }
@@ -59,11 +60,16 @@ export class FangstPanel {
   }
   addLayers(m) {
     if (!m.hasImage('fa-fisk')) { m.addImage('fa-fisk', pin('#ff6a13', true), { pixelRatio: 2 }); m.addImage('fa-ingen', pin('#7f97a3', false), { pixelRatio: 2 }); m.addImage('fa-andre', pin('#1fa3b0', true), { pixelRatio: 2 }); m.addImage('fa-andre0', pin('#5d8c93', false), { pixelRatio: 2 }); }
-    if (!m.getSource('fa')) m.addSource('fa', { type: 'geojson', data: this.geo() });
+    if (!m.hasImage('fa-klynge')) m.addImage('fa-klynge', pin('#ff6a13', null), { pixelRatio: 2 });
+    // fangster som ligger tett samles i én nål med antall («Sei og 2 til») til du zoomer inn forbi z13
+    if (!m.getSource('fa')) m.addSource('fa', { type: 'geojson', data: this.geo(), cluster: true, clusterRadius: 38, clusterMaxZoom: 13, clusterProperties: { l: [['coalesce', ['accumulated'], ['get', 'l']], ['get', 'l']] } });
     const font = ['literal', ['Noto Sans Bold']], halo = { 'text-color': '#e6edef', 'text-halo-color': 'rgba(11,24,32,.9)', 'text-halo-width': 1.6 };
     const size = ['interpolate', ['linear'], ['zoom'], 6, 0.65, 12, 0.9, 15, 1];
-    if (!m.getLayer('fa-pt')) m.addLayer({ id: 'fa-pt', type: 'symbol', source: 'fa', layout: { 'icon-image': ['case', ['get', 'o'], ['case', ['get', 'n'], 'fa-andre0', 'fa-andre'], ['case', ['get', 'n'], 'fa-ingen', 'fa-fisk']], 'icon-anchor': 'bottom', 'icon-allow-overlap': true, 'icon-ignore-placement': true, 'icon-size': size,
+    if (!m.getLayer('fa-pt')) m.addLayer({ id: 'fa-pt', type: 'symbol', source: 'fa', filter: ['!', ['has', 'point_count']], layout: { 'icon-image': ['case', ['get', 'o'], ['case', ['get', 'n'], 'fa-andre0', 'fa-andre'], ['case', ['get', 'n'], 'fa-ingen', 'fa-fisk']], 'icon-anchor': 'bottom', 'icon-allow-overlap': true, 'icon-ignore-placement': true, 'icon-size': size,
       'text-field': ['step', ['zoom'], '', 9, ['get', 'l']], 'text-allow-overlap': true, 'text-font': font, 'text-size': 12, 'text-anchor': 'top', 'text-offset': [0, 0.25], 'text-optional': true }, paint: halo });
+    if (!m.getLayer('fa-kl')) m.addLayer({ id: 'fa-kl', type: 'symbol', source: 'fa', filter: ['has', 'point_count'], layout: { 'icon-image': 'fa-klynge', 'icon-anchor': 'bottom', 'icon-allow-overlap': true, 'icon-ignore-placement': true, 'icon-size': size,
+      'text-field': ['to-string', ['get', 'point_count']], 'text-font': font, 'text-size': ['interpolate', ['linear'], ['zoom'], 6, 10, 12, 13, 15, 14], 'text-anchor': 'center', 'text-offset': [0, -1.5], 'text-allow-overlap': true, 'text-ignore-placement': true }, paint: { 'text-color': '#fff' } });
+    if (!m.getLayer('fa-kl-l')) m.addLayer({ id: 'fa-kl-l', type: 'symbol', source: 'fa', filter: ['has', 'point_count'], layout: { 'text-field': ['step', ['zoom'], '', 9, ['concat', ['get', 'l'], '\nog ', ['to-string', ['-', ['get', 'point_count'], 1]], ' til']], 'text-font': font, 'text-size': 12, 'text-anchor': 'top', 'text-offset': [0, 0.25], 'text-allow-overlap': true }, paint: halo });
     if (!m.getSource('fa-new')) m.addSource('fa-new', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
     if (!m.getLayer('fa-new')) m.addLayer({ id: 'fa-new', type: 'circle', source: 'fa-new', paint: { 'circle-radius': 8, 'circle-color': 'rgba(255,106,19,.25)', 'circle-stroke-color': '#ff6a13', 'circle-stroke-width': 2 } });
     this.vis();
@@ -71,7 +77,7 @@ export class FangstPanel {
   layer() { this.vis(); }
   vis() {
     const m = this.api.map; if (!m.getLayer('fa-pt')) return;
-    const v = this.on || this.showMap ? 'visible' : 'none'; for (const id of ['fa-pt']) m.setLayoutProperty(id, 'visibility', v);
+    const v = this.on || this.showMap ? 'visible' : 'none'; for (const id of ['fa-pt', 'fa-kl', 'fa-kl-l']) m.setLayoutProperty(id, 'visibility', v);
     m.setLayoutProperty('fa-new', 'visibility', this.on ? 'visible' : 'none');
   }
   sync() { const s = this.api.map.getSource('fa'); if (s) s.setData(this.geo()); }
@@ -85,12 +91,20 @@ export class FangstPanel {
     if (a && this.showAll && (this.showMap || this.on)) this.loadOthers();
   }
   async loadOthers() { if (!this.admin) return; try { this.others = await this.cloud.everyone(); } catch (e) { this.others = []; } this.sync(); }
+  // dybden mangler (kartflisene var ikke klare da fangsten ble lagret): slå opp på nytt og lagre den
+  fillDepth(id) {
+    const c = this.cloud.list().find((x) => x.client_id === id); if (!c || c.depth_m != null || c.lon == null || this.depthTry?.has(id)) return;
+    (this.depthTry ||= new Set()).add(id);
+    this.api.depthsAt([[c.lon, c.lat]], false).then(([d]) => { const v = d && !d.land && d.depth != null ? Math.round(d.depth) : null; if (v != null) { this.cloud.update(id, { depth_m: v }); if (this.view === 'detail' && this.cur === id) this.render(); } }).catch(() => {});
+  }
   // kartklikk på et fangstsymbol: åpne loggingen
   hit(e) {
     const m = this.api.map; if (!e || !e.point || !m.getLayer('fa-pt') || m.getLayoutProperty('fa-pt', 'visibility') === 'none') return false;
-    const f = m.queryRenderedFeatures([[e.point.x - 8, e.point.y - 30], [e.point.x + 8, e.point.y + 4]], { layers: ['fa-pt'] })[0]; if (!f) return false;
+    const f = m.queryRenderedFeatures([[e.point.x - 8, e.point.y - 30], [e.point.x + 8, e.point.y + 4]], { layers: ['fa-kl', 'fa-pt'] })[0]; if (!f) return false;
+    if (f.properties.point_count) { m.getSource('fa').getClusterExpansionZoom(f.properties.cluster_id).then((z) => m.easeTo({ center: f.geometry.coordinates, zoom: Math.min(Math.max(z, m.getZoom() + 1) + 0.2, 17) })).catch(() => {}); return true; }
     const id = f.properties.id, own = !String(id).startsWith('o') || !this.admin, c = own ? this.cloud.list().find((x) => x.client_id === id) : this.others[+String(id).slice(1)];
     if (!c) return true;
+    if (own) this.fillDepth(id);
     if (!this.on) this.open();
     this.other = own ? null : c; this.cur = own ? id : null; this.view = 'detail'; this.delAsk = false; this.render(); this.el.classList.remove('hidden');
     if (!c.env) envAt(c.lon, c.lat, c.caught_at).then((env) => { if (own) this.cloud.update(id, { env }); else c.env = env; if (this.view === 'detail' && (this.cur === id || this.other === c)) this.render(); }).catch(() => {});
@@ -246,6 +260,7 @@ export class FangstPanel {
     if (f === 'none') { this.cur = null; return this.form(null, true); }
     if (f === 'konto') { this.view = 'konto'; return this.render(); }
     if (f === 'open') {
+      this.fillDepth(b.dataset.id);
       this.other = null; this.cur = b.dataset.id; this.view = 'detail'; this.delAsk = false; this.render();
       const c = this.cloud.list().find((x) => x.client_id === this.cur), id = this.cur;
       if (c && !c.env) envAt(c.lon, c.lat, c.caught_at).then((env) => { this.cloud.update(id, { env }); if (this.view === 'detail' && this.cur === id) this.render(); }).catch(() => {});
@@ -270,7 +285,7 @@ export class FangstPanel {
     if (form.classList.contains('fa-login')) return this.auth(form, false);
     if (!this.pos) return this.flash('Velg posisjon først');
     // vent på dybden fra kartet (maks 4 s), så den kommer med i fangsten
-    if (this.pos.depth == null && this.pos.wait) await Promise.race([this.pos.wait, new Promise((r) => setTimeout(r, 4000))]);
+    if (this.pos.depth == null && this.pos.wait) await Promise.race([this.pos.wait, new Promise((r) => setTimeout(r, 8000))]);
     const g = (n) => form[n] && form[n].value, nc = form.no_catch.checked;
     const c = { caught_at: new Date(g('t')).toISOString(), no_catch: nc, species: nc ? null : g('species'), count: nc ? 0 : Math.max(1, Math.round(num(g('count')) || 1)), weight_kg: nc ? null : num(g('weight_kg')), length_cm: nc ? null : num(g('length_cm')), released: false,
       effort_min: nc ? num(g('effort_min')) : null, gear: g('gear') || null, bait: (g('bait') || '').trim() || null, note: (g('note') || '').trim() || null, lon: this.pos.lon, lat: this.pos.lat, depth_m: this.pos.depth, andres: !nc && !!(form.andres && form.andres.checked) };
@@ -286,6 +301,7 @@ export class FangstPanel {
     const old = this.cur && this.cloud.list().find((x) => x.client_id === this.cur);
     const sameWhenWhere = old && old.env && old.caught_at === c.caught_at && old.lon === c.lon && old.lat === c.lat;
     let id; if (this.cur) { if (sameWhenWhere) c.env = old.env; this.cloud.update(this.cur, c); id = this.cur; } else id = this.cloud.add(c).client_id;
+    if (c.depth_m == null) this.fillDepth(id);
     if (!sameWhenWhere) envAt(c.lon, c.lat, c.caught_at).then((env) => { this.cloud.update(id, { env }); if (this.view === 'detail' && this.cur === id) this.render(); }).catch(() => {});
     this.api.map.getSource('fa-new')?.setData({ type: 'FeatureCollection', features: [] });
     this.view = this.cur ? 'detail' : 'list'; this.render(); this.sync();
