@@ -585,6 +585,27 @@ if (want('topp2')) {
   }
 }
 
+// ---------- Mine fiskedata (med falske fangster i nettleseren) ----------
+if (want('mydata')) {
+  const fake = []; const sp = ['sei', 'sei', 'torsk', 'lange', 'pale', 'lyr', 'sei', 'brosme']; const gear = ['Pilk', 'Pilk og opphenger', 'Slep', 'Agnfiske'];
+  for (let i = 0; i < 40; i++) { const t = Date.UTC(2026, 3 + (i % 8), 1 + (i % 27), 6 + (i % 14)); const nc = i % 5 === 0;
+    fake.push({ client_id: 'f' + i, caught_at: new Date(t).toISOString(), no_catch: nc, species: nc ? null : sp[i % sp.length], count: nc ? 0 : 1 + (i % 6), weight_kg: nc ? null : 1 + (i % 7) * 0.8, andres: i % 13 === 0, gear: gear[i % 4], lon: 5.2, lat: 60.5, depth_m: [15, 35, 70, 140, 260][i % 5], dirty: false,
+      env: { vaer: { temp: (i % 18) - 2, vind: i % 12, trykk: 1010, trykk3t: (i % 3) - 1 }, tide: { stiger: i % 2 === 0, neste: { typ: 'flo', t: new Date(t + (i % 4) * 1800e3).toISOString() } }, mane: { lys: (i * 9) % 100, fase: 'x' } } }); }
+  for (const [vw, vh, tag] of [[1280, 900, 'pc'], [390, 844, 'mobil']]) {
+    const ctx = await browser.newContext({ viewport: { width: vw, height: vh } }), pg = await ctx.newPage(), errs = [];
+    pg.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));
+    await pg.addInitScript((f) => { try { localStorage.setItem('fiskesim.fangst', JSON.stringify(f)); } catch (e) {} }, fake);
+    await pg.goto(BASE + '?sted=60.52,5.27&z=12', { waitUntil: 'load' });
+    await waitFor(pg, () => !!(window.fiskesim && window.fiskesim.app && window.fiskesim.app.fangst), 30000);
+    await pg.click('[data-a="tools"]'); await pg.click('[data-a="mydata"]'); await pg.waitForTimeout(500);
+    await pg.click('.fangst [data-v="alt"]'); await pg.waitForTimeout(300);
+    const r = { tekst: await pg.evaluate(() => document.querySelector('.fangst').innerText.replace(/\s+/g, ' ').slice(0, 900)), sidelengs: await pg.evaluate(() => { const e = document.querySelector('.fangst'); return e.scrollWidth - e.clientWidth; }) };
+    await pg.screenshot({ path: join(OUT, `mydata-${tag}.png`) });
+    await pg.evaluate(() => { document.querySelector('.fangst').scrollTop = 700; }); await pg.waitForTimeout(200); await pg.screenshot({ path: join(OUT, `mydata-2-${tag}.png`) });
+    r.errs = errs; log('mydata', tag, JSON.stringify(r)); await ctx.close();
+  }
+}
+
 // ---------- Algoritmen med bunntype: toppforslag per art i faste områder (før/etter-sammenligning) ----------
 if (want('algobunn')) {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } }), pg = await ctx.newPage(), out = {};

@@ -4,6 +4,7 @@ import { SPECIES } from '../map/algolayer.js';
 import { esc, fmt } from '../algo/index.js';
 import { fmtLat, fmtLon } from '../geo/proj.js';
 import { envAt, dirName } from './env.js';
+import { htmlStats } from './stats.js';
 
 export const ICON_FANGST = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12c3-4 8-5 12-2l4-3-1 5 1 5-4-3c-4 3-9 2-12-2z"/><circle cx="8" cy="11" r=".9" fill="currentColor"/></svg>';
 const EXTRA = [['makrell', 'Makrell'], ['sjoorret', 'Sjøørret'], ['laks', 'Laks'], ['flyndre', 'Flyndre'], ['breiflabb', 'Breiflabb'], ['uer', 'Uer'], ['ukjent', 'Ukjent fisk']];
@@ -59,8 +60,14 @@ export class FangstPanel {
   // ---------- visning ----------
   render() {
     if (this.view === 'form') return; // skjemaet tegnes bare én gang (ellers mistes det som er skrevet)
-    this.el.innerHTML = this.view === 'konto' ? this.htmlKonto() : this.view === 'detail' ? this.htmlDetail() : this.htmlList();
+    this.el.innerHTML = this.view === 'konto' ? this.htmlKonto() : this.view === 'detail' ? this.htmlDetail() : this.view === 'stats' ? this.htmlStatsView() : this.htmlList();
     if (this.view === 'list') this.loadTopp();
+  }
+  // «Mine fiskedata»
+  openStats() { if (!this.on) this.open(); this.view = 'stats'; this.render(); }
+  htmlStatsView() {
+    const per = this.sPer || 'aar', y = new Date().getFullYear(), tab = (v, lab) => `<button class="chip sm${per === v ? ' on' : ''}" data-f="sper" data-v="${v}">${lab}</button>`;
+    return `${this.head('Mine fiskedata', true)}<div class="st-per">${tab('30', 'Siste 30 dager')}${tab('aar', String(y))}${tab('alt', 'Alt')}</div>${htmlStats(this.cloud.list(), (k) => this.name(k), per)}`;
   }
   // toppliste: måned eller år, sortert på antall fisk eller vekt
   async loadTopp() {
@@ -102,7 +109,7 @@ export class FangstPanel {
     return `${this.head('Fangstlogg')}
       ${this.htmlAcct()}
       <div class="fa-stats"><div><b class="num">${fish}</b><span>fisk i ${y}</span></div><div><b class="num">${arter}</b><span>arter</span></div><div><b class="num">${max ? fmt(max, max < 10 ? 1 : 0) + ' kg' : '–'}</b><span>total vekt</span></div><div><b class="num">${turer}</b><span>uten fangst</span></div></div>
-      <div class="furow"><button class="btn primary" data-f="new">+ Logg fangst</button><button class="btn" data-f="none">Fisket uten fangst</button></div>
+      <div class="furow"><button class="btn primary" data-f="new">+ Logg fangst</button><button class="btn" data-f="none">Fisket uten fangst</button><button class="btn" data-f="stats">Mine fiskedata</button></div>
       ${this.cloud.user ? '<div class="fa-top"></div>' : ''}
       ${L.length ? `<ul class="fa-list">${rows}</ul>` : ''}`;
   }
@@ -180,6 +187,8 @@ export class FangstPanel {
   async onClick(e) {
     const b = e.target.closest('[data-f]'); if (!b) return; const f = b.dataset.f;
     if (f === 'close') return this.clear();
+    if (f === 'stats') return this.openStats();
+    if (f === 'sper') { this.sPer = b.dataset.v; return this.render(); }
     if (f === 'tper' || f === 'tsort') { if (f === 'tper') this.tPer = b.dataset.v; else this.tSort = b.dataset.v; return this.loadTopp(); }
     if (f === 'back') { this.view = this.view === 'form' && this.cur ? 'detail' : 'list'; this.pickPos = false; this.api.map.getSource('fa-new')?.setData({ type: 'FeatureCollection', features: [] }); return this.render(); }
     if (f === 'new') { this.cur = null; return this.form(null, false); }

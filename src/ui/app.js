@@ -48,6 +48,7 @@ export class App {
             <button class="titem" role="menuitem" data-a="prof" aria-pressed="false">${ICON_PROF}<span>Dybdeprofil<em>trykk to punkter i kartet</em></span></button>
             <button class="titem" role="menuitem" data-a="drift" aria-pressed="false">${ICON_DRIFT}<span>Drift<em>med strøm og vind</em></span></button>
             <button class="titem" role="menuitem" data-a="fuel" aria-pressed="false">${ICON_FUEL}<span>Drivstoff<em>distanse, tid og forbruk</em></span></button>
+            <button class="titem" role="menuitem" data-a="mydata">${ICON_FANGST}<span>Mine fiskedata<em>fisk, arter og forholdene</em></span></button>
           </div>
         </div>
         <button class="iconbtn fa-btn" data-a="fangst" aria-label="Fangstlogg" aria-pressed="false" title="Fangstlogg">${ICON_FANGST}</button>
@@ -120,6 +121,7 @@ export class App {
     // fangstlogg: logg fangst / tur uten fangst, loggbok og konto
     const gbtn = this.root.querySelector('[data-a="fangst"]');
     this.fangst = new FangstPanel(api, this.root.querySelector('.fangst'), { onMode: (on) => gbtn.setAttribute('aria-pressed', String(on)) });
+    this.root.querySelector('[data-a="mydata"]').addEventListener('click', () => { this.profile.clear(); this.drift.clear(); if (this.fuel.active) this.fuel.clear(); this.closeInfo(); this.fangst.openStats(); });
     gbtn.addEventListener('click', () => {
       if (this.fangst.active) { this.fangst.clear(); return; }
       this.profile.clear(); this.drift.clear(); if (this.fuel.active) this.fuel.clear(); this.closeInfo(); this.root.querySelector('.layers').classList.add('hidden'); this.fangst.open();
