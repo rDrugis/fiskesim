@@ -38,8 +38,8 @@ export class AlgoLayer {
   }
 
   /* fargekartet: alle ferdige ruter i utsnittet settes sammen til ett bilde (myk overgang, ingen skjøter).
-     Fargen er relativ til utsnittet: rødt = de beste ca. 5 % av sjøen her, oransje = neste 10 %, gult = neste 15 %.
-     Svakere enn det vises ikke. Poengene er de samme som algoritmen bruker for forslagene. */
+     Fargen er relativ til utsnittet og glir fra blått (svakest her) via lyst og oransje til rødt (beste ca. 5 %).
+     Poengene er de samme som algoritmen bruker for forslagene. */
   drawHeat() {
     const map = this.api.map;
     if (!this.on || !this.heat || map.getZoom() < 10.5) { this.clearHeat(); return; }
@@ -55,20 +55,17 @@ export class AlgoLayer {
         if (bi >= 0 && bj >= 0 && bi < t.nb && bj < t.nb) val[j * W + i] = t.v[bj * t.nb + bi]; } }
     // myk overgang: glatt verdiene (to runder boksfilter, ca. én blokk) – sjø uten poeng drar ned mot kanten
     const sea = new Uint8Array(W * H); for (let k = 0; k < W * H; k++) sea[k] = val[k] ? 1 : 0;
-    let f = Float32Array.from(val); const tmp = new Float32Array(W * H), R2 = 4;
+    let f = Float32Array.from(val); const tmp = new Float32Array(W * H), R2 = 3;
     for (let pass = 0; pass < 2; pass++) {
       for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) { let a = 0, n = 0; for (let d = -R2; d <= R2; d++) { const x = i + d; if (x < 0 || x >= W) continue; a += f[j * W + x]; n++; } tmp[j * W + i] = a / n; }
       for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) { let a = 0, n = 0; for (let d = -R2; d <= R2; d++) { const y = j + d; if (y < 0 || y >= H) continue; a += tmp[y * W + i]; n++; } f[j * W + i] = a / n; }
     }
     for (let k = 0; k < W * H; k++) val[k] = sea[k] ? Math.max(1, Math.round(f[k])) : 0;
-    // terskler fra fordelingen i utsnittet
-    const vals = []; for (const v of val) if (v) vals.push(v); vals.sort((a, c) => c - a);
-    const q = (f) => vals[Math.min(vals.length - 1, Math.floor(vals.length * f))] || 255;
-    const t1 = q(0.05), t2 = q(0.15), t3 = q(0.30);
+    // farge etter rangering i utsnittet (andel av sjøen her med lavere poeng), glidende fra blått (svakt) til rødt (best)
+    const cnt = new Uint32Array(256); let tot = 0; for (const v of val) if (v) { cnt[v]++; tot++; }
+    const pct = new Float32Array(256); let acc = 0; for (let v = 1; v < 256; v++) { acc += cnt[v]; pct[v] = tot ? acc / tot : 0; }
     const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d'), im = g.createImageData(W, H);
-    for (let k = 0; k < W * H; k++) { const v = val[k]; if (!v || v < t3) continue;
-      const c = v >= t1 ? [214, 38, 38, 190] : v >= t2 ? [242, 128, 32, 165] : [245, 205, 60, 130];
-      im.data.set(c, k * 4); }
+    for (let k = 0; k < W * H; k++) { const v = val[k]; if (!v) continue; im.data.set(heatColor(pct[v]), k * 4); }
     g.putImageData(im, 0, 0);
     const ll = (x, y) => { const [la, lo] = unmerc(x, y); return [lo, la]; };
     const coordinates = [ll(X0, Y1), ll(X1, Y1), ll(X1, Y0), ll(X0, Y0)], url = cv.toDataURL();
@@ -197,3 +194,9 @@ function depthLine(d, iv) {
 
 export const SPECIES = () => Object.keys(R.algo).filter((k) => !HIDDEN.includes(k)).map((k) => ({ k, no: ART[k].no, col: ART[k].col }));
 
+// fargeskala for fargekartet (andel 0–1 av sjøen i utsnittet med lavere poeng): blått → lyst → oransje → rødt
+const HEATC = [[0, [90, 140, 220, 50]], [0.5, [150, 185, 235, 70]], [0.72, [235, 200, 170, 110]], [0.86, [240, 140, 70, 150]], [0.95, [225, 60, 45, 185]], [1, [205, 25, 35, 205]]];
+function heatColor(x) {
+  for (let i = 1; i < HEATC.length; i++) { const [a, ca] = HEATC[i - 1], [b, cb] = HEATC[i]; if (x <= b) { const f = (x - a) / (b - a); return ca.map((v, k) => Math.round(v + (cb[k] - v) * f)); } }
+  return HEATC[HEATC.length - 1][1];
+}

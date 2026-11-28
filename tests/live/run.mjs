@@ -619,6 +619,7 @@ if (want('heat')) {
     await pg.waitForTimeout(1500);
     const r = { ruter: ok, s: Math.round((Date.now() - t0) / 1000), forslag: await pg.evaluate(() => (window.fiskesim.app.algo.res || []).length), errs };
     await pg.screenshot({ path: join(OUT, `heat-${tag}.png`) });
+    if (tag === 'pc') { await pg.click('[data-l="sjo"], button:has-text("Sjøkart")').catch(() => {}); await pg.waitForTimeout(4000); await pg.screenshot({ path: join(OUT, `heat-sjo-${tag}.png`) }); }
     await pg.evaluate(() => window.fiskesim.app.api.map.jumpTo({ zoom: 14, center: [5.268, 60.52] })); await pg.waitForTimeout(2500);
     await pg.screenshot({ path: join(OUT, `heat-z14-${tag}.png`) });
     await pg.evaluate(() => window.fiskesim.app.algo.setHeat(false)); await pg.waitForTimeout(500); r.avIgjen = await pg.evaluate(() => window.fiskesim.app.algo.heatIds.size);
