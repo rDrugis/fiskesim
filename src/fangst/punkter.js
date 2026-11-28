@@ -1,4 +1,4 @@
-// Mine punkter: røde nåler du lagrer selv i kartet med et notat. Bare for innloggede; lagres på kontoen
+// Mine punkter: grønne nåler du lagrer selv i kartet med et notat. Bare for innloggede; lagres på kontoen
 // (tabellen public.points i Supabase) og på enheten, så de også vises uten nett.
 import { call } from './cloud.js';
 import { pin } from './panel.js';
@@ -29,11 +29,9 @@ export class Punkter {
     return { type: 'FeatureCollection', features: this.list.filter((p) => !p.deleted).map((p) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [p.lon, p.lat] }, properties: { id: p.client_id, l: (p.note || '').split('\n')[0].slice(0, 28) } })) };
   }
   addLayers(m) {
-    if (!m.hasImage('pt-rod')) m.addImage('pt-rod', pin('#e0322b', 'dot'), { pixelRatio: 2 });
+    if (!m.hasImage('pt-gronn')) m.addImage('pt-gronn', pin('#2fb34a', 'dot'), { pixelRatio: 2 });
     if (!m.getSource('pt')) m.addSource('pt', { type: 'geojson', data: this.geo() });
-    if (!m.getLayer('pt')) m.addLayer({ id: 'pt', type: 'symbol', source: 'pt', layout: { 'icon-image': 'pt-rod', 'icon-anchor': 'bottom', 'icon-allow-overlap': true, 'icon-ignore-placement': true, 'icon-size': ['interpolate', ['linear'], ['zoom'], 6, 0.6, 12, 0.85, 15, 0.95],
-      'text-field': ['step', ['zoom'], '', 11, ['get', 'l']], 'text-font': ['literal', ['Noto Sans Bold']], 'text-size': 12, 'text-anchor': 'top', 'text-offset': [0, 0.25], 'text-optional': true, 'text-max-width': 12 },
-      paint: { 'text-color': '#ffd9d6', 'text-halo-color': 'rgba(11,24,32,.9)', 'text-halo-width': 1.6 } });
+    if (!m.getLayer('pt')) m.addLayer({ id: 'pt', type: 'symbol', source: 'pt', layout: { 'icon-image': 'pt-gronn', 'icon-anchor': 'bottom', 'icon-allow-overlap': true, 'icon-ignore-placement': true, 'icon-size': ['interpolate', ['linear'], ['zoom'], 6, 0.6, 12, 0.85, 15, 0.95] } });
     this.draw();
   }
   draw() {
