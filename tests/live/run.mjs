@@ -491,14 +491,20 @@ if (want('fangst')) {
     await pg.click('.fangst [data-f="new"]'); await pg.waitForTimeout(2500);
     r0.sidelengs = await pg.evaluate(() => { const e = document.querySelector('.fangst'); return e.scrollWidth - e.clientWidth; }); r0.pale = await pg.evaluate(() => [...document.querySelectorAll('.fangst select[name="species"] option')].map((o) => o.value).slice(0, 4).join(','));
     await pg.selectOption('.fangst select[name="species"]', 'sei'); await pg.fill('.fangst input[name="count"]', '8'); await pg.fill('.fangst input[name="weight_kg"]', '1,5');
-    await pg.selectOption('.fangst select[name="gear"]', 'Pilk og opphenger'); r0.fisketidSynlig = await pg.isVisible('.fangst input[name="effort_min"]'); r0.satUt = await pg.$('.fangst input[name="released"]') !== null;
+    await pg.selectOption('.fangst select[name="gear"]', 'Pilk og opphenger'); await pg.check('.fangst input[name="andres"]'); r0.fisketidSynlig = await pg.isVisible('.fangst input[name="effort_min"]'); r0.satUt = await pg.$('.fangst input[name="released"]') !== null;
     await pg.screenshot({ path: join(OUT, `fangst-skjema-${tag}.png`) });
     await pg.click('.fangst button[type="submit"]'); await pg.waitForSelector('.fangst .fa-stats', { timeout: 8000 });
     await pg.click('.fangst [data-f="none"]'); await pg.waitForTimeout(1500); await pg.fill('.fangst input[name="effort_min"]', '45'); await pg.click('.fangst button[type="submit"]'); await pg.waitForSelector('.fangst .fa-stats', { timeout: 8000 });
     await pg.screenshot({ path: join(OUT, `fangst-liste-${tag}.png`) });
-    const r = await pg.evaluate(() => { const c = window.fiskesim.app.fangst.cloud; return { n: c.list().length, ls: JSON.parse(localStorage.getItem('fiskesim.fangst') || '[]').map((x) => ({ sp: x.species, n: x.count, kg: x.weight_kg, nc: x.no_catch, min: x.effort_min, d: x.depth_m, pos: [Math.round(x.lon * 1e3) / 1e3, Math.round(x.lat * 1e3) / 1e3] })), stats: document.querySelector('.fa-stats').textContent.replace(/\s+/g, ' ') }; });
+    const r = await pg.evaluate(() => { const c = window.fiskesim.app.fangst.cloud; return { n: c.list().length, ls: JSON.parse(localStorage.getItem('fiskesim.fangst') || '[]').map((x) => ({ andres: x.andres, sp: x.species, n: x.count, kg: x.weight_kg, nc: x.no_catch, min: x.effort_min, d: x.depth_m, pos: [Math.round(x.lon * 1e3) / 1e3, Math.round(x.lat * 1e3) / 1e3] })), stats: document.querySelector('.fa-stats').textContent.replace(/\s+/g, ' ') }; });
     await pg.click('.fangst .fa-item'); await pg.waitForTimeout(300); await pg.screenshot({ path: join(OUT, `fangst-detalj-${tag}.png`) });
     await pg.click('.fangst [data-f="del"]'); await pg.click('.fangst [data-f="del"]'); await pg.waitForTimeout(300);
+    // forholdene for fangstens tid og plass (Open-Meteo og Kartverket) – vent inntil 15 s
+    for (let i = 0; i < 30; i++) { if (await pg.evaluate(() => window.fiskesim.app.fangst.cloud.list().every((c) => c.env))) break; await pg.waitForTimeout(500); }
+    r.env = await pg.evaluate(() => window.fiskesim.app.fangst.cloud.list().map((c) => c.env && { vaer: c.env.vaer && { temp: c.env.vaer.temp, vind: c.env.vaer.vind, trykk: c.env.vaer.trykk, kilde: c.env.vaer.kilde }, tide: c.env.tide && { cm: c.env.tide.cm, stiger: c.env.tide.stiger, neste: c.env.tide.neste }, mane: c.env.mane }));
+    await pg.click('.fangst .fa-item'); await pg.waitForTimeout(300); await pg.screenshot({ path: join(OUT, `fangst-forhold-${tag}.png`), fullPage: false });
+    r.detaljForhold = await pg.evaluate(() => document.querySelector('.fangst .fa-envh') ? document.querySelectorAll('.fangst .fa-kv')[1]?.innerText.replace(/\s+/g, ' ').slice(0, 300) : null);
+    await pg.click('.fangst [data-f="back"]'); await pg.waitForTimeout(300);
     r.etterSletting = await pg.evaluate(() => window.fiskesim.app.fangst.cloud.list().length);
     await pg.click('.fangst [data-f="konto"]'); await pg.waitForTimeout(300); await pg.screenshot({ path: join(OUT, `fangst-konto-${tag}.png`) });
     // lagret lokalt: overlever omlasting

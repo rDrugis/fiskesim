@@ -413,3 +413,4 @@ a { color: #8fd0ec; }
 .fa-toplist li span:first-child { color: var(--text-3); text-align: left; }
 @media (max-width: 760px) { .fa-toplist li { grid-template-columns: 18px 1fr auto auto; } .fa-toplist li span:last-child { display: none; } }
 .fa-tophead .chip.on { border-color: var(--buoy); color: var(--text); }
+.fa-envh { margin: 14px 0 0; font-size: 12px; font-weight: 600; color: var(--text-3); }

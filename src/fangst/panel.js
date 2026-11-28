@@ -3,6 +3,7 @@ import { Cloud } from './cloud.js';
 import { SPECIES } from '../map/algolayer.js';
 import { esc, fmt } from '../algo/index.js';
 import { fmtLat, fmtLon } from '../geo/proj.js';
+import { envAt, dirName } from './env.js';
 
 export const ICON_FANGST = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12c3-4 8-5 12-2l4-3-1 5 1 5-4-3c-4 3-9 2-12-2z"/><circle cx="8" cy="11" r=".9" fill="currentColor"/></svg>';
 const EXTRA = [['makrell', 'Makrell'], ['sjoorret', 'Sjøørret'], ['laks', 'Laks'], ['flyndre', 'Flyndre'], ['breiflabb', 'Breiflabb'], ['uer', 'Uer'], ['ukjent', 'Ukjent fisk']];
@@ -96,7 +97,7 @@ export class FangstPanel {
       if (k !== mon) { mon = k; rows += `<li class="fa-mon">${k[0].toUpperCase() + k.slice(1)}</li>`; }
       const t = c.no_catch ? 'Ingen fangst' : `${c.count > 1 ? c.count + ' × ' : ''}${esc(this.name(c.species))}`;
       const sub = [`${d.getDate()}. ${MND[d.getMonth()]} · ${pad(d.getHours())}:${pad(d.getMinutes())}`, c.weight_kg ? fmt(c.weight_kg, c.weight_kg < 10 ? 1 : 0) + ' kg' : '', c.depth_m != null ? Math.round(c.depth_m) + ' m' : '', c.no_catch && c.effort_min ? c.effort_min + ' min' : ''].filter(Boolean).join(' · ');
-      rows += `<li><button class="fa-item${c.no_catch ? ' none' : ''}" data-f="open" data-id="${esc(c.client_id)}"><span class="fa-ic">${c.no_catch ? '–' : ICON_FANGST}</span><span class="fa-t"><b>${t}</b><em>${sub}${c.dirty && this.cloud.user ? ' · ikke sendt' : ''}</em></span><span class="fa-go">›</span></button></li>`;
+      rows += `<li><button class="fa-item${c.no_catch ? ' none' : ''}" data-f="open" data-id="${esc(c.client_id)}"><span class="fa-ic">${c.no_catch ? '–' : ICON_FANGST}</span><span class="fa-t"><b>${t}</b><em>${sub}${c.andres ? ' · andres' : ''}${c.dirty && this.cloud.user ? ' · ikke sendt' : ''}</em></span><span class="fa-go">›</span></button></li>`;
     }
     return `${this.head('Fangstlogg')}
       ${this.htmlAcct()}
@@ -124,7 +125,8 @@ export class FangstPanel {
     const d = new Date(c.caught_at), row = (k, v) => (v || v === 0 ? `<div><span>${k}</span><b>${v}</b></div>` : '');
     return `${this.head(c.no_catch ? 'Ingen fangst' : `${c.count > 1 ? c.count + ' × ' : ''}${esc(this.name(c.species))}`, true)}
       <div class="fa-kv">${row('Tid', `${d.getDate()}. ${MND[d.getMonth()]} ${d.getFullYear()} kl. ${pad(d.getHours())}:${pad(d.getMinutes())}`)}${row('Posisjon', `<span class="num">${fmtLat(c.lat)} ${fmtLon(c.lon)}</span>`)}${row('Dybde', c.depth_m != null ? Math.round(c.depth_m) + ' m' : '')}
-      ${row('Total vekt', c.weight_kg ? fmt(c.weight_kg, 1) + ' kg' : '')}${row('Lengde', c.length_cm ? fmt(c.length_cm) + ' cm' : '')}${row('Fisketid', c.effort_min ? c.effort_min + ' min' : '')}${row('Redskap', esc(c.gear || ''))}${row('Agn', esc(c.bait || ''))}${row('Notat', esc(c.note || ''))}${c.algo ? row('Algoritmeforslag', esc(c.algo.sp.map((k, i) => this.name(k) + (c.algo.sc && c.algo.sc[i] != null ? ' ' + c.algo.sc[i] : '')).join(', '))) : ''}</div>
+      ${row('Total vekt', c.weight_kg ? fmt(c.weight_kg, 1) + ' kg' : '')}${row('Lengde', c.length_cm ? fmt(c.length_cm) + ' cm' : '')}${row('Fisketid', c.effort_min ? c.effort_min + ' min' : '')}${row('Redskap', esc(c.gear || ''))}${row('Agn', esc(c.bait || ''))}${row('Notat', esc(c.note || ''))}${c.andres ? row('Andres fisk', 'teller ikke i topplisten') : ''}${c.algo ? row('Algoritmeforslag', esc(c.algo.sp.map((k, i) => this.name(k) + (c.algo.sc && c.algo.sc[i] != null ? ' ' + c.algo.sc[i] : '')).join(', '))) : ''}</div>
+      ${this.htmlEnv(c)}
       <div class="furow"><button class="btn" data-f="show">Vis i kartet</button><button class="btn" data-f="edit">Endre</button><button class="btn" data-f="del">${this.delAsk ? 'Sikker? Slett' : 'Slett'}</button></div>`;
   }
   // fra et algoritmeforslag: plassen og arten fylles inn, og forslaget (art og poeng) lagres med fangsten
@@ -133,6 +135,18 @@ export class FangstPanel {
     this.cur = null; this.algoInfo = info;
     const sp = info.sp && info.sp[0];
     this.form(caught ? { species: this.names.has(sp) ? sp : 'ukjent', count: 1 } : null, !caught, info);
+  }
+  // «Forholdene da fisken ble tatt»: vær, tidevann og måne for fangstens tid og plass
+  htmlEnv(c) {
+    const e = c.env; if (!e) return '<p class="pmut">Henter vær, tidevann og måne …</p>';
+    const w = e.vaer, td = e.tide, m = e.mane, row = (k, v) => (v || v === 0 ? `<div><span>${k}</span><b>${v}</b></div>` : '');
+    const hm = (iso) => { const d = new Date(iso); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+    return `<h3 class="fa-envh">Forholdene da fisken ble tatt</h3><div class="fa-kv">` +
+      (w ? row('Temperatur', fmt(w.temp, 1) + ' °C') + row('Vind', `${fmt(w.vind, 0)} m/s fra ${dirName(w.vindfra)}${w.kast != null ? ` (kast ${fmt(w.kast, 0)})` : ''}`) +
+        row('Lufttrykk', `${fmt(w.trykk, 0)} hPa${w.trykk3t != null ? (Math.abs(w.trykk3t) < 1 ? ', stabilt' : w.trykk3t > 0 ? ', stigende' : ', fallende') : ''}`) + row('Skydekke', fmt(w.sky, 0) + ' %') +
+        (w.nedbor ? row('Nedbør', fmt(w.nedbor, 1) + ' mm/t') : '') + (w.solopp ? row('Sol', hm(w.solopp + 'Z') + '–' + hm(w.solned + 'Z')) : '') : row('Vær', 'ikke tilgjengelig')) +
+      (td ? row('Tidevann', `${td.stiger ? 'Stigende' : 'Synkende'}${td.neste ? ` · ${td.neste.typ} ${hm(td.neste.t)}` : ''}`) : row('Tidevann', 'ikke tilgjengelig her')) +
+      row('Måne', `${m.fase} (${m.lys} %)`) + `</div>`;
   }
   form(c, noCatch, preset = null) {
     if (!preset) this.algoInfo = null;
@@ -144,6 +158,7 @@ export class FangstPanel {
         <label class="fuin">Tid<input name="t" type="datetime-local" value="${localInput(e.caught_at ? new Date(e.caught_at) : new Date())}" required></label>
         <label class="tog"><input type="checkbox" name="no_catch" ${nc ? 'checked' : ''}><span>Fisket uten å få noe</span></label>
         <div class="fa-catch${nc ? ' hidden' : ''}">
+          <label class="tog"><input type="checkbox" name="andres" ${e.andres ? 'checked' : ''}><span>Andres fisk <em class="pmut">(teller ikke i topplisten)</em></span></label>
           <div class="fugrid"><label class="fuin fa-wide">Art<select name="species">${opts}</select></label><label class="fuin">Antall<input name="count" inputmode="numeric" value="${e.count || 1}"></label><label class="fuin">Vekt, kg <em>(totalt)</em><input name="weight_kg" inputmode="decimal" value="${e.weight_kg ?? ''}"></label><label class="fuin">Lengde, cm<input name="length_cm" inputmode="decimal" value="${e.length_cm ?? ''}"></label></div>
         </div>
         <div class="fa-none${nc ? '' : ' hidden'}"><label class="fuin">Hvor lenge du fisket, min<input name="effort_min" inputmode="numeric" value="${e.effort_min ?? ''}"></label></div>
@@ -170,7 +185,12 @@ export class FangstPanel {
     if (f === 'new') { this.cur = null; return this.form(null, false); }
     if (f === 'none') { this.cur = null; return this.form(null, true); }
     if (f === 'konto') { this.view = 'konto'; return this.render(); }
-    if (f === 'open') { this.cur = b.dataset.id; this.view = 'detail'; this.delAsk = false; return this.render(); }
+    if (f === 'open') {
+      this.cur = b.dataset.id; this.view = 'detail'; this.delAsk = false; this.render();
+      const c = this.cloud.list().find((x) => x.client_id === this.cur), id = this.cur;
+      if (c && !c.env) envAt(c.lon, c.lat, c.caught_at).then((env) => { this.cloud.update(id, { env }); if (this.view === 'detail' && this.cur === id) this.render(); }).catch(() => {});
+      return;
+    }
     if (f === 'edit') { const c = this.cloud.list().find((x) => x.client_id === this.cur); return this.form(c); }
     if (f === 'del') { if (!this.delAsk) { this.delAsk = true; return this.render(); } this.cloud.remove(this.cur); this.view = 'list'; return this.render(); }
     if (f === 'show') { const c = this.cloud.list().find((x) => x.client_id === this.cur); if (c) this.api.map.flyTo({ center: [c.lon, c.lat], zoom: Math.max(this.api.map.getZoom(), 14) }); return; }
@@ -193,9 +213,12 @@ export class FangstPanel {
     if (this.pos.depth == null && this.pos.wait) await Promise.race([this.pos.wait, new Promise((r) => setTimeout(r, 4000))]);
     const g = (n) => form[n] && form[n].value, nc = form.no_catch.checked;
     const c = { caught_at: new Date(g('t')).toISOString(), no_catch: nc, species: nc ? null : g('species'), count: nc ? 0 : Math.max(1, Math.round(num(g('count')) || 1)), weight_kg: nc ? null : num(g('weight_kg')), length_cm: nc ? null : num(g('length_cm')), released: false,
-      effort_min: nc ? num(g('effort_min')) : null, gear: g('gear') || null, bait: (g('bait') || '').trim() || null, note: (g('note') || '').trim() || null, lon: this.pos.lon, lat: this.pos.lat, depth_m: this.pos.depth };
+      effort_min: nc ? num(g('effort_min')) : null, gear: g('gear') || null, bait: (g('bait') || '').trim() || null, note: (g('note') || '').trim() || null, lon: this.pos.lon, lat: this.pos.lat, depth_m: this.pos.depth, andres: !nc && !!(form.andres && form.andres.checked) };
     if (this.algoInfo) { c.algo = this.algoInfo; this.algoInfo = null; }
-    if (this.cur) this.cloud.update(this.cur, c); else this.cloud.add(c);
+    const old = this.cur && this.cloud.list().find((x) => x.client_id === this.cur);
+    const sameWhenWhere = old && old.env && old.caught_at === c.caught_at && old.lon === c.lon && old.lat === c.lat;
+    let id; if (this.cur) { if (sameWhenWhere) c.env = old.env; this.cloud.update(this.cur, c); id = this.cur; } else id = this.cloud.add(c).client_id;
+    if (!sameWhenWhere) envAt(c.lon, c.lat, c.caught_at).then((env) => { this.cloud.update(id, { env }); if (this.view === 'detail' && this.cur === id) this.render(); }).catch(() => {});
     this.api.map.getSource('fa-new')?.setData({ type: 'FeatureCollection', features: [] });
     this.view = this.cur ? 'detail' : 'list'; this.render(); this.sync();
   }
