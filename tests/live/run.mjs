@@ -606,6 +606,33 @@ if (want('mydata')) {
   }
 }
 
+// ---------- Mine punkter: lagre rødt punkt med notat (innlogget, simulert økt), trykk for å se/endre/slette ----------
+if (want('punkter')) {
+  for (const [vw, vh, tag] of [[1280, 800, 'pc'], [390, 844, 'mobil']]) {
+    const ctx = await browser.newContext({ viewport: { width: vw, height: vh } }), pg = await ctx.newPage(), errs = [];
+    pg.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));
+    await pg.addInitScript(() => { try { localStorage.setItem('fiskesim.konto', JSON.stringify({ access_token: 'x', refresh_token: 'x', expires_at: 4e9, username: 'testbruker', uid: '00000000-0000-0000-0000-000000000000' })); } catch (e) {} });
+    await pg.goto(BASE + '?sted=60.52,5.27&z=13', { waitUntil: 'load' });
+    await waitFor(pg, () => !!(window.fiskesim && window.fiskesim.app && window.fiskesim.app.punkter), 30000); await pg.waitForTimeout(2500);
+    const r = {}, cx = vw / 2, cy = vh / 2;
+    await pg.mouse.click(cx, cy); await pg.waitForTimeout(2500);
+    r.knapp = await pg.isVisible('.info [data-a="ipt"]');
+    if (r.knapp) { await pg.click('.info [data-a="ipt"]'); await pg.fill('.info .pt-note', 'God lange-plass\nprøv ved fjære'); await pg.click('.info [data-a="psave"]'); await pg.waitForTimeout(800); }
+    r.kort = await pg.evaluate(() => document.querySelector('.info')?.innerText.replace(/\s+/g, ' '));
+    await pg.click('.info [data-a="iclose"]'); await pg.waitForTimeout(1000);
+    await pg.screenshot({ path: join(OUT, `punkter-${tag}.png`) });
+    r.lagret = await pg.evaluate(() => JSON.parse(localStorage.getItem('fiskesim.punkter.testbruker') || '[]').map((p) => p.note));
+    // trykk på nålen (litt over punktet)
+    await pg.mouse.click(cx, cy - 14); await pg.waitForTimeout(800);
+    r.aapnet = await pg.evaluate(() => document.querySelector('.info .pt-txt')?.innerText);
+    await pg.screenshot({ path: join(OUT, `punkter-kort-${tag}.png`) });
+    if (r.aapnet) { await pg.click('.info [data-a="pedit"]'); await pg.fill('.info .pt-note', 'Endret notat'); await pg.click('.info [data-a="psave"]'); await pg.waitForTimeout(400); r.endret = await pg.evaluate(() => document.querySelector('.info .pt-txt')?.innerText);
+      await pg.click('.info [data-a="pdel"]'); await pg.click('.info [data-a="pdel"]'); await pg.waitForTimeout(500); r.etterSletting = await pg.evaluate(() => JSON.parse(localStorage.getItem('fiskesim.punkter.testbruker') || '[]').filter((p) => !p.deleted).length); }
+    r.kartlag = await pg.evaluate(() => !!document.querySelector('.layers input[data-k="punkter"]'));
+    r.errs = errs; log('punkter', tag, JSON.stringify(r)); await ctx.close();
+  }
+}
+
 // ---------- Fangstsymboler i kartet (Kartlag → Mine fangster), trykk for info; admin ser andres ----------
 if (want('fangstkart')) {
   const fake = [{ client_id: 'k1', caught_at: '2026-10-03T08:00:00.000Z', no_catch: false, species: 'sei', count: 4, weight_kg: 6, lon: 5.27, lat: 60.52, depth_m: 40, gear: 'Pilk', dirty: false, andres: true, andres_navn: 'ola' },

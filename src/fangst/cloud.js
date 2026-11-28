@@ -16,7 +16,7 @@ export const badUser = (u) => { const n = String(u).toLowerCase().replace(/[0]/g
 const ls = { get: (k, d) => { try { return JSON.parse(localStorage.getItem(k) || 'null') ?? d; } catch (e) { return d; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* privat modus */ } } };
 
 const rpc = (s, fn, body) => call('/rest/v1/rpc/' + fn, { method: 'POST', token: s.access_token, body });
-async function call(path, { method = 'GET', body, token, prefer } = {}) {
+export async function call(path, { method = 'GET', body, token, prefer } = {}) {
   const h = { apikey: SUPA.key, 'Content-Type': 'application/json' };
   if (token) h.Authorization = 'Bearer ' + token;
   if (prefer) h.Prefer = prefer;

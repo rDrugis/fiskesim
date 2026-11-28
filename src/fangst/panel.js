@@ -16,13 +16,14 @@ const localInput = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.g
 const load = (k, d) => { try { const v = localStorage.getItem('fiskesim.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
 const save = (k, v) => { try { localStorage.setItem('fiskesim.' + k, JSON.stringify(v)); } catch (e) { /* privat modus */ } };
 // kartsymbol: nål med fisk (fangst), strek (ingen fangst); blågrønn for andre brukere (admin)
-function pin(color, fish) {
+export function pin(color, fish) {
   const c = document.createElement('canvas'); c.width = 52; c.height = 66; const g = c.getContext('2d');
   g.beginPath(); g.arc(26, 25, 22, Math.PI * 0.8, Math.PI * 2.2); g.lineTo(26, 63); g.closePath();
   g.fillStyle = color; g.fill(); g.lineWidth = 3; g.strokeStyle = '#0b1820'; g.stroke();
   g.fillStyle = '#fff'; g.strokeStyle = '#fff';
   if (fish) { g.save(); g.translate(26 - 12 * 1.45, 25 - 12 * 1.45); g.scale(1.45, 1.45); g.fill(new Path2D('M3 12c3-4 8-5 12-2l4-3-1 5 1 5-4-3c-4 3-9 2-12-2z')); g.fillStyle = color; g.beginPath(); g.arc(8, 11, 1.1, 0, 7); g.fill(); g.restore(); }
-  else { g.lineWidth = 4; g.lineCap = 'round'; g.beginPath(); g.moveTo(16, 25); g.lineTo(36, 25); g.stroke(); }
+  else if (fish === 'dot') { g.beginPath(); g.arc(26, 25, 7, 0, 7); g.fill(); }
+  else if (fish === false) { g.lineWidth = 4; g.lineCap = 'round'; g.beginPath(); g.moveTo(16, 25); g.lineTo(36, 25); g.stroke(); }
   return g.getImageData(0, 0, 52, 66);
 }
 const num = (v) => { if (v === '' || v == null) return null; const n = +String(v).replace(',', '.'); return n === n ? n : null; };

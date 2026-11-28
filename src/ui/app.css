@@ -435,3 +435,9 @@ a { color: #8fd0ec; }
 .st-per .chip, .fa-tophead .chip { background: transparent; color: var(--text-2); border-color: var(--line-2); }
 .st-per .chip.on, .fa-tophead .chip.on { background: rgba(255, 106, 19, .18); color: var(--text); border-color: var(--buoy); }
 
+
+/* Mine punkter */
+.pt-head { display: flex; align-items: center; gap: 8px; margin: 2px 0 6px; }
+.pt-dot { width: 12px; height: 12px; border-radius: 50%; background: #e0322b; box-shadow: 0 0 0 2px #0b1820; }
+.pt-txt { margin: 0 0 8px; white-space: normal; overflow-wrap: anywhere; }
+.info textarea.pt-note { width: 100%; resize: vertical; }

@@ -9,6 +9,7 @@ import { Drift, ICON_DRIFT } from '../map/drift.js';
 import { Fuel, ICON_FUEL } from '../map/fuel.js';
 import { TidePanel } from '../map/tidepanel.js';
 import { FangstPanel, ICON_FANGST } from '../fangst/panel.js';
+import { Punkter, punktNote } from '../fangst/punkter.js';
 const ICON_TOOLS = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3.5 17.5a1.4 1.4 0 0 0 2 2l5.8-5.8a4 4 0 0 0 5.4-5.4l-2.5 2.5-2-.5-.5-2z"/></svg>';
 import * as ALGO from '../algo/index.js';
 import { PAL, rgb } from '../map/palette.js';
@@ -122,6 +123,8 @@ export class App {
     const gbtn = this.root.querySelector('[data-a="fangst"]');
     this.fangst = new FangstPanel(api, this.root.querySelector('.fangst'), { onMode: (on) => gbtn.setAttribute('aria-pressed', String(on)) });
     this.fangst.onAdmin = () => this.renderLayers && this.renderLayers();
+    this.punkter = new Punkter(api, this.fangst.cloud);
+    { let was = this.punkter.on; this.fangst.cloud.on(() => { if (this.punkter.on !== was) { was = this.punkter.on; this.renderLayers && this.renderLayers(); } }); }
     this.root.querySelector('[data-a="mydata"]').addEventListener('click', () => { this.profile.clear(); this.drift.clear(); if (this.fuel.active) this.fuel.clear(); this.closeInfo(); this.fangst.openStats(); });
     gbtn.addEventListener('click', () => {
       if (this.fangst.active) { this.fangst.clear(); return; }
@@ -137,7 +140,7 @@ export class App {
     this.initSearch();
     this.initLayers();
     if (!this.mobile) this.initCursorDepth(map);
-    api.onClick((ll, e) => { if (this.fangst.click(ll.lng, ll.lat)) return; if (this.fuel.click(ll.lng, ll.lat)) return; if (this.profile.click(ll.lng, ll.lat)) return; if (this.drift.click(ll.lng, ll.lat)) return; if (this.fangst.hit(e)) return; if (e && this.marks.click(e)) return; this.pick(ll.lng, ll.lat); });
+    api.onClick((ll, e) => { if (this.fangst.click(ll.lng, ll.lat)) return; if (this.fuel.click(ll.lng, ll.lat)) return; if (this.profile.click(ll.lng, ll.lat)) return; if (this.drift.click(ll.lng, ll.lat)) return; { const pid = this.punkter.hitId(e); if (pid) return this.showPoint(pid); } if (this.fangst.hit(e)) return; if (e && this.marks.click(e)) return; this.pick(ll.lng, ll.lat); });
     // verktøymenyen: dybdeprofil, drift og drivstoff i én knapp; knappen lyser mens et av dem er i bruk
     const tbtn = this.root.querySelector('[data-a="tools"]'), tmenu = this.root.querySelector('.toolmenu');
     const tmOpen = (v) => { tmenu.classList.toggle('hidden', !v); tbtn.setAttribute('aria-expanded', String(v)); };
@@ -207,6 +210,7 @@ export class App {
         <label class="tog"><input type="checkbox" data-k="marks" ${this.marks.on ? 'checked' : ''}><span>Sjømerker, skjær og grunner</span></label>
         <label class="tog"><input type="checkbox" data-k="lodd" ${this.soundings.on ? 'checked' : ''}><span>Loddskudd (dybdetall)</span></label>
         ${this.api.style === 'bunn' ? `<div class="bleg">${NGU_CLS.map((c) => `<span><i style="background:rgb(${c.c.join(',')})"></i>${c.n[0].toUpperCase() + c.n.slice(1)}</span>`).join('')}<small>Bare der NGU har kartlagt bunnen. Kilde: NGU.</small></div>` : ''}
+        ${this.punkter?.on ? `<label class="tog"><input type="checkbox" data-k="punkter" ${this.punkter.show ? 'checked' : ''}><span>Mine punkter</span></label>` : ''}
         <label class="tog"><input type="checkbox" data-k="fangst" ${this.fangst?.showMap ? 'checked' : ''}><span>Mine fangster</span></label>
         ${this.fangst?.admin ? `<label class="tog"><input type="checkbox" data-k="fangstalle" ${this.fangst.showAll ? 'checked' : ''}><span>Alle brukeres fangster <em class="pmut">(admin)</em></span></label>` : ''}
         <label class="tog"><input type="checkbox" data-k="algo" ${a.on ? 'checked' : ''}><span>Fiskeplasser (algoritme)</span></label>
@@ -244,6 +248,7 @@ export class App {
       if (k === 'marks') this.marks.setOn(e.target.checked);
       if (k === 'lodd') this.soundings.setOn(e.target.checked);
       if (k === 'fangst') this.fangst.setMap(e.target.checked);
+      if (k === 'punkter') this.punkter.setShow(e.target.checked);
       if (k === 'fangstalle') { this.fangst.setAll(e.target.checked); if (e.target.checked && !this.fangst.showMap) { this.fangst.setMap(true); render(); } }
       if (k === 'algo') { this.algo.setOn(e.target.checked); render(); }
       else if (k === 'mon') this.algo.setMonth(e.target.value);
@@ -327,9 +332,45 @@ export class App {
       if (d.lo != null) sub = d.est ? `Sjøkartet sier bare ${n1(d.lo)}–${n1(d.hi)} m her – dybden er anslått` : `Sjøkart ${n1(d.lo)}–${n1(d.hi)} m · anslått mellom kurvene`;
     }
     card.innerHTML = head + `<div class="depthbig num">${big}</div>${sub ? `<p class="sub">${sub}</p>` : ''}${sed ? `<p class="sub">Bunn: ${esc(sed)} <span class="tag">NGU</span></p>` : ''}
-      <div class="row"><button class="btn primary" data-a="i3d">Bølger i 3D her</button></div>`;
+      <div class="row"><button class="btn primary" data-a="i3d">Bølger i 3D her</button>${this.punkter.on ? '<button class="btn" data-a="ipt">Lagre punkt</button>' : ''}</div>`;
     card.querySelector('[data-a="iclose"]').addEventListener('click', () => this.closeInfo());
     card.querySelector('[data-a="i3d"]').addEventListener('click', () => this.open3D(lon, lat));
+    card.querySelector('[data-a="ipt"]')?.addEventListener('click', () => this.pointForm(lon, lat, d && !d.land && d.depth != null ? Math.round(d.depth) : null));
+  }
+
+  // ---------- Mine punkter (røde nåler med notat) ----------
+  pointForm(lon, lat, depth, id = null) {
+    const card = this.root.querySelector('.info'), p = id && this.punkter.get(id);
+    this.pickId = (this.pickId || 0) + 1;
+    card.innerHTML = `<header><span class="num">${fmtLat(lat)} ${fmtLon(lon)}</span><button class="iconbtn sm" data-a="iclose" aria-label="Lukk">✕</button></header>
+      <label class="fuin">Notat<textarea class="pt-note" rows="3" maxlength="500" placeholder="F.eks. «god lange-plass, 90 m»">${esc(p ? p.note : '')}</textarea></label>
+      <div class="row"><button class="btn primary" data-a="psave">${p ? 'Lagre notat' : 'Lagre punkt'}</button><button class="btn" data-a="pcancel">Avbryt</button></div>`;
+    card.classList.remove('hidden');
+    const ta = card.querySelector('.pt-note'); setTimeout(() => ta.focus(), 50);
+    card.querySelector('[data-a="iclose"]').addEventListener('click', () => this.closeInfo());
+    card.querySelector('[data-a="pcancel"]').addEventListener('click', () => (p ? this.showPoint(id) : this.pick(lon, lat)));
+    card.querySelector('[data-a="psave"]').addEventListener('click', () => {
+      const note = ta.value.trim();
+      if (p) { this.punkter.edit(id, note); this.showPoint(id); } else { const n = this.punkter.add(lon, lat, depth, note); this.showPoint(n.client_id); }
+    });
+  }
+  showPoint(id) {
+    const p = this.punkter.get(id); if (!p) return;
+    const card = this.root.querySelector('.info'); this.pickId = (this.pickId || 0) + 1; this.picked = [p.lon, p.lat]; this.api.setMarks(null);
+    this.root.querySelector('.layers').classList.add('hidden');
+    let ask = false;
+    const draw = () => {
+      card.innerHTML = `<header><span class="num">${fmtLat(p.lat)} ${fmtLon(p.lon)}</span><button class="iconbtn sm" data-a="iclose" aria-label="Lukk">✕</button></header>
+        <div class="pt-head"><span class="pt-dot"></span><b>Mitt punkt</b>${p.depth_m != null ? `<span class="pmut num">ca. ${p.depth_m} m</span>` : ''}</div>
+        ${p.note ? `<p class="pt-txt">${punktNote(p)}</p>` : '<p class="pmut">Ingen notat</p>'}
+        ${this.punkter.err ? `<p class="pmut">Ikke lagret på kontoen: ${esc(this.punkter.err)}</p>` : ''}
+        <div class="row"><button class="btn" data-a="pedit">Endre notat</button><button class="btn" data-a="pdel">${ask ? 'Sikker? Slett' : 'Slett'}</button><button class="btn" data-a="p3d">Bølger i 3D</button></div>`;
+      card.querySelector('[data-a="iclose"]').addEventListener('click', () => this.closeInfo());
+      card.querySelector('[data-a="pedit"]').addEventListener('click', () => this.pointForm(p.lon, p.lat, p.depth_m, id));
+      card.querySelector('[data-a="p3d"]').addEventListener('click', () => this.open3D(p.lon, p.lat));
+      card.querySelector('[data-a="pdel"]').addEventListener('click', () => { if (!ask) { ask = true; draw(); return; } this.punkter.remove(id); this.closeInfo(); });
+    };
+    draw(); card.classList.remove('hidden');
   }
 
   about() {
