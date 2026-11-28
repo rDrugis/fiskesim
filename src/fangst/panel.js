@@ -62,7 +62,7 @@ export class FangstPanel {
     if (!m.hasImage('fa-fisk')) { m.addImage('fa-fisk', pin('#ff6a13', true), { pixelRatio: 2 }); m.addImage('fa-ingen', pin('#7f97a3', false), { pixelRatio: 2 }); m.addImage('fa-andre', pin('#1fa3b0', true), { pixelRatio: 2 }); m.addImage('fa-andre0', pin('#5d8c93', false), { pixelRatio: 2 }); }
     if (!m.hasImage('fa-klynge')) m.addImage('fa-klynge', pin('#ff6a13', null), { pixelRatio: 2 });
     // fangster som ligger tett samles i én nål med antall («Sei og 2 til») til du zoomer inn forbi z13
-    if (!m.getSource('fa')) m.addSource('fa', { type: 'geojson', data: this.geo(), cluster: true, clusterRadius: 38, clusterMaxZoom: 13, clusterProperties: { l: [['coalesce', ['accumulated'], ['get', 'l']], ['get', 'l']] } });
+    if (!m.getSource('fa')) m.addSource('fa', { type: 'geojson', data: this.geo(), cluster: true, clusterRadius: 38, clusterMaxZoom: 13, clusterProperties: { l: [['case', ['==', ['accumulated'], 'Ingen fangst'], ['get', 'l'], ['accumulated']], ['get', 'l']] } });
     const font = ['literal', ['Noto Sans Bold']], halo = { 'text-color': '#e6edef', 'text-halo-color': 'rgba(11,24,32,.9)', 'text-halo-width': 1.6 };
     const size = ['interpolate', ['linear'], ['zoom'], 6, 0.65, 12, 0.9, 15, 1];
     if (!m.getLayer('fa-pt')) m.addLayer({ id: 'fa-pt', type: 'symbol', source: 'fa', filter: ['!', ['has', 'point_count']], layout: { 'icon-image': ['case', ['get', 'o'], ['case', ['get', 'n'], 'fa-andre0', 'fa-andre'], ['case', ['get', 'n'], 'fa-ingen', 'fa-fisk']], 'icon-anchor': 'bottom', 'icon-allow-overlap': true, 'icon-ignore-placement': true, 'icon-size': size,
