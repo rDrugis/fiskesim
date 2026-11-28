@@ -21,7 +21,7 @@ export function pin(color, fish) {
   g.beginPath(); g.arc(26, 25, 22, Math.PI * 0.8, Math.PI * 2.2); g.lineTo(26, 63); g.closePath();
   g.fillStyle = color; g.fill(); g.lineWidth = 3; g.strokeStyle = '#0b1820'; g.stroke();
   g.fillStyle = '#fff'; g.strokeStyle = '#fff';
-  if (fish) { g.save(); g.translate(26 - 12 * 1.45, 25 - 12 * 1.45); g.scale(1.45, 1.45); g.fill(new Path2D('M3 12c3-4 8-5 12-2l4-3-1 5 1 5-4-3c-4 3-9 2-12-2z')); g.fillStyle = color; g.beginPath(); g.arc(8, 11, 1.1, 0, 7); g.fill(); g.restore(); }
+  if (fish === true) { g.save(); g.translate(26 - 12 * 1.45, 25 - 12 * 1.45); g.scale(1.45, 1.45); g.fill(new Path2D('M3 12c3-4 8-5 12-2l4-3-1 5 1 5-4-3c-4 3-9 2-12-2z')); g.fillStyle = color; g.beginPath(); g.arc(8, 11, 1.1, 0, 7); g.fill(); g.restore(); }
   else if (fish === 'dot') { g.beginPath(); g.arc(26, 25, 7, 0, 7); g.fill(); }
   else if (fish === false) { g.lineWidth = 4; g.lineCap = 'round'; g.beginPath(); g.moveTo(16, 25); g.lineTo(36, 25); g.stroke(); }
   return g.getImageData(0, 0, 52, 66);
